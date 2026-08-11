@@ -249,7 +249,7 @@ flowchart TD
             </tr>
             <tr>
                 <td><a href="002/sign-permit.js"><code>sign-permit.js</code></a></td>
-                <td>Node.js 离线签名脚本，使用 ethers.js v6 生成 EIP-712 签名，输出可直接粘贴到 Remix 调用 <code>permit()</code></td>
+                <td>Node.js 离线签名脚本，使用 ethers.js v6 生成 EIP-712 签名，输出可直接粘贴到 Remix 调用 <code>permit()</code>。<br/>用法：<code>node sign-permit.js &lt;nonce&gt; &lt;spender&gt; &lt;value&gt; &lt;tokenName&gt;</code></td>
             </tr>
             <tr>
                 <td><a href="002/.env"><code>.env</code></a></td>
@@ -351,21 +351,20 @@ sequenceDiagram
                 <td><strong>3</strong></td>
                 <td>—</td>
                 <td>
-                    将两个合约地址填入 <a href="002/.env"><code>.env</code></a>：<br/>
+                    将合约地址和账户信息填入 <a href="002/.env"><code>.env</code></a>：<br/>
                     <code>TOKEN_ADDRESS=步骤1的合约地址</code><br/>
-                    <code>SPENDER_ADDRESS=步骤2的Vault地址</code><br/>
                     <code>OWNER_ADDRESS=A的地址</code><br/>
-                    <code>PRIVATE_KEY=A的私钥</code><br/>
-                    <code>VALUE=100000000000000000000</code>（即 100 MTK）
+                    <code>PRIVATE_KEY=A的私钥</code>
                 </td>
             </tr>
             <tr>
                 <td><strong>4</strong></td>
                 <td>—</td>
                 <td>
-                    终端执行：<code>npm install ethers dotenv && node 002/sign-permit.js</code><br/>
-                    脚本输出 7 个参数：<code>owner</code>, <code>value</code>, <code>deadline</code>, <code>v</code>, <code>r</code>, <code>s</code><br/>
-                    <strong>这步是在模拟 A 线下签名，免费、不消耗 Gas。</strong>
+                    终端执行：<code>npm install ethers dotenv && node 002/sign-permit.js 0 步骤2的Vault地址 100 MyToken</code><br/>
+                    脚本输出 7 个参数：<code>owner</code>, <code>spender</code>, <code>value</code>, <code>deadline</code>, <code>v</code>, <code>r</code>, <code>s</code><br/>
+                    <strong>这步是在模拟 A 线下签名，免费、不消耗 Gas。</strong><br/>
+                    <code>nonce</code>、<code>spender</code>、<code>value</code>（代币枚数）、<code>tokenName</code> 均为必传参数</td>
                 </td>
             </tr>
             <tr>

@@ -6,15 +6,15 @@
  *
  * 用途：
  *   配合 SimpleTokenWithPermit.sol + SimpleVault.sol 使用，
- *   模拟"账户 A 线下签名"这一步。输出 (from, value, deadline, v, r, s)
- *   复制到 Remix，由账户 B 调用 SimpleVault.payWithPermit()。
+ *   模拟"账户 A 线下签名"这一步。输出 (owner, spender, value, deadline, v, r, s)
+ *   复制到 Remix，由账户 B 调用 SimpleTokenWithPermit.permit() 或 SimpleVault.payWithPermit()。
  *
  * 使用步骤：
  *   1. 在 Remix 用账户 A 部署 SimpleTokenWithPermit.sol 和 SimpleVault.sol
- *   2. 将合约地址填入 .env：TOKEN_ADDRESS, SPENDER_ADDRESS(=Vault地址)
- *   3. 将 A 的私钥和地址填入 .env：PRIVATE_KEY, OWNER_ADDRESS
- *   4. 运行：node sign-permit.js
- *   5. 复制输出的参数，切换到账户 B，调用 Vault.payWithPermit()
+ *   2. 将合约地址和 A 的账户信息填入 .env
+ *   3. 运行：node sign-permit.js <nonce> <spender> <value> <tokenName>
+ *      nonce 从 token.nonces(A地址) 查询；spender 为授权对象地址；
+ *      value 为授权代币数量（如 100 表示 100 枚）；tokenName 与部署时 _name 一致
  *
  * 依赖安装：
  *   npm install ethers dotenv
@@ -27,9 +27,39 @@ require("dotenv").config();
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
 const TOKEN_ADDRESS = process.env.TOKEN_ADDRESS;
 const OWNER_ADDRESS = process.env.OWNER_ADDRESS;
-const SPENDER_ADDRESS = process.env.SPENDER_ADDRESS;
-const VALUE = BigInt(process.env.VALUE);
 const DEADLINE = parseInt(process.env.DEADLINE);
+
+// ============ 从命令行参数解析（全部必传） ============
+const args = process.argv.slice(2);
+if (args.length < 4) {
+  console.error("❌ 缺少必传参数");
+  console.error("用法: node sign-permit.js <nonce> <spender> <value> <tokenName>");
+  console.error("示例: node sign-permit.js 0 0xAbC... 100 MyToken");
+  console.error("  nonce     从 token.nonces(A地址) 查询");
+  console.error("  spender   授权对象地址");
+  console.error("  value     授权数量（代币枚数，脚本自动 ×10^18）");
+  console.error("  tokenName 代币名称（必须与部署时 _name 一致）");
+  process.exit(1);
+}
+
+const NONCE = parseInt(args[0]);
+if (isNaN(NONCE) || NONCE < 0) {
+  console.error(`❌ nonce 必须是大于等于 0 的整数，收到: ${args[0]}`);
+  process.exit(1);
+}
+const SPENDER_ADDRESS = args[1];
+if (!/^0x[0-9a-fA-F]{40}$/.test(SPENDER_ADDRESS)) {
+  console.error(`❌ spender 不是有效的以太坊地址，收到: ${SPENDER_ADDRESS}`);
+  process.exit(1);
+}
+const TOKEN_NAME = args[3];
+
+const VALUE_AMOUNT = parseFloat(args[2]);
+if (isNaN(VALUE_AMOUNT) || VALUE_AMOUNT <= 0) {
+  console.error(`❌ value 必须是大于 0 的数字（代币枚数），收到: ${args[2]}`);
+  process.exit(1);
+}
+const VALUE = BigInt(Math.floor(VALUE_AMOUNT * 10 ** 18));
 
 // ============ 验证配置 ============
 function validateConfig() {
@@ -37,8 +67,6 @@ function validateConfig() {
   if (!PRIVATE_KEY) errors.push("缺少 PRIVATE_KEY");
   if (!TOKEN_ADDRESS) errors.push("缺少 TOKEN_ADDRESS");
   if (!OWNER_ADDRESS) errors.push("缺少 OWNER_ADDRESS");
-  if (!SPENDER_ADDRESS) errors.push("缺少 SPENDER_ADDRESS");
-  if (!VALUE || VALUE <= 0n) errors.push("缺少或无效的 VALUE");
   if (!DEADLINE || DEADLINE <= Math.floor(Date.now() / 1000)) {
     errors.push("缺少或已过期的 DEADLINE（请设置为未来的时间戳）");
   }
@@ -65,7 +93,7 @@ async function main() {
   console.log(`📄 合约地址:   ${TOKEN_ADDRESS}`);
   console.log(`👤 Owner:      ${OWNER_ADDRESS}`);
   console.log(`🎯 Spender:    ${SPENDER_ADDRESS}`);
-  console.log(`💰 Value:      ${ethers.formatUnits(VALUE.toString(), 18)} 代币 (${VALUE} wei)`);
+  console.log(`💰 Value:      ${VALUE_AMOUNT} 代币 (${ethers.formatUnits(VALUE.toString(), 18)} 共 ${VALUE} wei)`);
   console.log(`⏰ Deadline:   ${DEADLINE} (${new Date(DEADLINE * 1000).toISOString()})`);
 
   // 验证签名者是否等于 owner
@@ -78,7 +106,6 @@ async function main() {
 
   // 2. 定义 EIP-712 Domain
   const CHAIN_ID = parseInt(process.env.CHAIN_ID || "31337");
-  const TOKEN_NAME = process.env.TOKEN_NAME || "SimpleTokenWithPermit";
   const domain = {
     name: TOKEN_NAME,                 // 必须与合约部署时的 _name 参数完全一致！
     version: "1",
@@ -100,19 +127,17 @@ async function main() {
   };
 
   // 4. 构造待签名的 Permit 数据
-  //    nonce 需要从链上查询，这里假设为 0（首次签名）
-  //    如果不是首次，请修改 nonce 值
-  const nonce = 0;
+  //    nonce 从命令行参数传入（必传）
 
   const message = {
     owner: OWNER_ADDRESS,
     spender: SPENDER_ADDRESS,
     value: VALUE.toString(),    // BigInt -> string for ethers
-    nonce: nonce,
+    nonce: NONCE,
     deadline: DEADLINE,
   };
 
-  console.log(`🔢 Nonce:       ${nonce}\n`);
+  console.log(`🔢 Nonce:       ${NONCE}\n`);
 
   // 5. 使用 EIP-712 签名
   console.log("📝 正在生成 EIP-712 签名...\n");
@@ -130,10 +155,11 @@ async function main() {
   console.log(`   ${signature}\n`);
 
   console.log("========================================");
-  console.log("  📋 复制以下参数到 Remix 调用 payWithPermit()");
+  console.log("  📋 复制以下参数到 Remix 调用 permit()");
   console.log("========================================\n");
 
-  console.log(`from:     ${OWNER_ADDRESS}   ← A 的地址`);
+  console.log(`owner:    ${OWNER_ADDRESS}   ← A 的地址`);
+  console.log(`spender:  ${SPENDER_ADDRESS}   ← 授权对象`);
   console.log(`value:    ${VALUE.toString()}`);
   console.log(`deadline: ${DEADLINE}\n`);
 
@@ -145,10 +171,10 @@ async function main() {
   console.log("  Remix 操作步骤（切换到账户 B！）：");
   console.log("========================================");
   console.log("  1. Remix Account 下拉切换到账户 B");
-  console.log("  2. 在 SimpleVault 合约中找到 payWithPermit 函数");
-  console.log("  3. 依次填入：from, value, deadline, v, r, s");
+  console.log("  2. 在 SimpleTokenWithPermit 合约中找到 permit 函数");
+  console.log("  3. 依次填入：owner, spender, value, deadline, v, r, s");
   console.log("  4. 点击 transact（账户 B 支付 Gas）");
-  console.log("  5. 调用 token.balanceOf(B地址) 验证 B 收到代币\n");
+  console.log("  5. 调用 token.allowance(A, spender) 验证授权是否生效\n");
 }
 
 main().catch((err) => {

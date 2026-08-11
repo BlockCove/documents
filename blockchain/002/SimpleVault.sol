@@ -11,7 +11,7 @@ pragma solidity ^0.8.20;
  *
  *   一笔交易完成：验签 → 授权 → 划转，B 支付 Gas，B 收到代币。
  *
- * 注意：SPENDER_ADDRESS（.env 中配置）就是此合约部署后的地址。
+ * 注意：调用 sign-permit.js 时 spender 参数就是此合约部署后的地址。
  */
 
 interface IPermitToken {
