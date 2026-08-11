@@ -15,6 +15,9 @@
         * {
             box-sizing: border-box;
         }
+        html {
+            scroll-behavior: smooth;
+        }
         body {
             font-family: "Microsoft YaHei", system-ui, sans-serif;
             max-width: 1200px;
@@ -90,7 +93,23 @@
     <div class="container">
         <h1>EIP-2612 Permit 技术调研报告</h1>
 
-        <h2>一、什么是 EIP-2612 Permit</h2>
+        <div class="tip" style="margin-bottom:24px;">
+            <strong>📑 目录</strong>
+            <ol style="margin-bottom:0;">
+                <li><a href="#s1">什么是 EIP-2612 Permit</a></li>
+                <li><a href="#s2">传统 ERC20 approve 的痛点</a></li>
+                <li><a href="#s3">Permit 完整工作流程</a></li>
+                <li><a href="#s4">传统 Approve VS Permit 横向对比</a></li>
+                <li><a href="#s5">解决的核心问题总结</a></li>
+                <li><a href="#s6">安全风险与注意事项</a></li>
+                <li><a href="#s7">典型业务场景</a></li>
+                <li><a href="#s8">EIP-2612 vs Permit2</a></li>
+                <li><a href="#s9">实现代码与测试脚本</a> — 包含签名 value 锁定机制、合约调用链路、Remix 测试流程</li>
+                <li><a href="#s10">结论</a></li>
+            </ol>
+        </div>
+
+        <h2 id="s1">一、什么是 EIP-2612 Permit</h2>
         <p>
             <strong>EIP-2612（ERC20 Permit）</strong> 是以太坊改进提案，为标准 ERC20 代币增加<strong>链下签名授权标准</strong>。
             它基于 <strong>EIP-712 结构化可读签名</strong>，允许代币所有者<strong>不用发送链上 approve 交易</strong>，
@@ -98,7 +117,7 @@
         </p>
         <p>最早由 MakerDAO 的 DAI 代币率先实现 <code>permit</code> 模式，后标准化为 EIP-2612；目前 DAI、USDC（v2+）、UNI、LINK、AAVE 等主流代币已广泛支持。</p>
 
-        <h2>二、传统 ERC20 approve 原生机制存在什么痛点</h2>
+        <h2 id="s2">二、传统 ERC20 approve 原生机制存在什么痛点</h2>
         <div class="mermaid">
 flowchart LR
     A[用户Alice] -->|"TX1：approve(DEX合约,金额)<br>用户支付Gas"| B[ERC20合约<br>更新allowance]
@@ -112,7 +131,7 @@ flowchart LR
             <li><strong>两次Gas消耗</strong>，两笔交易均需成功才能完成操作，任一交易失败（如网络拥堵、Gas不足）将导致整个流程中断，需重新开始。</li>
         </ol>
 
-        <h2>三、EIP-2612 Permit 完整工作流程</h2>
+        <h2 id="s3">三、EIP-2612 Permit 完整工作流程</h2>
         <div class="mermaid">
 flowchart TD
     S[Alice 用户钱包] -->|1.链下签名 EIP-712消息（免费、无Gas）<br>生成v,r,s签名| SIG[Permit签名凭证]
@@ -138,7 +157,7 @@ flowchart TD
     function DOMAIN_SEPARATOR() external view returns (bytes32);
 }</code></pre>
 
-        <h2>四、传统 Approve VS Permit 横向对比</h2>
+        <h2 id="s4">四、传统 Approve VS Permit 横向对比</h2>
         <table>
             <tr>
                 <th>对比维度</th>
@@ -177,7 +196,7 @@ flowchart TD
             </tr>
         </table>
 
-        <h2>五、EIP-2612 解决的核心问题总结</h2>
+        <h2 id="s5">五、EIP-2612 解决的核心问题总结</h2>
         <div class="tip">
             <ul>
                 <li>✅ <strong>消除“两次交易”痛点</strong>：授权和业务操作合并为一笔链上交易，大幅优化DeFi用户体验；</li>
@@ -188,7 +207,7 @@ flowchart TD
             </ul>
         </div>
 
-        <h2>六、安全风险与注意事项（重点）</h2>
+        <h2 id="s6">六、安全风险与注意事项（重点）</h2>
         <div class="warning">
             <h3>⚠️ 主要风险点</h3>
             <ol>
@@ -200,7 +219,7 @@ flowchart TD
             </ol>
         </div>
 
-        <h2>七、典型业务场景</h2>
+        <h2 id="s7">七、典型业务场景</h2>
         <ul>
             <li>DEX一键Swap：签名Permit，单笔交易完成授权+兑换；</li>
             <li>Lending借贷平台存款：Permit + deposit合并调用；</li>
@@ -208,13 +227,174 @@ flowchart TD
             <li>钱包/支付应用：降低新用户准入门槛，不用预先购买ETH；</li>
         </ul>
 
-        <h2>八、延伸：EIP-2612 vs Permit2 简要区分</h2>
+        <h2 id="s8">八、延伸：EIP-2612 vs Permit2 简要区分</h2>
         <p>
             EIP-2612：<strong>代币合约原生内置</strong>，仅针对当前代币生效；
             Permit2（Uniswap）：独立通用中介合约，单一签名支持多币种、批量授权，不依赖代币是否实现EIP2612。
         </p>
 
-        <h2>九、结论</h2>
+        <h2 id="s9">九、实现代码与测试脚本</h2>
+
+        <h3>9.1 文件清单</h3>
+        <p>本目录 <code>002/</code> 下提供了 EIP-2612 Permit 的完整实现，可直接用于 Remix 部署和本地签名测试：</p>
+        <table>
+            <tr><th>文件</th><th>说明</th></tr>
+            <tr>
+                <td><a href="002/SimpleTokenWithPermit.sol"><code>SimpleTokenWithPermit.sol</code></a></td>
+                <td>ERC20 代币合约，内置 EIP-2612 Permit 支持。包含完整 EIP-712 域分隔符计算、nonce 防重放、签名恢复验证逻辑</td>
+            </tr>
+            <tr>
+                <td><a href="002/SimpleVault.sol"><code>SimpleVault.sol</code></a></td>
+                <td>Spender 金库合约，作为 Permit 授权的接收方。部署后将地址填入 <code>.env</code> 的 <code>SPENDER_ADDRESS</code></td>
+            </tr>
+            <tr>
+                <td><a href="002/sign-permit.js"><code>sign-permit.js</code></a></td>
+                <td>Node.js 离线签名脚本，使用 ethers.js v6 生成 EIP-712 签名，输出可直接粘贴到 Remix 调用 <code>permit()</code></td>
+            </tr>
+            <tr>
+                <td><a href="002/.env"><code>.env</code></a></td>
+                <td>环境变量配置（私钥、合约地址、授权参数），脚本通过 dotenv 加载</td>
+            </tr>
+        </table>
+
+        <h3>9.2 签名数据结构：value 是签名的一部分</h3>
+        <p>
+            Permit 签名的 EIP-712 类型定义如下——<strong>owner、spender、value、nonce、deadline 全部被包含在签名原文中</strong>：
+        </p>
+        <pre><code>// EIP-712 Permit 类型（摘自 SimpleTokenWithPermit.sol）
+bytes32 private constant PERMIT_TYPEHASH = keccak256(
+    "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
+);</code></pre>
+        <p>签名生成流程：</p>
+        <div class="mermaid">
+flowchart LR
+    A["原始数据<br>owner, spender, value<br>nonce, deadline"] -->|"1. abi.encode + keccak256"| B["structHash<br>（结构化哈希）"]
+    B -->|"2. 拼接 \x19\x01<br>+ DOMAIN_SEPARATOR<br>+ structHash"| C["digest<br>（最终签名摘要）"]
+    C -->|"3. ECDSA.sign(digest, privateKey)"| D["v, r, s<br>（签名结果）"]
+        </div>
+        <p>这意味着：</p>
+        <ul>
+            <li><strong>value 被 ECDSA 签名锁定</strong>——owner 线下签名时指定授权多少代币，签名就绑定多少。任何人篡改 value（比如把 100 改成 10000），签名有效载荷的哈希就变了，<code>ecrecover</code> 恢复出的地址对不上 owner，验证直接失败</li>
+            <li><strong>owner 可以精确控制授权额度</strong>——签多少就授权多少，不会像传统 <code>approve(spender, type(uint256).max)</code> 那样把"无限授权"的决定权交给合约</li>
+            <li><strong>spender 也是签名的一部分</strong>——签名锁定了授权对象，签名给 Vault 的凭证不能拿去给另一个恶意合约用</li>
+            <li><strong>deadline 也是签名的一部分</strong>——签名过期后即使被截获也无法上链执行</li>
+        </ul>
+        <div class="warning">
+            <strong>⚠️ 安全推论：</strong>正因 value 被锁定在签名中，调用 <code>depositWithPermit()</code> 时传入的 value 必须与签名时的 value 一致。如果传更大的值，permit 设的额度不够，transferFrom 会失败；如果传更小的值，则是浪费了一次 nonce 签了一个比实际需求小的额度。所以签名脚本的 <code>.env</code> 中 VALUE 与最终链上参数要严格一致。
+        </div>
+
+        <h3>9.3 合约调用链路（以 SimpleVault 为例）</h3>
+        <p>核心场景：<strong>账户 A 持有大量 MTK，A 线下签名授权 Vault 从自己账户划转 100 MTK，将签名数据给 B。B 调用 Vault，B 支付 Gas，B 收到 100 MTK。</strong></p>
+        <div class="mermaid">
+sequenceDiagram
+    participant A as 👤 账户A（持币者）
+    participant Script as 📜 sign-permit.js
+    participant B as 👤 账户B（收款人）
+    participant Vault as 🏦 SimpleVault
+    participant Token as 🪙 SimpleTokenWithPermit
+
+    Note over A,Script: ① 链下签名（免费、无Gas）
+    A->>Script: 配置 .env：PRIVATE_KEY=A的私钥,<br/>SPENDER_ADDRESS=Vault地址, VALUE=100
+    Script->>Script: signTypedData(Permit:{owner:A, spender:Vault,<br/>value:100, nonce, deadline}) → v,r,s
+    Script-->>A: A 拿到签名 (v, r, s)
+
+    Note over A,B: ② A 把签名数据发给 B（链下传输）
+    A->>B: 发送：from=A地址, value=100,<br/>deadline, v, r, s
+
+    Note over B,Token: ③ B 提交一笔链上交易（B 支付 Gas，B 收到代币）
+    B->>Vault: payWithPermit(A地址, 100, deadline, v, r, s)
+    Vault->>Token: permit(A, Vault, 100, deadline, v, r, s)
+    Token->>Token: ecrecover(digest, v, r, s) == A ✅
+    Token->>Token: allowance[A][Vault] = 100<br/>nonces[A]++
+    Vault->>Token: transferFrom(A, B, 100)
+    Token->>Token: balance[A] -= 100<br/>balance[B] += 100
+    Vault->>Vault: emit Payment(A, B, 100)
+        </div>
+        <p>关键点：</p>
+        <ul>
+            <li><strong>A 不需要持有 ETH</strong>——签名是链下的，不消耗 Gas</li>
+            <li><strong>B 支付 Gas，B 收到代币</strong>——这就是"元交易"支付场景</li>
+            <li><strong>一笔交易</strong>完成验签 + 授权 + 划转，不需要 A 预先 approve</li>
+            <li><strong>签名绑定了 A、Vault、100 MTK</strong>——B 不能改金额、不能改收款人（msg.sender 即 B）</li>
+        </ul>
+
+        <h3>9.4 完整测试流程（Remix 分步操作）</h3>
+        <div class="tip">
+            <strong>🛠️ 前置准备</strong>
+            <p>在 Remix 中准备两个账户：</p>
+            <ul>
+                <li><strong>账户 A</strong>：代币持有者（部署合约、持有初始供应量、执行线下签名）</li>
+                <li><strong>账户 B</strong>：收款人（调用 Vault 提交签名、支付 Gas、收到代币）</li>
+            </ul>
+            <p>Remix 默认提供约 15 个测试账户，切换到 <code>Account</code> 下拉菜单即可切换。</p>
+        </div>
+        <table>
+            <tr><th>步骤</th><th>操作账户</th><th>操作内容</th></tr>
+            <tr>
+                <td><strong>1</strong></td>
+                <td>🟢 A</td>
+                <td>
+                    在 Remix 编译并部署 <a href="002/SimpleTokenWithPermit.sol"><code>SimpleTokenWithPermit.sol</code></a><br/>
+                    构造参数：<code>"MyToken", "MTK", 1000000</code><br/>
+                    部署后 A 获得 <strong>1,000,000 MTK</strong>（含 18 位小数）
+                </td>
+            </tr>
+            <tr>
+                <td><strong>2</strong></td>
+                <td>🟢 A</td>
+                <td>
+                    在 Remix 编译并部署 <a href="002/SimpleVault.sol"><code>SimpleVault.sol</code></a><br/>
+                    构造函数传入步骤 1 的代币合约地址
+                </td>
+            </tr>
+            <tr>
+                <td><strong>3</strong></td>
+                <td>—</td>
+                <td>
+                    将两个合约地址填入 <a href="002/.env"><code>.env</code></a>：<br/>
+                    <code>TOKEN_ADDRESS=步骤1的合约地址</code><br/>
+                    <code>SPENDER_ADDRESS=步骤2的Vault地址</code><br/>
+                    <code>OWNER_ADDRESS=A的地址</code><br/>
+                    <code>PRIVATE_KEY=A的私钥</code><br/>
+                    <code>VALUE=100000000000000000000</code>（即 100 MTK）
+                </td>
+            </tr>
+            <tr>
+                <td><strong>4</strong></td>
+                <td>—</td>
+                <td>
+                    终端执行：<code>npm install ethers dotenv && node 002/sign-permit.js</code><br/>
+                    脚本输出 7 个参数：<code>owner</code>, <code>value</code>, <code>deadline</code>, <code>v</code>, <code>r</code>, <code>s</code><br/>
+                    <strong>这步是在模拟 A 线下签名，免费、不消耗 Gas。</strong>
+                </td>
+            </tr>
+            <tr>
+                <td><strong>5</strong></td>
+                <td>🔵 B</td>
+                <td>
+                    <strong>切换到账户 B</strong>（Remix Account 下拉切换）<br/>
+                    在 SimpleVault 合约中调用 <code>payWithPermit</code>：<br/>
+                    <code>from</code> = 步骤 4 输出的 <code>owner</code>（即 A 的地址）<br/>
+                    <code>value</code> = 步骤 4 输出的 <code>value</code><br/>
+                    <code>deadline</code> = 步骤 4 输出的 <code>deadline</code><br/>
+                    <code>v, r, s</code> = 步骤 4 输出的签名参数
+                </td>
+            </tr>
+            <tr>
+                <td><strong>6</strong></td>
+                <td>🔵 B</td>
+                <td>
+                    <strong>验证结果：</strong><br/>
+                    调用 <code>token.balanceOf(B地址)</code> → 应显示 <strong>100 MTK</strong><br/>
+                    调用 <code>token.balanceOf(A地址)</code> → 应减少 100 MTK
+                </td>
+            </tr>
+        </table>
+        <div class="warning" style="margin-top:16px;">
+            <strong>⚠️ 注意：</strong>步骤 5 中 <code>from</code> 和 <code>value</code> 必须与步骤 4 签名时的值完全一致，否则验签失败。因为 <code>value</code> 被锁定在 EIP-712 签名中（参见 <a href="#s9">9.2 节</a>），改一个字签名就失效。
+        </div>
+
+        <h2 id="s10">十、结论</h2>
         <p>
             EIP-2612 Permit 没有修改 ERC20 转账逻辑，只是新增一套<strong>授权通道</strong>。它从根本上解决传统approve“双交易、强制用户付Gas”的巨大UX短板，
             是DeFi生态中Gasless交互、元交易基础设施最重要标准之一；目前是主流新项目ERC20代币标配扩展。
