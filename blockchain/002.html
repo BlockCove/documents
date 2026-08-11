@@ -101,9 +101,9 @@
         <h2>二、传统 ERC20 approve 原生机制存在什么痛点</h2>
         <div class="mermaid">
 flowchart LR
-    A[用户Alice] -->|TX1：approve(DEX合约,金额)<br>用户支付Gas| B[ERC20合约<br>更新allowance]
+    A[用户Alice] -->|"TX1：approve(DEX合约,金额)<br>用户支付Gas"| B[ERC20合约<br>更新allowance]
     B -->|等待区块确认| C
-    C[用户Alice] -->|TX2：调用DEX.swap()<br>DEX内部执行transferFrom| D[代币划转完成]
+    C[用户Alice] -->|"TX2：调用DEX.swap()<br>DEX内部执行transferFrom"| D[代币划转完成]
         </div>
         <ol>
             <li><strong>必须两笔独立链上交易</strong>：先 approve，再执行swap/deposit；交互步骤长、等待确认时间久。</li>
@@ -117,8 +117,8 @@ flowchart LR
 flowchart TD
     S[Alice 用户钱包] -->|1.链下签名 EIP-712消息（免费、无Gas）<br>生成v,r,s签名| SIG[Permit签名凭证]
     SIG -->|2.签名传给DApp/中继Relayer| RELAYER[提交者（任意账户）]
-    RELAYER -->|3.一笔链上交易：<br>token.permit(owner,spender,value,deadline,v,r,s)| TOKEN[支持EIP2612的ERC20合约]
-    TOKEN -->|验签通过 → 设置allowance[Alice][spender]=value<br>nonce自增防重放| ALLOW[授权生效]
+    RELAYER -->|"3.一笔链上交易：<br>token.permit(owner,spender,value,deadline,v,r,s)"| TOKEN[支持EIP2612的ERC20合约]
+    TOKEN -->|"验签通过 → 设置allowance[Alice][spender]=value<br>nonce自增防重放"| ALLOW[授权生效]
     ALLOW -->|4.同一交易内继续调用业务合约<br>业务合约执行transferFrom| FIN[代币划转完成]
         </div>
 
