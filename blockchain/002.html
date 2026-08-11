@@ -240,19 +240,19 @@ flowchart TD
         <table>
             <tr><th>文件</th><th>说明</th></tr>
             <tr>
-                <td><a href="002/SimpleTokenWithPermit.sol"><code>SimpleTokenWithPermit.sol</code></a></td>
+                <td><a href="https://github.com/BlockCove/documents/blob/main/blockchain/002/SimpleTokenWithPermit.sol"><code>SimpleTokenWithPermit.sol</code></a></td>
                 <td>ERC20 代币合约，内置 EIP-2612 Permit 支持。包含完整 EIP-712 域分隔符计算、nonce 防重放、签名恢复验证逻辑</td>
             </tr>
             <tr>
-                <td><a href="002/SimpleVault.sol"><code>SimpleVault.sol</code></a></td>
+                <td><a href="https://github.com/BlockCove/documents/blob/main/blockchain/002/SimpleVault.sol"><code>SimpleVault.sol</code></a></td>
                 <td>Spender 金库合约，作为 Permit 授权的接收方。部署后将地址填入 <code>.env</code> 的 <code>SPENDER_ADDRESS</code></td>
             </tr>
             <tr>
-                <td><a href="002/sign-permit.js"><code>sign-permit.js</code></a></td>
+                <td><a href="https://github.com/BlockCove/documents/blob/main/blockchain/002/sign-permit.js"><code>sign-permit.js</code></a></td>
                 <td>Node.js 离线签名脚本，使用 ethers.js v6 生成 EIP-712 签名，输出可直接粘贴到 Remix 调用 <code>permit()</code>。<br/>用法：<code>node sign-permit.js &lt;nonce&gt; &lt;spender&gt; &lt;value&gt; &lt;tokenName&gt;</code></td>
             </tr>
             <tr>
-                <td><a href="002/.env"><code>.env</code></a></td>
+                <td><a href="https://github.com/BlockCove/documents/blob/main/blockchain/002/.env.example"><code>.env.example</code></a></td>
                 <td>环境变量配置（私钥、合约地址、授权参数），脚本通过 dotenv 加载</td>
             </tr>
         </table>
@@ -334,7 +334,7 @@ sequenceDiagram
                 <td><strong>1</strong></td>
                 <td>🟢 A</td>
                 <td>
-                    在 Remix 编译并部署 <a href="002/SimpleTokenWithPermit.sol"><code>SimpleTokenWithPermit.sol</code></a><br/>
+                    在 Remix 编译并部署 <a href="https://github.com/BlockCove/documents/blob/main/blockchain/002/SimpleTokenWithPermit.sol"><code>SimpleTokenWithPermit.sol</code></a><br/>
                     构造参数：<code>"MyToken", "MTK", 1000000</code><br/>
                     部署后 A 获得 <strong>1,000,000 MTK</strong>（含 18 位小数）
                 </td>
@@ -343,7 +343,7 @@ sequenceDiagram
                 <td><strong>2</strong></td>
                 <td>🟢 A</td>
                 <td>
-                    在 Remix 编译并部署 <a href="002/SimpleVault.sol"><code>SimpleVault.sol</code></a><br/>
+                    在 Remix 编译并部署 <a href="https://github.com/BlockCove/documents/blob/main/blockchain/002/SimpleVault.sol"><code>SimpleVault.sol</code></a><br/>
                     构造函数传入步骤 1 的代币合约地址
                 </td>
             </tr>
@@ -351,7 +351,7 @@ sequenceDiagram
                 <td><strong>3</strong></td>
                 <td>—</td>
                 <td>
-                    将合约地址和账户信息填入 <a href="002/.env"><code>.env</code></a>：<br/>
+                    将合约地址和账户信息填入 <a href="https://github.com/BlockCove/documents/blob/main/blockchain/002/.env.example"><code>.env</code></a>：<br/>
                     <code>TOKEN_ADDRESS=步骤1的合约地址</code><br/>
                     <code>OWNER_ADDRESS=A的地址</code><br/>
                     <code>PRIVATE_KEY=A的私钥</code>
