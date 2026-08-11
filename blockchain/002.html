@@ -96,20 +96,20 @@
             它基于 <strong>EIP-712 结构化可读签名</strong>，允许代币所有者<strong>不用发送链上 approve 交易</strong>，
             通过钱包离线签名生成授权凭证；任意账户（用户、中继Relayer、合约）可将签名上链调用 <code>permit()</code> 设置授权额度 allowance。
         </p>
-        <p>最早由 DAI 实现，后标准化为 EIP-2612；目前 DAI、USDC、WBTC 等主流代币广泛支持。</p>
+        <p>最早由 MakerDAO 的 DAI 代币率先实现 <code>permit</code> 模式，后标准化为 EIP-2612；目前 DAI、USDC（v2+）、UNI、LINK、AAVE 等主流代币已广泛支持。</p>
 
         <h2>二、传统 ERC20 approve 原生机制存在什么痛点</h2>
         <div class="mermaid">
 flowchart LR
     A[用户Alice] -->|"TX1：approve(DEX合约,金额)<br>用户支付Gas"| B[ERC20合约<br>更新allowance]
-    B -->|等待区块确认| C
-    C[用户Alice] -->|"TX2：调用DEX.swap()<br>DEX内部执行transferFrom"| D[代币划转完成]
+    B -->|等待区块确认| A
+    A -->|"TX2：调用DEX.swap()<br>DEX内部执行transferFrom"| D[代币划转完成]
         </div>
         <ol>
             <li><strong>必须两笔独立链上交易</strong>：先 approve，再执行swap/deposit；交互步骤长、等待确认时间久。</li>
             <li><strong>授权交易必须由所有者EOA发起</strong>：approve依赖 <code>msg.sender</code>，无法由第三方代发。</li>
             <li><strong>用户必须持有原生Gas代币（ETH）</strong> 才能发起授权；新用户只有代币、没有ETH时完全无法授权。</li>
-            <li><strong>两次Gas消耗</strong>，交易失败风险翻倍（第一笔交易拥堵失败，则第二笔无法执行）。</li>
+            <li><strong>两次Gas消耗</strong>，两笔交易均需成功才能完成操作，任一交易失败（如网络拥堵、Gas不足）将导致整个流程中断，需重新开始。</li>
         </ol>
 
         <h2>三、EIP-2612 Permit 完整工作流程</h2>
@@ -118,7 +118,7 @@ flowchart TD
     S[Alice 用户钱包] -->|1.链下签名 EIP-712消息（免费、无Gas）<br>生成v,r,s签名| SIG[Permit签名凭证]
     SIG -->|2.签名传给DApp/中继Relayer| RELAYER[提交者（任意账户）]
     RELAYER -->|"3.一笔链上交易：<br>token.permit(owner,spender,value,deadline,v,r,s)"| TOKEN[支持EIP2612的ERC20合约]
-    TOKEN -->|"验签通过 → 设置allowance[Alice][spender]=value<br>nonce自增防重放"| ALLOW[授权生效]
+    TOKEN -->|"验签通过 → 设置 allowance(Alice→spender)=value<br>nonce 自增防重放"| ALLOW[授权生效]
     ALLOW -->|4.同一交易内继续调用业务合约<br>业务合约执行transferFrom| FIN[代币划转完成]
         </div>
 
@@ -194,7 +194,7 @@ flowchart TD
             <ol>
                 <li><strong>钓鱼签名攻击</strong>：Permit只是签名，不会弹出Gas交易弹窗，用户警惕性更低；恶意DApp诱导签署大额授权签名后，可立刻调用transferFrom盗币；</li>
                 <li><strong>签名有效期风险</strong>：若deadline设置极大（永久有效），签名一旦泄露可长期被攻击者提交；建议有效期控制在几十分钟~几小时；</li>
-                <li><strong>抢先提交（Front-run）</strong>：签名广播到内存池后，任何人都可以抢先调用permit消耗nonce；</li>
+                <li><strong>签名泄露与被抢先提交</strong>：签名在链下传递（如通过 HTTP API 发给 Relayer）或出现在待处理交易中时，任何获取到该签名的第三方可立即调用 <code>permit()</code> 抢先消耗 nonce。若原始交易包含后续业务操作（如 swap），将因 nonce 已失效而回滚；若签名授权了恶意地址为 spender，则可能被盗币；</li>
                 <li><strong>不要混用 permit + 无限授权（type(uint256).max）</strong>，一旦签名泄露损失巨大；</li>
                 <li>仅<strong>支持实现EIP-2612的代币合约</strong>，普通ERC20不具备permit函数。</li>
             </ol>
