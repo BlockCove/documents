@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Uniswap V3 深度解析：从 AMM 原理到实战兑换</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #e2e8f0;
+        }
+        .log-block {
+            background: #0b111e;
+            border: 1px solid #2dd4bf;
+            font-family: "Consolas", monospace;
+        }
+        .keyword-info { color:#93c5fd; }
+        .keyword-calc { color:#fcd34d; }
+        .keyword-swap { color:#6ee7b7; }
+        .num-highlight { color:#f87171; font-weight:bold; }
+        .formula-block {
+            background: #1e293b;
+            border-left: 3px solid #2dd4bf;
+        }
+        .highlight-box {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border: 1px solid #334155;
+        }
+        .katex { color: #e2e8f0; font-size: 1.05em; }
+    </style>
+</head>
+<body class="max-w-5xl mx-auto px-6 py-10">
+
+<!-- ==================== 标题 ==================== -->
+<header>
+    <h1 class="text-3xl font-bold text-teal-400 mb-2">📘 Uniswap V3 深度解析</h1>
+    <p class="text-slate-400 text-lg">从 AMM 基本原理 → V2 的局限 → V3 集中流动性 → 数学公式 → 实战案例</p>
+    <hr class="border-slate-700 my-6">
+</header>
+
+<!-- ==================== 目录 ==================== -->
+<nav class="bg-slate-800/50 p-5 rounded-md mb-10">
+    <h2 class="text-lg font-semibold text-teal-300 mb-3">📑 目录</h2>
+    <ol class="space-y-1 text-slate-300 text-sm">
+        <li><a href="#s1" class="text-sky-400 hover:underline">一、什么是 Uniswap？—— AMM 自动做市商</a></li>
+        <li><a href="#s2" class="text-sky-400 hover:underline">二、为什么需要 V3？—— V2 的局限与 V3 的突破</a></li>
+        <li><a href="#s3" class="text-sky-400 hover:underline">三、V3 核心机制：Tick 与集中流动性</a></li>
+        <li><a href="#s4" class="text-sky-400 hover:underline">四、数学公式详解</a></li>
+        <li><a href="#s5" class="text-sky-400 hover:underline">五、实战案例：1000 USDC → WETH 全流程解析</a></li>
+        <li><a href="#s6" class="text-sky-400 hover:underline">六、手续费机制</a></li>
+        <li><a href="#s7" class="text-sky-400 hover:underline">七、总结</a></li>
+    </ol>
+</nav>
+
+<!-- ==================== 一、什么是 Uniswap ==================== -->
+<section id="s1" class="mt-10">
+    <h2 class="text-2xl font-bold text-teal-300 mb-4">一、什么是 Uniswap？—— AMM 自动做市商</h2>
+
+    <div class="bg-slate-800 p-5 rounded-md space-y-4 text-slate-300">
+        <h3 class="text-lg text-sky-300">1.1 传统交易所 vs DEX</h3>
+        <div class="grid md:grid-cols-2 gap-4">
+            <div class="bg-slate-700/50 p-4 rounded">
+                <h4 class="text-amber-300 font-medium mb-2">🏦 传统订单簿交易所（如 Binance、NYSE）</h4>
+                <ul class="space-y-1 text-sm">
+                    <li>• 买卖双方各自挂单，撮合引擎匹配成交</li>
+                    <li>• 需要做市商提供流动性，否则深度差、滑点大</li>
+                    <li>• 依赖中心化服务器，存在单点故障和审查风险</li>
+                </ul>
+            </div>
+            <div class="bg-slate-700/50 p-4 rounded">
+                <h4 class="text-emerald-300 font-medium mb-2">🔗 DEX / AMM（如 Uniswap）</h4>
+                <ul class="space-y-1 text-sm">
+                    <li>• 没有订单簿，没有撮合引擎</li>
+                    <li>• 流动性由数学公式自动定价，任何人可成为 LP</li>
+                    <li>• 完全链上运行，去中心化、无需许可、透明可审计</li>
+                </ul>
+            </div>
+        </div>
+
+        <h3 class="text-lg text-sky-300 mt-4">1.2 AMM 的核心思想</h3>
+        <p><span class="text-teal-300 font-semibold">AMM（Automated Market Maker，自动做市商）</span> 用数学公式替代传统订单簿，实现机器自动报价。</p>
+        <div class="formula-block p-4 rounded-md my-3">
+            <p class="text-sm text-slate-400 mb-1">核心思路：</p>
+            <p>🧠 <span class="text-white">交易池 = 一个装满两种代币的"水缸"</span></p>
+            <p class="mt-1">• 用户往池子里存入代币 A，按公式计算出能拿走多少代币 B</p>
+            <p>• 池子里的代币比例决定价格，交易行为改变比例 → 改变价格</p>
+            <p>• 任何人都可以存入两种代币成为 <span class="text-teal-300">LP（流动性提供者）</span>，赚取交易手续费</p>
+        </div>
+
+        <h3 class="text-lg text-sky-300 mt-4">1.3 Uniswap 发展历程</h3>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm border-collapse">
+                <thead>
+                    <tr class="border-b border-slate-600">
+                        <th class="text-left py-2 px-3 text-teal-300">版本</th>
+                        <th class="text-left py-2 px-3 text-teal-300">发布时间</th>
+                        <th class="text-left py-2 px-3 text-teal-300">核心公式</th>
+                        <th class="text-left py-2 px-3 text-teal-300">特点</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="border-b border-slate-700/50">
+                        <td class="py-2 px-3 text-white font-medium">V1</td>
+                        <td class="py-2 px-3">2018.11</td>
+                        <td class="py-2 px-3 font-mono text-amber-300">x · y = k</td>
+                        <td class="py-2 px-3">仅支持 ETH ↔ ERC20，功能最简单</td>
+                    </tr>
+                    <tr class="border-b border-slate-700/50">
+                        <td class="py-2 px-3 text-white font-medium">V2</td>
+                        <td class="py-2 px-3">2020.05</td>
+                        <td class="py-2 px-3 font-mono text-amber-300">x · y = k</td>
+                        <td class="py-2 px-3">支持任意 ERC20 ↔ ERC20，引入闪电贷、预言机</td>
+                    </tr>
+                    <tr>
+                        <td class="py-2 px-3 text-white font-medium">V3</td>
+                        <td class="py-2 px-3">2021.05</td>
+                        <td class="py-2 px-3 font-mono text-amber-300">集中流动性</td>
+                        <td class="py-2 px-3">LP 可自定义价格区间，资本效率最高提升 4000 倍</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<!-- ==================== 二、为什么需要 V3 ==================== -->
+<section id="s2" class="mt-10">
+    <h2 class="text-2xl font-bold text-teal-300 mb-4">二、为什么需要 V3？—— V2 的局限与 V3 的突破</h2>
+
+    <div class="bg-slate-800 p-5 rounded-md space-y-4 text-slate-300">
+        <h3 class="text-lg text-sky-300">2.1 V2 的恒定乘积公式</h3>
+        <p>Uniswap V2 的核心是 <span class="text-amber-300 font-semibold">恒定乘积公式</span>：</p>
+        <div class="formula-block p-4 rounded-md my-3 text-center">
+            <p class="text-lg">$$x \cdot y = k$$</p>
+            <p class="text-sm text-slate-400 mt-2">\(x\) = 池中 token0 数量，\(y\) = 池中 token1 数量，\(k\) = 常数</p>
+        </div>
+        <p>这意味着：</p>
+        <ul class="space-y-1">
+            <li>• <span class="text-teal-300">价格由比例决定</span>：\(P = \frac{y}{x}\)（1 个 token0 值多少 token1）</li>
+            <li>• <span class="text-teal-300">交易改变价格</span>：买入 token1 → 池中 token1 减少、token0 增加 → P 下降（token1 变贵，token0 变便宜）</li>
+            <li>• <span class="text-teal-300">曲线永不归零</span>：无论交易量多大，池子永远不会被掏空（只会越来越贵）</li>
+        </ul>
+
+        <div class="highlight-box p-4 rounded-md">
+            <p class="text-amber-300 font-medium mb-2">📐 直观理解恒定乘积曲线</p>
+            <p class="text-sm">在 \(x \cdot y = k\) 曲线上，价格 = 切线斜率的绝对值。当 x 很小（token0 稀缺），y 很大（token1 泛滥），P = y/x 极高——这意味着 <b>越稀缺的代币越贵</b>，符合经济学直觉。</p>
+        </div>
+
+        <h3 class="text-lg text-sky-300 mt-5">2.2 V2 的根本问题：资本效率极低</h3>
+        <div class="formula-block p-4 rounded-md my-3">
+            <p class="text-red-300 font-semibold mb-2">⚠️ V2 的致命缺陷</p>
+            <p>V2 的流动性覆盖 <b>0 到 ∞ 全部价格区间</b>。但大部分价格区间永远不会被触及。</p>
+            <p class="mt-2">例如 USDC/DAI 稳定币对，价格永远在 0.99~1.01 之间波动，V2 的流动性却散落在 0 到 ∞，<b>99% 以上的资金在闲置</b>，从未参与交易，也不产生手续费收入。</p>
+        </div>
+
+        <h3 class="text-lg text-sky-300 mt-5">2.3 V3 的解决方案：集中流动性</h3>
+        <p>V3 的核心创新：<span class="text-teal-300 font-semibold">LP 可以自定义提供流动性的价格区间</span>。</p>
+        <div class="grid md:grid-cols-2 gap-4 mt-3">
+            <div class="bg-slate-700/50 p-4 rounded">
+                <h4 class="text-amber-300 font-medium mb-2">V2：全局流动性</h4>
+                <p class="text-sm">流动性 L 覆盖全部价格，大部分闲置</p>
+                <p class="text-sm mt-1">资金利用率 ≈ 0%~10%</p>
+            </div>
+            <div class="bg-slate-700/50 p-4 rounded">
+                <h4 class="text-emerald-300 font-medium mb-2">V3：集中流动性</h4>
+                <p class="text-sm">LP 自选区间 [P<sub>low</sub>, P<sub>high</sub>]，资金集中在交易活跃的价格附近</p>
+                <p class="text-sm mt-1">同样的资金 → 区间内流动性深度更高 → 资本效率提升 <b>最高 4000 倍</b></p>
+            </div>
+        </div>
+
+        <div class="highlight-box p-4 rounded-md mt-3">
+            <p class="text-teal-300 font-medium mb-2">🎯 类比理解</p>
+            <p class="text-sm">V2 像把一桶水倒在整个足球场上——大部分区域是干的；V3 像把同一桶水集中倒在球门区——深度大大增加。同样的资金，在更窄的价格区间内提供更高的交易深度。</p>
+        </div>
+    </div>
+</section>
+
+<!-- ==================== 三、V3 核心机制：Tick 与集中流动性 ==================== -->
+<section id="s3" class="mt-10">
+    <h2 class="text-2xl font-bold text-teal-300 mb-4">三、V3 核心机制：Tick 与集中流动性</h2>
+
+    <div class="bg-slate-800 p-5 rounded-md space-y-4 text-slate-300">
+        <h3 class="text-lg text-sky-300">3.1 Tick：价格的离散化刻度</h3>
+        <p>V3 将连续的价格空间切分为离散的刻度——<span class="text-teal-300 font-semibold">Tick</span>。每条 Tick 对应一个精确的价格：</p>
+        <div class="formula-block p-4 rounded-md my-3 text-center">
+            <p class="text-lg">$$P(i) = 1.0001^i$$</p>
+            <p class="text-sm text-slate-400 mt-2">\(i\) = tick 索引，是一个整数；\(P\) = token0 相对于 token1 的价格</p>
+        </div>
+
+        <div class="highlight-box p-4 rounded-md">
+            <p class="text-amber-300 font-medium mb-2">🔢 为什么选择 1.0001？</p>
+            <ul class="text-sm space-y-1">
+                <li>• 每个 tick 价格相差 <b>0.01%（1 bps）</b>——足够精细</li>
+                <li>• \(1.0001^{6932} \approx 2\)：每 +6932 tick，价格翻倍</li>
+                <li>• \(1.0001^{-6932} \approx 0.5\)：每 -6932 tick，价格减半</li>
+                <li>• 这样的设计确保任意两个 tick 之间的价格差异精确可控</li>
+            </ul>
+        </div>
+
+        <h3 class="text-lg text-sky-300 mt-5">3.2 Tick Spacing（步长）—— 为什么需要它？</h3>
+
+        <div class="bg-slate-700/50 p-4 rounded mb-4 text-sm space-y-2">
+            <h4 class="text-amber-300 font-medium">要解决什么问题？</h4>
+            <p>理论上每个 tick（0.01% 价格间隔）都可以作为 LP 仓位边界。但如果允许在<b>任意 tick</b> 上设边界：</p>
+            <ul class="space-y-0.5">
+                <li>• 流动性碎片化：L 散落在几十万个 tick 上，swap 时每跨一个 tick 都要消耗 GAS 更新状态</li>
+                <li>• 大额 swap 可能跨越成千上万个 tick → GAS 直接爆掉</li>
+            </ul>
+            <p class="mt-2"><b>Tick Spacing 的解决方案</b>：LP 仓位边界只能设在 Spacing 的整数倍上。这样 tick 被"合并"成更大的步长，swap 跨一次跳过一个 Spacing 的距离，<b>大幅减少跨 tick 次数 → 降低 GAS</b>。</p>
+        </div>
+
+        <div class="bg-slate-700/50 p-4 rounded mb-4 text-sm space-y-2">
+            <h4 class="text-amber-300 font-medium">为什么不同费率用不同 Spacing？</h4>
+            <p>这是一个 <b>精度 vs GAS 的权衡</b>：</p>
+            <ul class="space-y-0.5">
+                <li>• <b>低费率池（0.01%、0.05%）</b>：交易量大、价格稳定，LP 需要紧贴市价做市 → 小 Spacing，允许更精确的区间设置</li>
+                <li>• <b>高费率池（1%）</b>：交易量小、波动大，swap 不会频繁发生 → 大 Spacing，牺牲精度换 GAS 节省</li>
+            </ul>
+            <p class="mt-1">举例：若没有 Spacing 限制，一场大额 swap 在 USDC/ETH 池中可能跨过上万个 tick，每次跨 tick 写存储成本约 5000 gas，总额轻易超过区块 gas limit。</p>
+        </div>
+
+        <p>不同手续费层级的池子，LP 仓位边界的 tick 必须是 Spacing 的整数倍：</p>
+        <div class="overflow-x-auto mt-2">
+            <table class="w-full text-sm border-collapse">
+                <thead>
+                    <tr class="border-b border-slate-600">
+                        <th class="text-left py-2 px-3 text-teal-300">手续费层级</th>
+                        <th class="text-left py-2 px-3 text-teal-300">Tick Spacing</th>
+                        <th class="text-left py-2 px-3 text-teal-300">可设置的 tick 示例</th>
+                        <th class="text-left py-2 px-3 text-teal-300">适用场景</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="border-b border-slate-700/50">
+                        <td class="py-2 px-3 font-mono">0.01%（1 bps）</td>
+                        <td class="py-2 px-3 font-mono">1</td>
+                        <td class="py-2 px-3 font-mono text-xs">..., -10, -9, -8, ...</td>
+                        <td class="py-2 px-3">稳定币对（如 USDC/DAI），价格波动极小</td>
+                    </tr>
+                    <tr class="border-b border-slate-700/50">
+                        <td class="py-2 px-3 font-mono text-amber-300">0.05%（5 bps）</td>
+                        <td class="py-2 px-3 font-mono text-amber-300">10</td>
+                        <td class="py-2 px-3 font-mono text-xs text-amber-300">..., 202900, 202910, 202920, ...</td>
+                        <td class="py-2 px-3">主流交易对（如 USDC/ETH），波动温和</td>
+                    </tr>
+                    <tr class="border-b border-slate-700/50">
+                        <td class="py-2 px-3 font-mono">0.3%（30 bps）</td>
+                        <td class="py-2 px-3 font-mono">60</td>
+                        <td class="py-2 px-3 font-mono text-xs">..., 202860, 202920, 202980, ...</td>
+                        <td class="py-2 px-3">普通交易对</td>
+                    </tr>
+                    <tr>
+                        <td class="py-2 px-3 font-mono">1%（100 bps）</td>
+                        <td class="py-2 px-3 font-mono">200</td>
+                        <td class="py-2 px-3 font-mono text-xs">..., 202800, 203000, 203200, ...</td>
+                        <td class="py-2 px-3">高波动 / 长尾代币</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="text-xs text-slate-500 mt-1">* 本案例使用 0.05% 费率池，Spacing=10，所以 tick 边界只能是 ..., 202900, 202910, 202920, ... 这也是为什么案例中区间以 10 为步长。</p>
+
+        <h3 class="text-lg text-sky-300 mt-5">3.3 区间流动性的运行规则</h3>
+        <div class="formula-block p-4 rounded-md my-3">
+            <p class="text-teal-300 font-semibold mb-2">核心规则：</p>
+            <ol class="space-y-2 text-sm">
+                <li><b>1.</b> 池子被 Tick 切分成一段段独立的价格区间，<b>每个区间拥有独立的流动性 L</b></li>
+                <li><b>2.</b> 只有当前市场 Tick 落在 LP 设置的区间内时，该 LP 的资金才参与交易、赚取手续费</li>
+                <li><b>3.</b> 价格走出区间后，LP 仓位变为<b>单边资产</b>（全是 token0 或全是 token1），不再参与 Swap</li>
+                <li><b>4.</b> Swap 过程中价格触碰 Tick 边界 → 触发 <b>跨 Tick（Cross Tick）</b>，切换当前生效的流动性 L</li>
+                <li><b>5.</b> 同一区间内的所有 LP 仓位共享流动性 L，按比例分配手续费</li>
+            </ol>
+        </div>
+
+        <div class="highlight-box p-4 rounded-md mt-3 text-sm space-y-3">
+            <h4 class="text-amber-300 font-medium">🔍 规则③深入：单边资产是怎么"变"出来的？—— 不是设变量，是数学的自然结果</h4>
+            <p>很多人的直觉是"价格走出区间后，合约把一边的代币数量设成 0"。<b>完全不是这样。</b>单边是区间内 swap 过程自然消耗完的——跟 V2 永远耗不尽一个道理，但 V3 的"虚拟准备金"让耗尽发生在有限价格点。</p>
+
+            <div>
+                <h5 class="text-teal-300 font-medium text-xs mb-1">用 4.2 节的公式代入边界价格就清楚了：</h5>
+                <div class="grid md:grid-cols-2 gap-3 mt-2">
+                    <div class="bg-slate-700/50 p-3 rounded">
+                        <p class="text-red-300 font-medium text-xs mb-1">价格跌到下界 P = P_a（token1 全耗尽→全是 token0）</p>
+                        <p class="text-xs">代入 y_real 公式：</p>
+                        <p class="text-center text-xs mt-0.5">\(y_{\text{real}} = L(\sqrt{P_a} - \sqrt{P_a}) = 0\)</p>
+                        <p class="text-xs mt-1">而 x_real 仍有剩余：</p>
+                        <p class="text-center text-xs mt-0.5">\(x_{\text{real}} = L(1/\sqrt{P_a} - 1/\sqrt{P_b}) > 0\)</p>
+                        <p class="text-xs mt-1 text-slate-400">→ 仓位 token1 归零，只剩 token0，不参与后续 swap</p>
+                    </div>
+                    <div class="bg-slate-700/50 p-3 rounded">
+                        <p class="text-green-300 font-medium text-xs mb-1">价格涨到上界 P = P_b（token0 全耗尽→全是 token1）</p>
+                        <p class="text-xs">代入 x_real 公式：</p>
+                        <p class="text-center text-xs mt-0.5">\(x_{\text{real}} = L(1/\sqrt{P_b} - 1/\sqrt{P_b}) = 0\)</p>
+                        <p class="text-xs mt-1">而 y_real 仍有剩余：</p>
+                        <p class="text-center text-xs mt-0.5">\(y_{\text{real}} = L(\sqrt{P_b} - \sqrt{P_a}) > 0\)</p>
+                        <p class="text-xs mt-1 text-slate-400">→ 仓位 token0 归零，只剩 token1，不参与后续 swap</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="border-l-4 border-teal-400 pl-3">
+                <p class="text-xs"><b>核心逻辑</b>：虚拟准备金 x_virtual 和 y_virtual 把恒定乘积曲线"平移"了——</p>
+                <p class="text-xs mt-1">• V2 曲线两端渐近 x=0 和 y=0，<b>永远碰不到</b>（价格需到 0 或 ∞）</p>
+                <p class="text-xs">• V3 曲线两端在 P_a 和 P_b 处精确触达 x=0 或 y=0——<b>这是虚拟准备金平移导致的效果</b></p>
+                <p class="text-xs mt-1">所以"单边"不是合约检测价格后把某边清零，而是在 swap 过程中，价格推到 P_a 或 P_b 的那一刻，<b>那一端的代币恰好被全部换出去了</b>。</p>
+            </div>
+        </div>
+
+        <div class="highlight-box p-4 rounded-md mt-3 text-sm space-y-3">
+            <h4 class="text-amber-300 font-medium">💰 规则⑤深入：手续费如何分配？—— 跨多个 Spacing 的仓位也能准确计算</h4>
+
+            <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                    <h5 class="text-teal-300 font-medium text-xs mb-1">LP 仓位可以跨多个区间</h5>
+                    <p class="text-xs">比如一个 LP 仓位设在 [Tick 100, Tick 200]（Spacing=10，覆盖 10 个区间），他的 <b>同一个 L</b> 同时贡献给这 10 个区间的每一个。就像往一条河的不同段各倒了一桶等量的水。</p>
+                </div>
+                <div>
+                    <h5 class="text-teal-300 font-medium text-xs mb-1">手续费按区间独立累积</h5>
+                    <p class="text-xs">每个 tick 区间维护自己的 <code>feeGrowth</code>（每单位 L 累积的手续费）。swap 发生在哪个区间，手续费就记在哪个区间上。</p>
+                </div>
+            </div>
+
+            <div>
+                <h5 class="text-teal-300 font-medium text-xs mb-1">LP 能赚多少？—— 所在区间的费用按比例加总</h5>
+                <p class="text-xs">LP 在它覆盖的每个区间内按 L 比例分手续费，加总即为总收益。合约用 "fee growth inside − 入场时的 fee growth 快照" 来计算，<b>不遍历区间，O(1) 搞定</b>。</p>
+            </div>
+
+            <div class="border-l-4 border-teal-400 pl-3">
+                <p class="text-xs"><b>举例</b>：Alice 仓位 [Tick 0, Tick 20]，L=100；Bob 仓位 [Tick 10, Tick 30]，L=50。</p>
+                <p class="text-xs mt-1">区间 [10, 20] 内 L_total = 150（两人重叠），该区间产生了 15 USDC 手续费：</p>
+                <p class="text-xs mt-0.5">• Alice 拿走：15 × 100/150 = <b>10 USDC</b> &nbsp;&nbsp;|&nbsp;&nbsp; Bob 拿走：15 × 50/150 = <b>5 USDC</b></p>
+                <p class="text-xs mt-1">区间 [0, 10] 内只有 Alice（L=100），手续费全归她；区间 [20, 30] 内只有 Bob（L=50），手续费全归他。</p>
+            </div>
+        </div>
+
+        <h3 class="text-lg text-sky-300 mt-5">3.4 流动性净变化：liquidityNet 与已初始化 Tick</h3>
+        <p>每个 Tick 上记录了一个 <span class="text-teal-300">liquidityNet</span> 值：当价格从左向右跨越一个 Tick 时，流动性增加/减少 liquidityNet。这允许 swap 过程中高效地累加/减去流动性，而无需遍历所有 LP 仓位。</p>
+        <div class="highlight-box p-4 rounded-md mt-3">
+            <p class="text-amber-300 font-medium mb-2">💡 关键设计</p>
+            <p class="text-sm">V3 只维护 <b>已初始化</b> 的 Tick（有 LP 在其上设置了仓位边界）。swap 循环时，价格在已初始化的 Tick 之间"跳跃"，跳过大量未初始化的 Tick，极大节省 GAS。</p>
+        </div>
+
+        <h3 class="text-lg text-sky-300 mt-5">3.5 L 到底是什么？—— 流动性的本质与变化规律</h3>
+        <div class="bg-slate-700/50 p-4 rounded space-y-3 text-sm">
+            <div>
+                <h4 class="text-amber-300 font-medium mb-1">① L 的定义</h4>
+                <p>V2 中：\(L = \sqrt{x \cdot y} = \sqrt{k}\)。L 是恒定乘积曲线的几何参数——L 越大，曲线越"鼓"，相同交易量的滑点越小。</p>
+                <p class="mt-1">V3 中：<b>L 含义完全一致</b>，只是用虚拟准备金替代真实准备金：</p>
+                <p class="text-center mt-1">$$L = \sqrt{(x_{\text{real}} + x_{\text{virtual}}) \cdot (y_{\text{real}} + y_{\text{virtual}})}$$</p>
+                <p class="mt-1">所以 <b>L 就是流动性本身</b>，单位是 \(\sqrt{\text{token0} \cdot \text{token1}}\)。同一区间内 L 越大 = 深度越好 = 滑点越低。</p>
+            </div>
+
+            <div>
+                <h4 class="text-amber-300 font-medium mb-1">② Swap 过程中 L 变不变？—— <b>不变！</b></h4>
+                <p>在同一个 Tick 区间内 swap，只改变准备金在 x 和 y 之间的分配，<b>L 保持恒定</b>。</p>
+                <p class="mt-1">类比：V2 的 swap 沿着 \(x \cdot y = L^2\) 曲线移动，L 不变；V3 区间的 swap 沿着 \((x_{\text{real}}+x_{\text{virtual}})(y_{\text{real}}+y_{\text{virtual}}) = L^2\) 移动，<b>L 同样不变</b>。这就是为什么 4.3 节的 swap 公式中 L 是常数。</p>
+            </div>
+
+            <div>
+                <h4 class="text-amber-300 font-medium mb-1">③ 跨 Tick 时 L 如何变化？—— 由 liquidityNet 决定</h4>
+                <p>L 只在价格<b>跨越 Tick 边界</b>时改变。每次跨 Tick，合约读取该 Tick 上记录的 <code>liquidityNet</code>：</p>
+                <div class="formula-block p-3 rounded-md my-2">
+                    <p class="text-center">$$L_{\text{new}} = L_{\text{old}} + \text{liquidityNet}$$</p>
+                    <p class="text-xs text-slate-400 mt-1">注：这是从左→右跨 Tick 的情况。若从右→左（如 USDC 买入 ETH），liquidityNet 符号取反。</p>
+                </div>
+                <p><code>liquidityNet</code> 是怎么来的？每个 LP 开设仓位时，会在区间两端的 Tick 上累加/减去自己的 L：</p>
+                <ul class="space-y-0.5 mt-1">
+                    <li>• 在 <b>tickLower</b>（下界）：<code>liquidityNet += L_position</code>——从左→右进入区间，L 应增加</li>
+                    <li>• 在 <b>tickUpper</b>（上界）：<code>liquidityNet -= L_position</code>——从左→右离开区间，L 应减少</li>
+                </ul>
+                <div class="border-l-4 border-amber-400 pl-3 mt-2">
+                    <p class="text-xs"><b>⚠️ 注意方向</b>：以上约定是"从左→右"（tick 增大）。若价格<b>从右→左</b>移动（如本案例 USDC 买入 ETH，tick 减小），合约会把 liquidityNet 的符号<b>取反</b>：</p>
+                    <p class="text-center text-xs mt-1">\(L_{\text{new}} = L_{\text{old}} - \text{liquidityNet}\) （从右→左时）</p>
+                    <p class="text-xs mt-1">这样设计的好处：同一个 liquidityNet 值可以同时服务于两个方向的 swap，只需多一次符号判断。</p>
+                </div>
+
+                <div class="formula-block p-3 rounded-md mt-2">
+                    <p class="text-teal-300 font-medium text-xs mb-2">💡 具体例子——一看就懂</p>
+                    <p class="text-xs">假设只考虑三个 tick 位置，有两个 LP：</p>
+                    <ul class="text-xs space-y-0.5 mt-1">
+                        <li>• <b>Alice</b>：仓位 [Tick 0, Tick 20]，L = <b>100</b></li>
+                        <li>• <b>Bob</b>：仓位 [Tick 10, Tick 30]，L = <b>50</b></li>
+                    </ul>
+                    <p class="text-xs mt-2">创建仓位时，在 tick 边界上写入 liquidityNet：</p>
+                    <table class="w-full text-xs border-collapse mt-1">
+                        <thead><tr class="border-b border-slate-600">
+                            <th class="text-left py-1 px-2">Tick</th><th class="text-left py-1 px-2">谁设的</th><th class="text-left py-1 px-2">liquidityNet</th><th class="text-left py-1 px-2">含义</th>
+                        </tr></thead>
+                        <tbody>
+                            <tr class="border-b border-slate-700/50"><td class="py-1 px-2 font-mono">0</td><td class="py-1 px-2">Alice 下界</td><td class="py-1 px-2 font-mono text-teal-300">+100</td><td class="py-1 px-2">Alice 从这里进入</td></tr>
+                            <tr class="border-b border-slate-700/50"><td class="py-1 px-2 font-mono">10</td><td class="py-1 px-2">Bob 下界</td><td class="py-1 px-2 font-mono text-teal-300">+50</td><td class="py-1 px-2">Bob 从这里进入</td></tr>
+                            <tr class="border-b border-slate-700/50"><td class="py-1 px-2 font-mono">20</td><td class="py-1 px-2">Alice 上界</td><td class="py-1 px-2 font-mono text-red-400">−100</td><td class="py-1 px-2">Alice 从这里退出</td></tr>
+                            <tr><td class="py-1 px-2 font-mono">30</td><td class="py-1 px-2">Bob 上界</td><td class="py-1 px-2 font-mono text-red-400">−50</td><td class="py-1 px-2">Bob 从这里退出</td></tr>
+                        </tbody>
+                    </table>
+                    <p class="text-xs mt-2"><b>价格从左→右移动时</b>（L_new = L_old + liquidityNet）：</p>
+                    <table class="w-full text-xs border-collapse mt-1">
+                        <thead><tr class="border-b border-slate-600">
+                            <th class="text-left py-1 px-2">价格区间</th><th class="text-left py-1 px-2">跨过的 Tick</th><th class="text-left py-1 px-2">L 的计算</th><th class="text-left py-1 px-2">活跃 LP</th>
+                        </tr></thead>
+                        <tbody>
+                            <tr class="border-b border-slate-700/50"><td class="py-1 px-2">0~10</td><td class="py-1 px-2">—</td><td class="py-1 px-2 font-mono">0 + 100 = <b>100</b></td><td class="py-1 px-2">Alice</td></tr>
+                            <tr class="border-b border-slate-700/50"><td class="py-1 px-2">10~20</td><td class="py-1 px-2">Tick 10</td><td class="py-1 px-2 font-mono">100 + 50 = <b>150</b></td><td class="py-1 px-2">Alice + Bob</td></tr>
+                            <tr class="border-b border-slate-700/50"><td class="py-1 px-2">20~30</td><td class="py-1 px-2">Tick 20</td><td class="py-1 px-2 font-mono">150 + (−100) = <b>50</b></td><td class="py-1 px-2">Bob</td></tr>
+                            <tr><td class="py-1 px-2">&gt;30</td><td class="py-1 px-2">Tick 30</td><td class="py-1 px-2 font-mono">50 + (−50) = <b>0</b></td><td class="py-1 px-2">无人</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p class="text-xs mt-2"><b>价格从右→左移动时</b>（L_new = L_old − liquidityNet，符号取反）：</p>
+                    <table class="w-full text-xs border-collapse mt-1">
+                        <thead><tr class="border-b border-slate-600">
+                            <th class="text-left py-1 px-2">价格区间</th><th class="text-left py-1 px-2">跨过的 Tick</th><th class="text-left py-1 px-2">L 的计算（−liquidityNet）</th><th class="text-left py-1 px-2">活跃 LP</th>
+                        </tr></thead>
+                        <tbody>
+                            <tr class="border-b border-slate-700/50"><td class="py-1 px-2">&gt;30</td><td class="py-1 px-2">—</td><td class="py-1 px-2 font-mono">0 − 0 = <b>0</b></td><td class="py-1 px-2">无人</td></tr>
+                            <tr class="border-b border-slate-700/50"><td class="py-1 px-2">20~30</td><td class="py-1 px-2">Tick 30</td><td class="py-1 px-2 font-mono">0 − (−50) = <b>50</b></td><td class="py-1 px-2">Bob 进来</td></tr>
+                            <tr class="border-b border-slate-700/50"><td class="py-1 px-2">10~20</td><td class="py-1 px-2">Tick 20</td><td class="py-1 px-2 font-mono">50 − (−100) = <b>150</b></td><td class="py-1 px-2">Alice 也进来</td></tr>
+                            <tr class="border-b border-slate-700/50"><td class="py-1 px-2">0~10</td><td class="py-1 px-2">Tick 10</td><td class="py-1 px-2 font-mono">150 − 50 = <b>100</b></td><td class="py-1 px-2">Bob 退出</td></tr>
+                            <tr><td class="py-1 px-2">&lt;0</td><td class="py-1 px-2">Tick 0</td><td class="py-1 px-2 font-mono">100 − 100 = <b>0</b></td><td class="py-1 px-2">Alice 也退出</td></tr>
+                        </tbody>
+                    </table>
+                    <p class="text-xs mt-2">一句话：<b>liquidityNet 把"哪些 LP 在区间内"的复杂判断压缩成了一个加减法</b>。不管有一千个还是一万个 LP，跨 Tick 时只读一个数、做一次加法，O(1) 完成。</p>
+                </div>
+            </div>
+
+            <div>
+                <h4 class="text-amber-300 font-medium mb-1">④ 结合案例看 L 的变化</h4>
+                <p>本案例中 swap 从 Tick 202919 开始，向左移动跨过 Tick 202910：</p>
+                <ul class="space-y-0.5 mt-1">
+                    <li>• 区间 [202910, 202920] 内：\(L_1 \approx 15,482,930\)，swap 的 450 USDC 全在这个 L 下执行</li>
+                    <li>• 跨 Tick 202910：读取该 Tick 的 <code>liquidityNet</code> → \(L_{\text{new}} = L_1 - \text{liquidityNet}\)</li>
+                    <li>• 区间 [202900, 202910] 内：\(L_2 \neq L_1\)，剩余 549.5 USDC 在新区间的新 L 下执行</li>
+                </ul>
+                <p class="mt-1">两段区间 L 不同 → 同样的 Δx 在两个区间换出的 ETH 数量不同（因为滑点不同）。大额交易连续跨越多层区间，这就是为什么 <code>crossedTicks</code> 越大，价格冲击越大。</p>
+            </div>
+
+            <div>
+                <h4 class="text-amber-300 font-medium mb-1">⑤ LP 添加流动性时 L 怎么算？—— 由投入的代币数量反推</h4>
+                <p>LP 在区间 [P<sub>a</sub>, P<sub>b</sub>] 投入 x 个 token0 和 y 个 token1，能产生多少 L？<b>取决于当前价格 P 落在哪</b>：</p>
+                <div class="overflow-x-auto mt-2">
+                    <table class="w-full text-xs border-collapse">
+                        <thead>
+                            <tr class="border-b border-slate-600">
+                                <th class="text-left py-1.5 px-2 text-teal-300">情况</th>
+                                <th class="text-left py-1.5 px-2 text-teal-300">条件</th>
+                                <th class="text-left py-1.5 px-2 text-teal-300">L 计算公式</th>
+                                <th class="text-left py-1.5 px-2 text-teal-300">说明</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="border-b border-slate-700/50">
+                                <td class="py-1.5 px-2 text-white font-medium">全 token0</td>
+                                <td class="py-1.5 px-2">\(P \le P_a\)<br><span class="text-slate-500">价格在区间下方</span></td>
+                                <td class="py-1.5 px-2 font-mono">\(L = \frac{x}{1/\sqrt{P_a} - 1/\sqrt{P_b}}\)</td>
+                                <td class="py-1.5 px-2">只需投入 token0，不需要 token1<br>因为区间内全部是 token0</td>
+                            </tr>
+                            <tr class="border-b border-slate-700/50">
+                                <td class="py-1.5 px-2 text-white font-medium">全 token1</td>
+                                <td class="py-1.5 px-2">\(P \ge P_b\)<br><span class="text-slate-500">价格在区间上方</span></td>
+                                <td class="py-1.5 px-2 font-mono">\(L = \frac{y}{\sqrt{P_b} - \sqrt{P_a}}\)</td>
+                                <td class="py-1.5 px-2">只需投入 token1，不需要 token0<br>因为区间内全部是 token1</td>
+                            </tr>
+                            <tr>
+                                <td class="py-1.5 px-2 text-white font-medium">双币</td>
+                                <td class="py-1.5 px-2">\(P_a < P < P_b\)<br><span class="text-slate-500">价格在区间内</span></td>
+                                <td class="py-1.5 px-2 font-mono">\(L_x = \frac{x}{1/\sqrt{P} - 1/\sqrt{P_b}}\)<br>\(L_y = \frac{y}{\sqrt{P} - \sqrt{P_a}}\)<br>\(L = \min(L_x, L_y)\)</td>
+                                <td class="py-1.5 px-2">需要同时投入两种代币<br>实际 L 取两者最小值<br>多余的代币会被退还</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="mt-2">为什么取 min？因为恒定乘积曲线要求两种代币的比例由价格决定——你投入的 x 和 y 可能不匹配曲线的比例，L 只能取"短板"对应的值，多出的代币退回。</p>
+                <p class="mt-1">而 <b>每个区间的总 L = 所有覆盖该区间的 LP 仓位的 L 之和</b>。这就是为什么 swap 跨过 Tick 时需要用 liquidityNet 来更新 L——因为不同 LP 的仓位覆盖了不同的区间范围。</p>
+            </div>
+        </div>
+
+        <h3 class="text-lg text-sky-300 mt-5">3.6 价格与 Tick 的变动方向（容易混淆！）</h3>
+        <div class="grid md:grid-cols-2 gap-4">
+            <div class="bg-slate-700/50 p-4 rounded">
+                <h4 class="text-sky-200 font-medium mb-2">✅ 合约定义（USDC/WETH 池，token0=USDC, token1=WETH）</h4>
+                <p class="text-sm">\(P = 1.0001^{\text{tick}}\) = 1 USDC 能换到多少 WETH</p>
+                <p class="text-sm mt-1">你用 USDC 买 ETH → 池子 USDC↑、ETH↓ → <b>P 下降 → tick 减小</b></p>
+            </div>
+            <div class="bg-slate-700/50 p-4 rounded">
+                <h4 class="text-sky-200 font-medium mb-2">❌ 普通人直觉（ETH 本位）</h4>
+                <p class="text-sm">大众标价：1 ETH = X USDC</p>
+                <p class="text-sm mt-1">ETH 涨价（3000→3100 USDC）= 1/P 上升 = P 下降 = <b>tick 减小</b></p>
+            </div>
+        </div>
+        <div class="border-l-4 border-teal-400 pl-4 mt-3">
+            <p class="text-sm">📌 <b>方向口诀（USDC/WETH 标准池）：</b></p>
+            <p class="text-sm">• USDC 买入 ETH：Tick <b>减小</b>（向左移动）</p>
+            <p class="text-sm">• ETH 卖出换回 USDC：Tick <b>增大</b>（向右移动）</p>
+        </div>
+    </div>
+</section>
+
+<!-- ==================== 四、数学公式详解 ==================== -->
+<section id="s4" class="mt-10">
+    <h2 class="text-2xl font-bold text-teal-300 mb-4">四、数学公式详解</h2>
+
+    <div class="bg-slate-800 p-5 rounded-md space-y-4 text-slate-300">
+        <h3 class="text-lg text-sky-300">4.1 恒定乘积基础（V2）</h3>
+        <div class="formula-block p-4 rounded-md my-3">
+            <p class="text-center text-lg">$$x \cdot y = L^2$$</p>
+            <p class="text-sm text-slate-400 mt-1">其中 \(L = \sqrt{k}\)，称为"流动性"。价格 \(P = \frac{y}{x}\)。</p>
+        </div>
+        <p>在恒定乘积曲线上，交易的"有效价格"随交易量变化（滑点）：</p>
+        <div class="formula-block p-4 rounded-md my-3">
+            <p class="text-teal-300 font-semibold mb-2">推导：从恒定乘积不变式出发</p>
+            <p class="text-sm">swap 前后 k 不变：\((x + \Delta x)(y - \Delta y) = x \cdot y\)</p>
+            <p class="text-sm mt-1">展开：\(x y - x \Delta y + \Delta x \cdot y - \Delta x \Delta y = x y\)</p>
+            <p class="text-sm mt-1">消去 xy：\(-x \Delta y + \Delta x \cdot y - \Delta x \Delta y = 0\)</p>
+            <p class="text-sm mt-1">移项：\(\Delta x \cdot y = \Delta y (x + \Delta x)\)</p>
+            <p class="text-center mt-2">$$\Rightarrow \Delta y = \frac{\Delta x \cdot y}{x + \Delta x}$$</p>
+            <p class="text-sm text-slate-400 mt-1">卖出 \(\Delta x\) 个 token0，得到 \(\Delta y\) 个 token1（忽略手续费）</p>
+            <p class="text-sm text-slate-400">有效成交价 = \(\frac{\Delta y}{\Delta x} = \frac{y}{x + \Delta x}\)，<b>比当前价格 \(P = y/x\) 差——这就是滑点</b>。</p>
+        </div>
+
+        <h3 class="text-lg text-sky-300 mt-5">4.2 V3 集中流动性数学</h3>
+        <p>V3 流动性仓位定义在价格区间 \([P_a, P_b]\) 内。设当前价格 \(P\)：</p>
+
+        <div class="formula-block p-4 rounded-md my-3">
+            <p class="text-teal-300 font-semibold mb-2">虚拟准备金（Virtual Reserves）</p>
+            <p>V3 的核心技巧：想象"虚拟"的 token0 和 token1 准备金，使得恒定乘积公式在区间内依然成立。</p>
+            <p class="mt-2 text-center">$$(x_{\text{real}} + x_{\text{virtual}}) \cdot (y_{\text{real}} + y_{\text{virtual}}) = L^2$$</p>
+            <p class="text-sm text-slate-400 mt-2">虚拟准备金保证曲线在 P<sub>a</sub> 处 token1 耗尽（y=0），在 P<sub>b</sub> 处 token0 耗尽（x=0）。如何求 \(x_{\text{virtual}}\) 和 \(y_{\text{virtual}}\)？利用边界条件反推：</p>
+        </div>
+
+        <div class="formula-block p-4 rounded-md my-3">
+            <p class="text-teal-300 font-semibold mb-2">推导 \(y_{\text{virtual}}\)（利用下边界 P<sub>a</sub>，此时 y<sub>real</sub> = 0）</p>
+            <p class="text-sm">价格的定义：\(P = \frac{y_{\text{real}} + y_{\text{virtual}}}{x_{\text{real}} + x_{\text{virtual}}}\)</p>
+            <p class="text-sm mt-1">在 P<sub>a</sub> 处 y<sub>real</sub>=0，恒定乘积成立：\((x_{\text{real}} + x_{\text{virtual}}) \cdot y_{\text{virtual}} = L^2\)</p>
+            <p class="text-sm mt-1">⇒ \(x_{\text{real}} + x_{\text{virtual}} = \frac{L^2}{y_{\text{virtual}}}\)，代入价格公式：</p>
+            <p class="text-center mt-1">$$P_a = \frac{y_{\text{virtual}}}{L^2 / y_{\text{virtual}}} = \frac{y_{\text{virtual}}^2}{L^2} \quad\Rightarrow\quad y_{\text{virtual}} = L \cdot \sqrt{P_a}$$</p>
+        </div>
+
+        <div class="formula-block p-4 rounded-md my-3">
+            <p class="text-teal-300 font-semibold mb-2">推导 \(x_{\text{virtual}}\)（利用上边界 P<sub>b</sub>，此时 x<sub>real</sub> = 0）</p>
+            <p class="text-sm">在 P<sub>b</sub> 处 x<sub>real</sub>=0，恒定乘积成立：\(x_{\text{virtual}} \cdot (y_{\text{real}} + y_{\text{virtual}}) = L^2\)</p>
+            <p class="text-sm mt-1">⇒ \(y_{\text{real}} + y_{\text{virtual}} = \frac{L^2}{x_{\text{virtual}}}\)，代入价格公式：</p>
+            <p class="text-center mt-1">$$P_b = \frac{L^2 / x_{\text{virtual}}}{x_{\text{virtual}}} = \frac{L^2}{x_{\text{virtual}}^2} \quad\Rightarrow\quad x_{\text{virtual}} = \frac{L}{\sqrt{P_b}}$$</p>
+        </div>
+
+        <p>总结，对于流动性 L 和区间 \([P_a, P_b]\)：</p>
+        <div class="formula-block p-4 rounded-md my-3">
+            <p class="text-center">$$x_{\text{virtual}} = \frac{L}{\sqrt{P_b}}, \quad y_{\text{virtual}} = L \cdot \sqrt{P_a}$$</p>
+        </div>
+
+        <div class="bg-slate-700/50 p-4 rounded mb-4 text-sm space-y-2">
+            <h4 class="text-amber-300 font-medium">为什么要算 x_real 和 y_real？—— 用途有三个</h4>
+            <ul class="space-y-0.5">
+                <li><b>① 这是 swap 公式的根基</b>：swap 输入 \(\Delta x = x_{\text{real}}(P_{\text{end}}) - x_{\text{real}}(P_{\text{start}})\)，输出 \(\Delta y = y_{\text{real}}(P_{\text{start}}) - y_{\text{real}}(P_{\text{end}})\)。没有 x_real / y_real 就没有 swap 计算。</li>
+                <li><b>② LP 需要知道该存多少、能取多少</b>：LP 在价格 P 添加流动性时，x_real(P) 和 y_real(P) 就是该投入的两种代币数量；取出时也是拿回这两个数。</li>
+                <li><b>③ 验证边界单边耗尽</b>：代入 P=P_a 得 y_real=0，代入 P=P_b 得 x_real=0，证明了区间两端确实是单边。</li>
+            </ul>
+        </div>
+
+        <p>当前价格 P 落在区间内时，如何求真实准备金？<b>同时利用恒定乘积和价格定义消去未知项</b>：</p>
+        <div class="formula-block p-4 rounded-md my-3">
+            <p class="text-teal-300 font-semibold mb-2">推导 \(x_{\text{real}}\) 和 \(y_{\text{real}}\)</p>
+            <p class="text-sm">已知：\((x_{\text{real}} + x_{\text{virtual}})(y_{\text{real}} + y_{\text{virtual}}) = L^2\) 且 \(P = \frac{y_{\text{real}} + y_{\text{virtual}}}{x_{\text{real}} + x_{\text{virtual}}}\)</p>
+            <p class="text-sm mt-2">由价格定义得 \(y_{\text{real}} + y_{\text{virtual}} = P \cdot (x_{\text{real}} + x_{\text{virtual}})\)，代回恒定乘积：</p>
+            <p class="text-center mt-1">$$(x_{\text{real}} + x_{\text{virtual}}) \cdot P \cdot (x_{\text{real}} + x_{\text{virtual}}) = L^2$$</p>
+            <p class="text-center mt-1">$$\Rightarrow (x_{\text{real}} + x_{\text{virtual}})^2 = \frac{L^2}{P} \quad\Rightarrow\quad x_{\text{real}} + x_{\text{virtual}} = \frac{L}{\sqrt{P}}$$</p>
+            <p class="text-sm mt-2">同理：\(y_{\text{real}} + y_{\text{virtual}} = P \cdot \frac{L}{\sqrt{P}} = L \cdot \sqrt{P}\)</p>
+            <p class="text-sm mt-2">代入 \(x_{\text{virtual}} = L/\sqrt{P_b}\) 和 \(y_{\text{virtual}} = L\sqrt{P_a}\)：</p>
+            <p class="text-center mt-1">$$x_{\text{real}} = \frac{L}{\sqrt{P}} - \frac{L}{\sqrt{P_b}} = L \cdot \left(\frac{1}{\sqrt{P}} - \frac{1}{\sqrt{P_b}}\right)$$</p>
+            <p class="text-center mt-1">$$y_{\text{real}} = L \cdot \sqrt{P} - L \cdot \sqrt{P_a} = L \cdot \left(\sqrt{P} - \sqrt{P_a}\right)$$</p>
+        </div>
+
+        <h3 class="text-lg text-sky-300 mt-5">4.3 Swap 计算过程（核心公式）</h3>
+        <p>假设执行 <b>token0 → token1</b> 方向的 swap（如 USDC 买入 ETH），输入 \(\Delta x\) 个 token0。价格从 P<sub>start</sub> 移动到 P<sub>end</sub>。</p>
+
+        <div class="formula-block p-4 rounded-md my-3">
+            <p class="text-teal-300 font-semibold mb-2">根本公式：从上节的 x<sub>real</sub> 和 y<sub>real</sub> 直接推出</p>
+            <p class="text-sm">上节已推导每个区间内的准备金公式（P<sub>a</sub>、P<sub>b</sub> 是该区间边界，L 恒定）：</p>
+            <p class="text-center mt-1">$$x_{\text{real}}(P) = L\left(\frac{1}{\sqrt{P}} - \frac{1}{\sqrt{P_b}}\right), \quad y_{\text{real}}(P) = L\left(\sqrt{P} - \sqrt{P_a}\right)$$</p>
+            <p class="text-sm mt-2">Swap 前后价格从 P<sub>start</sub> → P<sub>end</sub>，准备金变化量即为 swap 的输入/输出：</p>
+            <p class="text-center mt-1">$$\Delta x = x_{\text{real}}(P_{\text{end}}) - x_{\text{real}}(P_{\text{start}})$$</p>
+            <p class="text-center">$$= L\left(\frac{1}{\sqrt{P_{\text{end}}}} - \cancel{\frac{1}{\sqrt{P_b}}}\right) - L\left(\frac{1}{\sqrt{P_{\text{start}}}} - \cancel{\frac{1}{\sqrt{P_b}}}\right)$$</p>
+            <p class="text-center mt-1">$$\Rightarrow \boxed{\Delta x = L \cdot \left(\frac{1}{\sqrt{P_{\text{end}}}} - \frac{1}{\sqrt{P_{\text{start}}}}\right)}$$</p>
+            <p class="text-sm text-slate-400 mt-1">注意：P<sub>a</sub>、P<sub>b</sub> 被消去了！只要不跨区间，L 和区间边界都不变，swap 公式与区间边界无关。</p>
+            <p class="text-center mt-2">$$\Delta y = y_{\text{real}}(P_{\text{start}}) - y_{\text{real}}(P_{\text{end}})$$</p>
+            <p class="text-center">$$= L\left(\sqrt{P_{\text{start}}} - \cancel{\sqrt{P_a}}\right) - L\left(\sqrt{P_{\text{end}}} - \cancel{\sqrt{P_a}}\right)$$</p>
+            <p class="text-center mt-1">$$\Rightarrow \boxed{\Delta y = L \cdot \left(\sqrt{P_{\text{start}}} - \sqrt{P_{\text{end}}}\right)}$$</p>
+            <p class="text-sm text-slate-400 mt-2">💡 这就是 V3 swap 计算的全部根基——两条公式，一条算输入，一条算输出。以下所有步骤只是代数变形。</p>
+        </div>
+
+        <div class="formula-block p-4 rounded-md my-3">
+            <p class="text-teal-300 font-semibold mb-2">Step 1：已知 Δx 和 L，求新价格 √P<sub>end</sub></p>
+            <p class="text-sm">从根本公式移项解出 √P<sub>end</sub>：</p>
+            <p class="text-center mt-1">$$\frac{1}{\sqrt{P_{\text{end}}}} = \frac{\Delta x}{L} + \frac{1}{\sqrt{P_{\text{start}}}}$$</p>
+            <p class="text-center mt-1">$$\Rightarrow \sqrt{P_{\text{end}}} = \frac{L \cdot \sqrt{P_{\text{start}}}}{L + \Delta x \cdot \sqrt{P_{\text{start}}}}$$</p>
+        </div>
+
+        <div class="formula-block p-4 rounded-md my-3">
+            <p class="text-teal-300 font-semibold mb-2">Step 2：用新价格计算输出 Δy</p>
+            <p class="text-sm">将 √P<sub>end</sub> 代入 Δy 根本公式：</p>
+            <p class="text-center mt-1">$$\Delta y = L \cdot \left(\sqrt{P_{\text{start}}} - \sqrt{P_{\text{end}}}\right)$$</p>
+        </div>
+
+        <div class="formula-block p-4 rounded-md my-3">
+            <p class="text-teal-300 font-semibold mb-2">Step 3：综合公式（一步到位，不跨区间时使用）</p>
+            <p class="text-sm">将 Step 1 的 √P<sub>end</sub> 代入 Step 2，化简：</p>
+            <p class="text-center mt-1">$$\Delta y = L\left(\sqrt{P_{\text{start}}} - \frac{L\sqrt{P_{\text{start}}}}{L + \Delta x\sqrt{P_{\text{start}}}}\right) = L\sqrt{P_{\text{start}}} \cdot \frac{\Delta x\sqrt{P_{\text{start}}}}{L + \Delta x\sqrt{P_{\text{start}}}}$$</p>
+            <p class="text-center mt-1">$$\Rightarrow \boxed{\Delta y = \frac{\Delta x \cdot L \cdot P_{\text{start}}}{L + \Delta x \cdot \sqrt{P_{\text{start}}}}}$$</p>
+            <p class="text-sm text-slate-400 mt-1">分子中出现 \(P_{\text{start}}\) 而非 \(\sqrt{P_{\text{start}}}\)——因为分子有两个 √P 相乘。</p>
+        </div>
+
+        <h3 class="text-lg text-sky-300 mt-5">4.4 跨 Tick 计算</h3>
+        <p>当 swap 的量足够大，价格会触碰到当前区间的边界 tick。此时需要先算出"到边界需要多少输入"。</p>
+        <div class="formula-block p-4 rounded-md my-3">
+            <p class="text-teal-300 font-semibold mb-2">推导：直接代入 4.3 节的根本公式</p>
+            <p class="text-sm">4.3 节已推出 swap 输入量与价格变化的关系（token0→token1 方向）：</p>
+            <p class="text-center mt-1">$$\Delta x = L \cdot \left(\frac{1}{\sqrt{P_{\text{end}}}} - \frac{1}{\sqrt{P_{\text{start}}}}\right)$$</p>
+            <p class="text-sm mt-2">"到达边界"就是把 P<sub>end</sub> 替换成边界价格 P<sub>boundary</sub>，即得到达边界所需的输入量：</p>
+            <p class="text-center mt-1">$$\boxed{\Delta x_{\text{cross}} = L \cdot \left|\frac{1}{\sqrt{P_{\text{boundary}}}} - \frac{1}{\sqrt{P_{\text{start}}}}\right|}$$</p>
+            <p class="text-sm text-slate-400 mt-1">加绝对值是为了同时适配两个方向（token0→token1 和 token1→token0）。</p>
+        </div>
+        <p>跨 Tick 后的 L 更新：</p>
+        <div class="formula-block p-4 rounded-md my-3">
+            <p class="text-teal-300 font-semibold mb-2">L 的更新规则（回顾 3.5 节③）</p>
+            <p class="text-sm">每个 Tick 上预存了 <code>liquidityNet</code>，跨 Tick 时读出来做一次加减：</p>
+            <div class="grid grid-cols-2 gap-3 mt-2">
+                <div class="bg-slate-700/50 p-3 rounded">
+                    <p class="text-amber-300 font-medium text-xs mb-1">从左→右（tick ↑）</p>
+                    <p class="text-center text-xs">$$L_{\text{new}} = L_{\text{old}} + \text{liquidityNet}$$</p>
+                    <p class="text-xs mt-1 text-slate-400">例：跨 Tick 10（下界，+50）→ <b>进入</b>区间，L +50</p>
+                    <p class="text-xs text-slate-400">例：跨 Tick 20（上界，−100）→ <b>离开</b>区间，L −100</p>
+                </div>
+                <div class="bg-slate-700/50 p-3 rounded">
+                    <p class="text-amber-300 font-medium text-xs mb-1">从右→左（tick ↓）</p>
+                    <p class="text-center text-xs">$$L_{\text{new}} = L_{\text{old}} - \text{liquidityNet}$$</p>
+                    <p class="text-xs mt-1 text-slate-400">例：跨 Tick 20（上界，−100）→ L −(−100) = <b>进入</b>区间，L +100</p>
+                    <p class="text-xs text-slate-400">例：跨 Tick 10（下界，+50）→ L − 50 = <b>离开</b>区间，L −50</p>
+                </div>
+            </div>
+            <p class="text-sm text-slate-400 mt-2">更新后 L 变了，剩余 Δx 用新区间的 L 继续 swap，重复 4.3 节的计算。</p>
+        </div>
+        <p>判断逻辑：</p>
+        <p>若 \(\Delta x_{\text{input}} > \Delta x_{\text{cross}}\)：消耗 \(\Delta x_{\text{cross}}\) 到达边界 → 跨 tick → 按方向更新 L → 用剩余输入继续 swap</p>
+        <p>若 \(\Delta x_{\text{input}} \le \Delta x_{\text{cross}}\)：在区间内完成 swap，不跨 tick，L 不变</p>
+
+        <h3 class="text-lg text-sky-300 mt-5">4.5 sqrtPriceX96 编码</h3>
+        <p>合约内部存储的不是价格 P，而是 <span class="text-teal-300">sqrtPriceX96</span>——\(\sqrt{P}\) 的 Q64.96 定点数表示：</p>
+        <div class="formula-block p-4 rounded-md my-3 text-center">
+            <p class="text-lg">$$\text{sqrtPriceX96} = \sqrt{P} \times 2^{96}$$</p>
+            <p class="text-sm text-slate-400 mt-2">使用 \(\sqrt{P}\) 而非 P 的原因：swap 计算中反复出现 \(\sqrt{P}\)，存储它避免重复开方运算，大幅节省 GAS。</p>
+        </div>
+
+        <div class="formula-block p-4 rounded-md my-3">
+            <p class="text-teal-300 font-semibold mb-2">sqrtPriceX96 与 Tick 的关系</p>
+            <p class="text-sm">由 3.1 节 Tick 定义 \(P = 1.0001^{\text{tick}}\)，两边直接开平方：</p>
+            <p class="text-center mt-1">$$\sqrt{P} = \sqrt{1.0001^{\text{tick}}} = \left(1.0001^{\text{tick}}\right)^{\frac{1}{2}} = 1.0001^{\frac{\text{tick}}{2}}$$</p>
+            <p class="text-sm mt-2">再乘以 \(2^{96}\) 即得合约存储的定点数：</p>
+            <p class="text-center mt-1">$$\text{sqrtPriceX96} = 1.0001^{\frac{\text{tick}}{2}} \times 2^{96}$$</p>
+        </div>
+
+        <h3 class="text-lg text-sky-300 mt-5">4.6 Tick 计算公式</h3>
+        <p>从价格反推 tick——对 Tick 定义式两边取自然对数：</p>
+        <div class="formula-block p-4 rounded-md my-3">
+            <p class="text-sm">由 3.1 节：\(P = 1.0001^{\text{tick}}\)</p>
+            <p class="text-center mt-1">$$\ln P = \ln\left(1.0001^{\text{tick}}\right) = \text{tick} \cdot \ln 1.0001$$</p>
+            <p class="text-center mt-1">$$\Rightarrow \text{tick} = \frac{\ln P}{\ln 1.0001}$$</p>
+            <p class="text-sm text-slate-400 mt-2">tick 必须是整数，向下取整确保 tick 对应价格 ≤ 实际价格：</p>
+            <p class="text-center mt-1">$$\boxed{\text{tick} = \left\lfloor \frac{\ln P}{\ln 1.0001} \right\rfloor}$$</p>
+        </div>
+
+        <p>从 tick 到 sqrtPriceX96：</p>
+        <div class="formula-block p-4 rounded-md my-3 text-center">
+            <p class="text-lg">$$\text{sqrtPriceX96} = \left\lfloor 1.0001^{\frac{\text{tick}}{2}} \times 2^{96} \right\rfloor$$</p>
+        </div>
+    </div>
+</section>
+
+<!-- ==================== 五、实战案例 ==================== -->
+<section id="s5" class="mt-10">
+    <h2 class="text-2xl font-bold text-teal-300 mb-4">五、实战案例：1000 USDC → WETH 全流程解析</h2>
+
+    <div class="bg-slate-800 p-5 rounded-md space-y-4 text-slate-300">
+        <h3 class="text-lg text-sky-300">5.1 场景设定</h3>
+        <div class="bg-slate-700/50 p-4 rounded">
+            <ul class="space-y-1 text-sm">
+                <li>• 交易对：<b>USDC / WETH</b></li>
+                <li>• token0 = USDC，token1 = WETH（按合约地址排序，USDC 地址更小）</li>
+                <li>• 手续费层级：<b>0.05%（5 bps）</b>，Tick Spacing = <b>10</b></li>
+                <li>• 交易方向：<b>USDC → WETH</b>（买入 ETH，即 swapExactInput，token0→token1）</li>
+                <li>• 投入金额：<b>1000 USDC</b></li>
+            </ul>
+        </div>
+
+        <h3 class="text-lg text-sky-300 mt-5">5.2 原始交换运行日志</h3>
+        <div class="log-block p-4 rounded-md text-sm space-y-1.5">
+            <div><span class="keyword-info">[Quote] INFO </span>Pool State Loaded: Liquidity=<span class="num-highlight">15482930</span> , Tick=<span class="num-highlight">202919</span></div>
+            <div><span class="keyword-info">[Quote] INFO </span>Input: amountIn=1000 USDC</div>
+            <br>
+            <div><span class="keyword-calc">[Quote] CALC </span>Fee Deduction:</div>
+            <div>&nbsp;&nbsp;&nbsp;&nbsp;feeMultiplier = 1000000 - 500 = 999500</div>
+            <div>&nbsp;&nbsp;&nbsp;&nbsp;amountInAfterFee = 1000 × 0.9995 = <span class="num-highlight">999.5 USDC</span></div>
+            <br>
+            <div><span class="keyword-swap">[Swap] START </span>Starting swapExactInput loop...</div>
+            <div><span class="keyword-swap">[Swap] STEP 1 </span>Tick [202910, 202920]: Consumed <span class="num-highlight">450 USDC</span>. Reached boundary.</div>
+            <div><span class="keyword-swap">[Swap] CROSS </span>Crossing Tick 202910. Updating Liquidity L...</div>
+            <div><span class="keyword-swap">[Swap] STEP 2 </span>Tick [202900, 202910]: Consumed <span class="num-highlight">549.5 USDC</span>. Input exhausted.</div>
+            <br>
+            <div><span class="keyword-info">[Quote] DONE </span>Result: amountOut= <span class="num-highlight">0.6489 ETH</span> , crossedTicks=1</div>
+        </div>
+
+        <h3 class="text-lg text-sky-300 mt-5">5.3 参数汇总</h3>
+        <div class="grid md:grid-cols-2 gap-4">
+            <div class="bg-slate-700/50 p-4 rounded">
+                <h4 class="text-sky-300 font-medium">交易基础信息</h4>
+                <ul class="mt-2 space-y-1 text-sm">
+                    <li>交易方向：USDC → WETH（买入 ETH）</li>
+                    <li>池子费率：0.05%（500 / 1,000,000）</li>
+                    <li>用户投入总额：1000 USDC</li>
+                    <li>手续费扣除：0.5 USDC</li>
+                    <li>实际参与兑换资金：999.5 USDC</li>
+                    <li>最终获得：0.6489 WETH</li>
+                    <li>跨 Tick 数量：1 次（Tick 202910）</li>
+                    <li>平均成交价：999.5 ÷ 0.6489 ≈ <b>1540.3 USDC/ETH</b></li>
+                </ul>
+            </div>
+            <div class="bg-slate-700/50 p-4 rounded">
+                <h4 class="text-sky-300 font-medium">池子初始状态</h4>
+                <ul class="mt-2 space-y-1 text-sm">
+                    <li>交易对：USDC / WETH</li>
+                    <li>token0 = USDC，token1 = WETH</li>
+                    <li>价格公式：\(P = 1.0001^{\text{tick}}\)</li>
+                    <li>P 含义：1 USDC 可兑换多少 WETH</li>
+                    <li>交换起始 Tick：202919</li>
+                    <li>Tick Spacing：10</li>
+                    <li>当前流动性 L ≈ 15,482,930</li>
+                </ul>
+            </div>
+        </div>
+
+        <h3 class="text-lg text-sky-300 mt-5">5.4 逐步计算解析</h3>
+        <canvas id="rangeChart" height="200" class="mt-4"></canvas>
+        <div class="mt-6">
+            <ol class="space-y-4">
+                <li class="bg-slate-700/50 p-4 rounded">
+                    <span class="text-amber-300 font-bold text-lg">STEP 1 — 区间 [202910, 202920]</span>
+                    <div class="mt-2 space-y-1 text-sm">
+                        <p>• 起始 Tick = 202919，落在区间 [202910, 202920] 内</p>
+                        <p>• 该区间流动性 L₁ ≈ 15,482,930</p>
+                        <p>• Swap 逐步消耗 USDC，\(\sqrt{P}\) 不断降低，Tick 向左移动</p>
+                        <p>• 计算到达 Tick 202910 边界需要消耗的 USDC：</p>
+                        <div class="formula-block p-3 rounded-md my-2">
+                            <p>$$\Delta x_{\text{cross}} = L_1 \cdot \left(\frac{1}{\sqrt{P_{202910}}} - \frac{1}{\sqrt{P_{202919}}}\right) = 450 \text{ USDC}$$</p>
+                        </div>
+                        <p>• 消耗 <b>450 USDC</b>，Tick 恰好到达 <b>202910</b>（区间下边界）</p>
+                    </div>
+                </li>
+                <li class="bg-slate-700/50 p-4 rounded border-l-4 border-red-400">
+                    <span class="text-red-300 font-bold text-lg">⚡ CROSS Tick 202910</span>
+                    <div class="mt-2 space-y-1 text-sm">
+                        <p>• 跨越 Tick 边界 → 系统读取该 Tick 上记录的 <code>liquidityNet</code>，一次计算完成两个动作：</p>
+                        <div class="formula-block p-3 rounded-md my-2">
+                            <p class="text-xs">Tick 202910 上累加的 liquidityNet 包含两类仓位：</p>
+                            <p class="text-center text-xs mt-1">\(\text{liquidityNet} = \underbrace{+L_{[202910,\,202920]}}_{\text{下界在这的仓位}} \;\; \underbrace{- L_{[202900,\,202910]}}_{\text{上界在这的仓位}}\)</p>
+                            <p class="text-center text-xs mt-1">从右→左跨（符号取反）：\(L_{\text{new}} = L_{\text{old}} - \text{liquidityNet}\)</p>
+                            <p class="text-center text-xs mt-1">$$= L_{\text{old}} - (+L_{[202910,202920]}) - (-L_{[202900,202910]}) = L_{\text{old}} - L_{\text{旧}} + L_{\text{新}}$$</p>
+                        </div>
+                        <p>• <b>一次减法同时完成</b>：卸载旧区间 [202910, 202920] 的 L<sub>旧</sub> &nbsp;+&nbsp; 加载新区间 [202900, 202910] 的 L<sub>新</sub></p>
+                        <p>• <b>这是 V3 独有的逻辑，V2 的 L 永不改变</b></p>
+                    </div>
+                </li>
+                <li class="bg-slate-700/50 p-4 rounded">
+                    <span class="text-amber-300 font-bold text-lg">STEP 2 — 区间 [202900, 202910]</span>
+                    <div class="mt-2 space-y-1 text-sm">
+                        <p>• 当前 Tick = 202910，处于新区间 [202900, 202910]</p>
+                        <p>• 该区间流动性 L₂ ≠ L₁（不同区间流动性相互独立）</p>
+                        <p>• 消耗剩余 <b>549.5 USDC</b>（999.5 − 450 = 549.5）</p>
+                        <p>• 资金全部用完，swap 循环终止。最终 Tick 停在 202900~202910 之间某处</p>
+                        <p>• 计算总 WETH 输出（两段相加）：</p>
+                        <div class="formula-block p-3 rounded-md my-2">
+                            <p>$$\Delta y_{\text{total}} = \underbrace{L_1\left(\sqrt{P_{202919}} - \sqrt{P_{202910}}\right)}_{\text{STEP 1}} + \underbrace{L_2\left(\sqrt{P_{202910}} - \sqrt{P_{\text{end}}}\right)}_{\text{STEP 2}} = 0.6489 \text{ WETH}$$</p>
+                        </div>
+                    </div>
+                </li>
+            </ol>
+        </div>
+
+        <h3 class="text-lg text-sky-300 mt-5">5.5 为何 Tick 变小？（买入 ETH 时）</h3>
+        <div class="highlight-box p-4 rounded-md">
+            <p class="mb-3">以 USDC/WETH 池为例（token0=USDC, token1=WETH），合约定义的 P = <b>1 USDC 可以换多少 WETH</b>：</p>
+            <div class="grid md:grid-cols-2 gap-6 text-sm">
+                <div>
+                    <h4 class="text-sky-200 mb-1">swap 对池子的影响</h4>
+                    <p>USDC 买入 WETH → 池子 USDC↑、WETH↓</p>
+                    <p>P = WETH/USDC ↓（USDC 相对贬值）</p>
+                    <p>P↓ → tick↓</p>
+                </div>
+                <div>
+                    <h4 class="text-sky-200 mb-1">ETH 本位视角</h4>
+                    <p>ETH 变贵（供应减少）= 1/P 上升</p>
+                    <p>1/P 上升 ⇔ P 下降 ⇔ tick 减小</p>
+                    <p><b>ETH 越贵，tick 越小</b></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ==================== 六、手续费机制 ==================== -->
+<section id="s6" class="mt-10">
+    <h2 class="text-2xl font-bold text-teal-300 mb-4">六、手续费机制</h2>
+
+    <div class="bg-slate-800 p-5 rounded-md space-y-4 text-slate-300">
+        <h3 class="text-lg text-sky-300">6.1 手续费层级与选择策略</h3>
+        <p>Uniswap V3 为同一个交易对提供多个手续费层级的池子，LP 可根据风险偏好选择：</p>
+        <div class="overflow-x-auto mt-2">
+            <table class="w-full text-sm border-collapse">
+                <thead>
+                    <tr class="border-b border-slate-600">
+                        <th class="text-left py-2 px-3 text-teal-300">费率</th>
+                        <th class="text-left py-2 px-3 text-teal-300">适用场景</th>
+                        <th class="text-left py-2 px-3 text-teal-300">LP 策略</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="border-b border-slate-700/50">
+                        <td class="py-2 px-3 font-mono">0.01%</td>
+                        <td class="py-2 px-3">稳定币对，价格几乎恒定</td>
+                        <td class="py-2 px-3">极窄区间，高交易量补偿低费率</td>
+                    </tr>
+                    <tr class="border-b border-slate-700/50">
+                        <td class="py-2 px-3 font-mono text-amber-300">0.05%</td>
+                        <td class="py-2 px-3">主流对（USDC/ETH），波动温和</td>
+                        <td class="py-2 px-3">适度区间，平衡风险和收益</td>
+                    </tr>
+                    <tr class="border-b border-slate-700/50">
+                        <td class="py-2 px-3 font-mono">0.3%</td>
+                        <td class="py-2 px-3">普通交易对</td>
+                        <td class="py-2 px-3">标准策略</td>
+                    </tr>
+                    <tr>
+                        <td class="py-2 px-3 font-mono">1%</td>
+                        <td class="py-2 px-3">高波动 / 新兴代币</td>
+                        <td class="py-2 px-3">宽区间，高费率补偿高风险</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3 class="text-lg text-sky-300 mt-5">6.2 手续费计算方式</h3>
+        <p>手续费在 swap 开始前从输入金额中直接扣除——<b>不从输出中扣</b>：</p>
+        <div class="formula-block p-4 rounded-md my-3">
+            <p class="text-center text-lg">$$\text{amountInAfterFee} = \text{amountIn} \times \frac{1000000 - \text{feeBps}}{1000000}$$</p>
+            <p class="text-sm text-slate-400 mt-2">feeBps 以百万分之一为单位（如 500 = 0.05%）。先扣费，再用剩余金额计算 swap 输出。</p>
+        </div>
+
+        <h3 class="text-lg text-sky-300 mt-5">6.3 手续费分配与领取</h3>
+        <p>手续费按各 LP 在区间内提供的流动性比例实时累积。与 V2 不同，V3 的手续费 <b>不会自动复投</b>（不加入流动性），LP 需通过 <code>collect()</code> 函数手动领取。</p>
+    </div>
+</section>
+
+<!-- ==================== 七、总结 ==================== -->
+<section id="s7" class="mt-10">
+    <h2 class="text-2xl font-bold text-teal-300 mb-4">七、总结</h2>
+
+    <div class="bg-slate-800 p-5 rounded-md space-y-4">
+        <h3 class="text-lg text-sky-300">7.1 Uniswap V3 解决了什么问题？</h3>
+        <div class="highlight-box p-4 rounded-md">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-slate-600">
+                        <th class="text-left py-2 px-3 text-teal-300 w-24">问题</th>
+                        <th class="text-left py-2 px-3 text-teal-300">V2 的困境</th>
+                        <th class="text-left py-2 px-3 text-teal-300">V3 的解决方案</th>
+                    </tr>
+                </thead>
+                <tbody class="text-slate-300">
+                    <tr class="border-b border-slate-700/50">
+                        <td class="py-2 px-3 text-red-300 font-medium">资本效率</td>
+                        <td class="py-2 px-3">流动性分散在 0~∞，99%+ 资金闲置</td>
+                        <td class="py-2 px-3 text-emerald-300">集中流动性，资金利用率最高提升 4000×</td>
+                    </tr>
+                    <tr class="border-b border-slate-700/50">
+                        <td class="py-2 px-3 text-red-300 font-medium">滑点</td>
+                        <td class="py-2 px-3">同样 TVL<sup>注</sup> 下深度不足，大额交易滑点大</td>
+                        <td class="py-2 px-3 text-emerald-300">流动性集中在交易活跃区间，有效深度更大</td>
+                    </tr>
+                    <tr class="border-b border-slate-700/50">
+                        <td class="py-2 px-3 text-red-300 font-medium">LP 灵活性</td>
+                        <td class="py-2 px-3">一刀切，LP 无法选择价格区间</td>
+                        <td class="py-2 px-3 text-emerald-300">LP 自定义区间，模拟限价单等多种策略</td>
+                    </tr>
+                    <tr>
+                        <td class="py-2 px-3 text-red-300 font-medium">手续费</td>
+                        <td class="py-2 px-3">统一 0.3% 费率</td>
+                        <td class="py-2 px-3 text-emerald-300">多层级费率（0.01%~1%），适配不同风险对</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p class="text-xs text-slate-500 mt-2">注：TVL = Total Value Locked（总锁仓价值），指存进池子里的所有资产按当前市价折算的总美元价值。它是衡量一个 DEX/DeFi 协议规模的常用指标。</p>
+        </div>
+
+        <h3 class="text-lg text-sky-300 mt-5">7.2 核心要点回顾</h3>
+        <div class="grid md:grid-cols-2 gap-4">
+            <div class="bg-slate-700/50 p-4 rounded">
+                <h4 class="text-amber-300 font-medium mb-2">🔑 机制层面</h4>
+                <ul class="space-y-1 text-sm text-slate-300">
+                    <li>1. V3 = 恒定乘积 × 集中流动性</li>
+                    <li>2. Tick 将连续价格离散化，每个 tick = 0.01% 价格差</li>
+                    <li>3. 每个价格区间有独立流动性 L</li>
+                    <li>4. Cross Tick = 切换流动性区间，V3 最核心的运行时特性</li>
+                    <li>5. sqrtPriceX96 是 √P 的 Q64.96 编码，避免重复开方</li>
+                </ul>
+            </div>
+            <div class="bg-slate-700/50 p-4 rounded">
+                <h4 class="text-amber-300 font-medium mb-2">🧮 计算层面</h4>
+                <ul class="space-y-1 text-sm text-slate-300">
+                    <li>1. 手续费先扣：amountIn × (1 − fee)</li>
+                    <li>2. Δx 推动 √P 变化：Δ(1/√P) = Δx / L</li>
+                    <li>3. 输出 Δy = L × Δ√P</li>
+                    <li>4. 跨 Tick 判断：Δx_cross = L × |Δ(1/√P)|</li>
+                    <li>5. Tick 方向：买入 token1 → tick 减小（USDC/WETH 池）</li>
+                </ul>
+            </div>
+        </div>
+
+        <h3 class="text-lg text-sky-300 mt-5">7.3 一句话总结</h3>
+        <div class="formula-block p-5 rounded-md text-center">
+            <p class="text-lg text-white">Uniswap V3 通过 <span class="text-teal-300 font-bold">Tick 离散化价格空间</span>和<span class="text-teal-300 font-bold">区间集中流动性</span>，</p>
+            <p class="text-lg text-white">在保持链上 AMM 去中心化优势的同时，<span class="text-amber-300 font-bold">将资本效率提升了数千倍</span>，</p>
+            <p class="text-lg text-white">使得链上 DEX 可以与传统交易所 <span class="text-emerald-300 font-bold">在流动性和深度上正面竞争</span>。</p>
+        </div>
+    </div>
+</section>
+
+<!-- ==================== Chart & KaTeX Init ==================== -->
+<script>
+    // 绘制区间流动性示意图
+    const ctx = document.getElementById('rangeChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['区间 [202900,202910]\nSTEP 2', '边界\nTick=202910', '区间 [202910,202920]\nSTEP 1 起点'],
+            datasets: [{
+                label: '流动性有效区间 | swap 方向 ←',
+                data: [1100, 0, 1548],
+                backgroundColor: ['#0d9488','#ef4444','#14b8a6']
+            }]
+        },
+        options:{
+            indexAxis:'y',
+            plugins:{
+                legend:{labels:{color:'#cbd5e1', font:{size:12}}},
+                tooltip:{
+                    callbacks:{
+                        label:function(item){
+                            if(item.dataIndex===2) return "STEP1：初始区间 [202910,202920]，消耗 450 USDC";
+                            if(item.dataIndex===1) return "⚡ Cross Tick 202910 — 切换流动性";
+                            if(item.dataIndex===0) return "STEP2：新区间 [202900,202910]，消耗剩余 549.5 USDC";
+                        }
+                    }
+                }
+            },
+            scales:{
+                x:{ticks:{color:'#94a3b8'},grid:{color:'#334155'}, title:{display:true, text:'流动性深度 →', color:'#94a3b8'}},
+                y:{ticks:{color:'#94a3b8'},grid:{color:'#334155'}}
+            }
+        }
+    });
+
+    // 渲染 KaTeX 公式
+    document.addEventListener("DOMContentLoaded", function() {
+        renderMathInElement(document.body, {
+            delimiters: [
+                {left: "$$", right: "$$", display: true},
+                {left: "\\[", right: "\\]", display: true},
+                {left: "$", right: "$", display: false},
+                {left: "\\(", right: "\\)", display: false}
+            ],
+            throwOnError: false
+        });
+    });
+</script>
+</body>
+</html>
