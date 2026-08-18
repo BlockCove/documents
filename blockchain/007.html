@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OP链(Optimism)与ETH链技术报告</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin:0;
+            padding:0;
+        }
+        body {
+            font-family: "Microsoft YaHei",Helvetica,Arial,sans-serif;
+            background-color:#f7f8fa;
+            color:#222;
+            line-height:1.7;
+            padding:24px;
+            max-width:1100px;
+            margin:0 auto;
+        }
+        h1 {
+            text-align:center;
+            color:#165DFF;
+            margin-bottom:32px;
+        }
+        h2 {
+            color:#1f2937;
+            margin:28px 0 14px;
+            padding-bottom:8px;
+            border-bottom:2px solid #e5e7eb;
+        }
+        h3 {
+            margin:20px 0 10px;
+            color:#2c3e50;
+        }
+        .card {
+            background:#ffffff;
+            border-radius:10px;
+            padding:20px 24px;
+            margin:16px 0;
+            box-shadow:0 1px 4px rgba(0,0,0,0.08);
+        }
+        table {
+            width:100%;
+            border-collapse: collapse;
+            margin:14px 0;
+        }
+        th,td {
+            border:1px solid #d1d5db;
+            padding:12px 14px;
+        }
+        th {
+            background-color:#eff6ff;
+        }
+        pre {
+            background:#1e293b;
+            color:#e2e8f0;
+            padding:16px;
+            border-radius:6px;
+            overflow-x:auto;
+            margin:12px 0;
+            font-size:13px;
+            line-height:1.8;
+        }
+        .note {
+            background:#fffbeb;
+            border-left:4px solid #f59e0b;
+            padding:12px 16px;
+            margin:14px 0;
+        }
+        .flow-step {
+            margin:10px 0;
+            padding-left:22px;
+        }
+        .flow-step li {
+            margin:8px 0;
+        }
+        /* ===== 图示样式 ===== */
+        .diagram {
+            background:#f8fafc;
+            border:1px solid #e2e8f0;
+            border-radius:8px;
+            padding:16px;
+            margin:14px 0;
+        }
+        .fig-title {
+            text-align:center;
+            font-weight:bold;
+            color:#165DFF;
+            margin-bottom:10px;
+        }
+        .layer {
+            border:1.5px dashed #cbd5e1;
+            border-radius:8px;
+            padding:12px;
+            margin:6px 0;
+            text-align:center;
+        }
+        .layer.l2 { background:#eff6ff; border-color:#165DFF; }
+        .layer.l1 { background:#ecfdf5; border-color:#10b981; }
+        .layer-tag {
+            font-weight:bold;
+            margin-bottom:10px;
+        }
+        .layer.l2 .layer-tag { color:#165DFF; }
+        .layer.l1 .layer-tag { color:#047857; }
+        .box {
+            display:inline-block;
+            background:#ffffff;
+            border:1px solid #93c5fd;
+            border-radius:6px;
+            padding:8px 12px;
+            margin:4px 2px;
+            color:#1d4ed8;
+            font-weight:bold;
+            font-size:13px;
+            vertical-align:middle;
+        }
+        .box small {
+            display:block;
+            font-weight:normal;
+            color:#6b7280;
+            margin-top:2px;
+        }
+        .layer.l1 .box { border-color:#6ee7b7; color:#047857; }
+        .box.orange { border-color:#fcd34d; color:#b45309; }
+        .between {
+            text-align:center;
+            color:#6b7280;
+            font-weight:bold;
+            font-size:13px;
+            margin:6px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>OP链(Optimism)与ETH链完整技术报告</h1>
+
+    <div class="card">
+        <h2>一、ETH链与OP链：L1 / L2定义、相互关系</h2>
+        <h3>1.1 层级归属</h3>
+        <table>
+            <tr>
+                <th>链名称</th>
+                <th>层级</th>
+                <th>定位说明</th>
+            </tr>
+            <tr>
+                <td>ETH（以太坊主网 Ethereum Mainnet）</td>
+                <td><strong>L1 第一层</strong></td>
+                <td>基础底层链，负责最终结算、数据存储、安全保障，所有Rollup都依赖以太坊L1的安全性。</td>
+            </tr>
+            <tr>
+                <td>OP链（Optimism Mainnet）</td>
+                <td><strong>L2 第二层（Optimistic Rollup 乐观汇总）</strong></td>
+                <td>运行在以太坊之上的扩容链，计算在L2执行，最终数据提交回以太坊L1，继承L1安全，不能独立存在。</td>
+            </tr>
+        </table>
+
+        <h3>1.2 两者核心关系</h3>
+        <ul class="flow-step">
+            <li>以太坊L1是OP链的<strong>结算层、数据可用层、安全根</strong>；OP链没有自己独立的共识，安全性完全依托以太坊主网。</li>
+            <li>OP链使用OP‑Stack开源模块构建，属于<strong>Optimistic Rollup</strong>；大量交易在L2快速执行，不占用L1计算资源，降低gas费。</li>
+            <li>OP链有一组部署在以太坊L1上的核心合约：<code>OptimismPortal2</code>（存取款）、<code>DisputeGameFactory</code> / <code>FaultDisputeGame</code>（状态根提议与故障证明争议游戏）、<code>AnchorStateRegistry</code>（锚定状态管理）等，控制L2存款、提款、状态提交、故障证明逻辑。</li>
+            <li>旧版的 <code>L2OutputOracle</code> 状态根提交机制（许可制）已于 <strong>2024年6月</strong> 被无需许可的故障证明体系取代，现仅部分OP Stack链仍在使用（详见1.3）。</li>
+            <li>L2只负责高速执行交易；<strong>交易原始压缩数据、状态根（Output Root）最终必须写入以太坊L1</strong>，保证数据可恢复、可验证。</li>
+        </ul>
+
+        <div class="diagram">
+            <div class="fig-title">图1：OP链与以太坊L1架构关系（OP Stack 组件 ↔ L1 核心合约）</div>
+            <div class="layer l2">
+                <div class="layer-tag">▲ OP链（L2 · 执行层）</div>
+                <span class="box">Sequencer 排序器<small>执行+排序交易</small></span>
+                <span class="box">Batcher 批处理器<small>压缩打包批次</small></span>
+                <span class="box">Proposer 提议者<small>提交状态根</small></span>
+                <span class="box orange">OP-Challenger 挑战者<small>故障证明(无需许可)</small></span>
+            </div>
+            <div class="between">▼ ① 提交压缩交易数据（Blob / calldata）　② 提交 Output Root　③ 挑战（Fault Proof）▼</div>
+            <div class="layer l1">
+                <div class="layer-tag">▼ 以太坊（L1 · 结算层 + 数据可用层 + 安全根）</div>
+                <span class="box">OptimismPortal2<small>存取款入口</small></span>
+                <span class="box">DisputeGameFactory<small>创建争议游戏</small></span>
+                <span class="box">FaultDisputeGame<small>7天挑战窗口</small></span>
+                <span class="box">AnchorStateRegistry<small>锚定状态基准</small></span>
+            </div>
+        </div>
+
+        <h3>1.3 OP Mainnet 关键升级时间线</h3>
+        <table>
+            <tr>
+                <th>时间</th>
+                <th>升级 / 事件</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td>2023-06</td>
+                <td>Bedrock 升级</td>
+                <td>重写OP Stack底层，2秒出块，架构与以太坊高度一致，奠定OP Stack基础</td>
+            </tr>
+            <tr>
+                <td>2024-03</td>
+                <td>Ecotone 升级（配合Dencun）</td>
+                <td>批次数据改用 Blob（EIP‑4844）写入L1，数据上链费用大幅下降</td>
+            </tr>
+            <tr>
+                <td>2024-06</td>
+                <td>无需许可故障证明上线</td>
+                <td>取代旧 <code>L2OutputOracle</code> 机制：任何人可用 Cannon 虚拟机挑战错误状态根</td>
+            </tr>
+            <tr>
+                <td>2025-03</td>
+                <td>Seismic 升级</td>
+                <td>争议游戏机制调整，无需许可与许可制（回退）游戏并行运行</td>
+            </tr>
+        </table>
+
+        <div class="note">
+            <strong>关键区分：</strong>L1以太坊执行计算+存储全部状态；OP L2只做计算，原始交易数据压缩后放回L1，L1保存数据用于重建L2全部状态，但不在L1执行L2交易逻辑。
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>二、如何获取OP链的OP代币；是否可以用ETH兑换</h2>
+        <h3>2.1 OP代币基础</h3>
+        <p>OP是Optimism的治理代币。<strong>OP代币原生部署在以太坊L1上</strong>（ERC‑20，合约地址 <code>0x4200000000000000000000000000000000000042</code>）；OP链L2上的OP是通过官方桥桥接的版本（由L2标准桥在L2铸造）。日常交易与使用绝大多数发生在OP L2网络，但代币的"根"（原生合约）在L1。</p>
+
+        <h3>2.2 获取OP代币4种途径</h3>
+        <ol class="flow-step">
+            <li>
+                <strong>方式1：交易所直接提币，网络选择Optimism（最简单）</strong>
+                <p>在中心化交易所购买OP，提币时网络选 <code>Optimism</code>，直接到你的OP链钱包，不需要跨链桥。</p>
+            </li>
+            <li>
+                <strong>方式2：OP链上DEX，用ETH兑换OP（你问的方式）</strong>
+                <p>前提：钱包已经切换到 <strong>Optimism网络</strong>，钱包有OP链上的ETH作为gas手续费。</p>
+                <p>在Uniswap、Velodrome等DEX，交易对 ETH / OP，直接在L2内部完成币币兑换。<br/>
+                ⚠️注意：这是<strong>OP链内部的兑换</strong>，不是以太坊L1的ETH直接兑换OP；必须先把ETH跨链到OP L2，才能在L2用ETH换OP。</p>
+            </li>
+            <li>
+                <strong>方式3：以太坊L1资产跨链到OP链（官方桥，最安全）</strong>
+                <ul>
+                    <li>钱包切换以太坊主网(L1)，访问Optimism官方桥</li>
+                    <li>把L1的ETH、L1的OP代币（或任意受支持资产）存入官方桥合约（<code>OptimismPortal2</code> 锁定）</li>
+                    <li>L1合约锁定资产，向L2发送消息；OP链 <code>L2StandardBridge</code> 铸造对应数量资产给到你的L2地址，一般等待数分钟到账。</li>
+                </ul>
+            </li>
+            <li>
+                <strong>方式4：第三方快速跨链桥（体验更好，注意桥风险）</strong>
+                <p>使用 Hop、Across、Celer 等第三方桥，L1的ETH / OP 可以更快转入OP链（秒级~分钟级到账）。<br/>
+                ⚠️注意：第三方桥速度快的原因是<strong>垫付流动性、替用户承担7天挑战期风险</strong>，会收取一定费用，安全性取决于桥项目本身；追求最安全请优先官方桥。</p>
+            </li>
+        </ol>
+
+        <div class="note">
+            <strong>重要澄清：</strong>以太坊L1上的ETH<strong>不能直接在L1兑换OP</strong>。兑换操作发生在OP链L2的DEX合约；必须先将ETH跨链桥到OP链，才能拿这份L2‑ETH去兑换OP代币。
+        </div>
+
+        <h3>2.3 操作顺序：想用ETH换OP完整路径</h3>
+<pre>
+1. 钱包拥有以太坊L1的ETH
+2. 通过官方桥，把L1 ETH跨链 → OP链L2（钱包切换为Optimism网络）
+3. OP链钱包现在有L2‑ETH（用于gas+做兑换的币）
+4. 打开OP链上DEX，选择交易对 ETH‑OP，执行swap，得到OP代币
+</pre>
+    </div>
+
+    <div class="card">
+        <h2>三、场景：OP链上A地址给B地址发送100 OP币，数据如何存回ETH(L1)链？</h2>
+        <p>场景：网络是Optimism(L2)，A向B转账100 OP，<strong>这笔交易发生在L2，不会立刻发送到L1；是批量、异步提交回以太坊L1</strong>。下面完整拆解全流程。</p>
+
+        <pre>
+ A ──转 100 OP──▶ B（在 L2 上发起交易，支付 L2-ETH 作 gas）
+
+   ① L2本地执行：Sequencer 立即执行，A -100 / B +100，L2出块（秒级确认）
+        │
+        ▼
+   ② 批量打包：Batcher 收集数百~数千笔 L2 交易，压缩（zlib/brotli）成 1 个 Batch
+        │
+        ▼
+   ③ 数据上链：以 1 笔 L1 交易把压缩数据写入以太坊（默认 Blob(EIP-4844)，calldata 为回退）
+        │   └─ L1 只保存原始数据，不执行这笔 L2 转账
+        ▼
+   ④ 状态提交：Proposer 生成 Output Root（状态根摘要）→ 提交到 FaultDisputeGame 争议游戏
+        │
+        ▼
+   ⑤ 挑战窗口：约 7 天内无人挑战 → 该状态根在 L1 最终确认（finalized）
+        │   └─ 有人挑战 → Cannon 虚拟机链上仲裁 → 作恶方保证金被罚没
+</pre>
+
+        <h3>步骤1：L2本地执行转账（发生在OP链内部）</h3>
+        <ol class="flow-step">
+            <li>A钱包切换Optimism网络，发起交易：A → B，转账100 OP；支付L2 gas费（L2‑ETH）。</li>
+            <li>Sequencer（排序器）接收交易，在OP链L2执行：A余额‑100，B余额+100，L2状态发生改变，L2区块确认，A/B立刻看到余额变化。</li>
+            <li>此时，这笔转账<strong>仅存在OP链L2本地，以太坊L1完全不知道这笔交易</strong>。</li>
+        </ol>
+
+        <h3>步骤2：Sequencer打包批量交易，压缩交易数据（Batcher模块）</h3>
+        <ul class="flow-step">
+            <li>Sequencer持续收集大量L2交易（包含A转100OP这笔交易），攒成一批Batch；对全部交易数据做压缩，降低上链成本。</li>
+            <li><strong>注意：L1不会保存完整的执行状态，保存的是压缩后的原始交易输入数据</strong>，有了这批原始数据，任何节点都可以重放所有L2交易，重建全部L2状态。</li>
+        </ul>
+
+        <h3>步骤3：Batcher将压缩交易数据提交到以太坊L1</h3>
+        <ul class="flow-step">
+            <li>Batcher组件调用以太坊L1上rollup合约，把压缩过的批次数据写入以太坊L1链上。<strong>Ecotone升级（2024-03）后默认使用 Blob（EIP‑4844）</strong>，calldata 作为回退方案。</li>
+            <li>此时A转100OP这笔交易的<strong>压缩原始数据已经永久保存在以太坊L1</strong>，但L1并没有运行、执行这笔转账。L1只存原始输入数据。</li>
+        </ul>
+
+        <h3>步骤4：Proposer提交L2状态根（Output Root）到L1的争议游戏合约</h3>
+        <ul class="flow-step">
+            <li>Proposer定期生成L2最新的状态根（StateRoot：整个L2世界状态的Merkle‑Patricia树根，包含A、B地址余额变化后的全部状态摘要），打包为 Output Root。</li>
+            <li>通过 <code>DisputeGameFactory</code> 创建 <code>FaultDisputeGame</code> 争议游戏，把Output Root提交到以太坊L1。<br/>
+            StateRoot不是完整余额，只是密码学摘要；L1靠这个摘要校验L2状态是否合法。</li>
+            <li>补充：2024年6月之前，OP Mainnet使用许可制的 <code>L2OutputOracle</code> 合约接收状态根；此后已全面切换到无需许可的故障证明体系，旧机制废弃。</li>
+        </ul>
+
+        <h3>步骤5：约7天挑战窗口（Fault Proof故障证明机制）</h3>
+        <ul class="flow-step">
+            <li>状态根提交L1后，进入约7天挑战窗口期。故障证明体系基于 <code>Cannon</code>（链上运行的MIPS指令虚拟机）+ <code>OP-Challenger</code>（挑战者客户端），<strong>任何人在无需许可的情况下都可以挑战</strong>。</li>
+            <li>挑战者需质押保证金（bond），通过<strong>二分法（bisection）</strong>与提议者逐步缩小分歧范围，直到定位到某一条具体的错误指令，并在链上执行验证。</li>
+            <li>验证失败的一方保证金被罚没（slashing），错误状态被回滚；若游戏临近超时仍有分歧，会触发<strong>时钟扩展（clock extension）</strong>，被挑战时最终确认可能超过7天。</li>
+            <li>挑战期内没有有效挑战，则该L2状态根在L1完成最终确认(finalized)。</li>
+        </ul>
+
+        <h3>关键总结：A转100OP这件事，L1到底存了什么？</h3>
+<pre>
+✅ L1以太坊存储：
+1. 压缩后的原始交易字节数据（Blob/calldata）：可以重放复现“A转给B 100OP”这笔交易
+2. L2的StateRoot（状态根摘要），密码学证明L2全部账户状态
+
+❌ L1以太坊不会存储：
+不会在L1执行A给B转账；L1不会保存A、B的完整余额；L1上OP代币余额不会变化。
+</pre>
+
+        <div class="note">
+            <strong>补充区分：普通L2转账 vs L2提款回L1</strong>
+            <p>A在OP链转给B，属于L2内部转账；只会批量提交原始数据+状态根回L1，资产不会出L2。</p>
+            <p>只有当用户执行<strong>提款（Withdraw）</strong>操作，才会把资产从OP链"取出"，经过挑战期后在以太坊L1释放代币到L1地址，这是跨层资产移动，和L2内部转账完全不同流程。完整流程见 <strong>第五节</strong>。</p>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>四、OP链如何提升L1吞吐量：扩容原理</h2>
+        <p>先澄清一个常见误解：<strong>OP并没有改变以太坊L1本身的处理速度</strong>（L1每秒能处理的交易数基本不变）。OP的思路是<strong>把"执行"从L1搬走</strong>，让整个系统（L1+L2）的吞吐量大幅提升，L1只保留结算、安全与数据可用性三项职责。</p>
+
+        <h3>4.1 核心思路：执行与结算分离</h3>
+        <ul class="flow-step">
+            <li><strong>交易执行外包：</strong>L2交易只在Sequencer上执行，L1节点完全不需要执行这些交易，L1宝贵的算力不再被海量用户交易占用。</li>
+            <li><strong>数据压缩上链：</strong>L1只需要保存L2压缩后的原始交易数据（用于重建状态）和状态根摘要（用于验证），不需要保存中间执行过程。</li>
+        </ul>
+
+        <h3>4.2 三个关键机制</h3>
+        <ol class="flow-step">
+            <li>
+                <strong>批量打包（Batching）：</strong>数百~数千笔L2交易打包成一个Batch，只以<strong>1笔L1交易</strong>提交。原本需要数百笔L1交易的gas，现在由1笔交易承担，成本被大幅平摊。
+            </li>
+            <li>
+                <strong>数据压缩（Compression）：</strong>Batch数据经 zlib / brotli 等压缩算法压缩后体积大幅缩小（一笔简单转账可由约100字节压至十几字节量级），进一步降低L1数据成本。
+            </li>
+            <li>
+                <strong>Blob载体（EIP‑4844）：</strong>压缩数据写入专用的Blob空间，<strong>不经过EVM执行、不参与calldata竞价</strong>，有独立的费用市场，成本远低于calldata。Blob约18天后过期删除，但18天足够L2节点同步数据、挑战者验证状态；之后的状态安全性由状态根+故障证明保证。
+            </li>
+        </ol>
+
+        <h3>4.3 L1与OP L2效果对比</h3>
+        <table>
+            <tr>
+                <th>维度</th>
+                <th>以太坊L1</th>
+                <th>OP链L2</th>
+            </tr>
+            <tr>
+                <td>交易执行</td>
+                <td>全网所有验证节点都要执行</td>
+                <td>仅Sequencer执行，L1不执行</td>
+            </tr>
+            <tr>
+                <td>数据上链</td>
+                <td>每笔交易单独上链，数据永久保存</td>
+                <td>数百~数千笔打包压缩后以1笔交易写入（Blob）</td>
+            </tr>
+            <tr>
+                <td>吞吐量</td>
+                <td>约15 TPS（简单转账口径）</td>
+                <td>数百~数千TPS（设计目标，取决于Sequencer性能）</td>
+            </tr>
+            <tr>
+                <td>单笔交易费用</td>
+                <td>高</td>
+                <td>低（约为L1的十分之一或更低）</td>
+            </tr>
+            <tr>
+                <td>最终确认</td>
+                <td>约12.8分钟（2个epoch）</td>
+                <td>L2秒级"软确认"；L1最终确认需约7天挑战期</td>
+            </tr>
+        </table>
+
+        <h3>4.4 原理示意图与总结</h3>
+<pre>
+L1 原生模式：
+   每笔交易 ──▶ 全网所有验证节点执行 + 数据永久保存 ──▶ 吞吐量受全网共识能力限制
+
+OP L2 模式（吞吐提升原理）：
+   N 笔 L2 交易 ──▶ ① 仅 Sequencer 执行（快）
+              ──▶ ② Batcher 压缩打包（小，zlib/brotli）
+              ──▶ ③ 1 笔 L1 交易写入 Blob（便宜，L1 只存数据、不执行）
+
+   每笔 L2 交易在 L1 的边际成本 ≈ (1 笔 Blob 交易的费用) ÷ N
+   L1 每处理 1 笔“批次交易” = 支撑 N 笔真实用户交易 ⇒ 系统总吞吐提升约 N 倍量级
+</pre>
+
+        <div class="note">
+            <strong>安全不打折：</strong>即便Sequencer故障或作恶，任何人都能凭L1上的压缩原始数据重建L2全部状态，并在7天窗口内挑战错误状态根。因此"提速"换来的不是更弱的安全，安全等级仍由以太坊L1背书——这正是Rollup与侧链的本质区别。
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>五、L2与L1之间的资产进出：存款与提款全流程</h2>
+
+        <h3>5.1 存款（L1 → L2，Deposit）</h3>
+        <ol class="flow-step">
+            <li>用户在L1调用 <code>OptimismPortal2</code>，将ETH / 代币存入并锁定；</li>
+            <li>L1合约向L2发送跨链消息（depositTransaction）；</li>
+            <li>L2节点收到消息后，<code>L2StandardBridge</code> 在L2铸造等量资产（optimismMintableERC20）到用户L2地址，一般数分钟到账。</li>
+        </ol>
+<pre>
+ [L1] 资产锁定于 OptimismPortal2 ──跨链消息──▶ [L2] L2StandardBridge 铸造等量资产
+                              （一般数分钟到账）
+</pre>
+
+        <h3>5.2 提款（L2 → L1，Withdrawal）</h3>
+        <ol class="flow-step">
+            <li>用户在L2发起提款，L2上资产被销毁（burn），交易记录写入 <code>L2ToL1MessagePasser</code>；</li>
+            <li>等待包含该交易的 Output Root 由 Proposer 提交到L1；</li>
+            <li>用户在L1调用 <code>proveWithdrawalTransaction</code> 提交证明；</li>
+            <li>等待约7天挑战窗口结束（期间任何人可挑战）；</li>
+            <li>调用 <code>finalizeWithdrawalTransaction</code>，资产在L1释放到用户地址。</li>
+        </ol>
+<pre>
+ [L2] 销毁资产,发起提款 ─▶ [L1] 提交证明(prove) ─▶ 约7天挑战窗口 ─▶ [L1] 最终确认(finalize),释放资产
+</pre>
+
+        <h3>5.3 为什么提款要等7天？</h3>
+        <ul class="flow-step">
+            <li>给全网验证者 / 挑战者足够时间检查L2状态是否合法：如果Sequencer作恶提交了错误状态（例如伪造提款记录），挑战者可在窗口期内发起故障证明，回滚错误状态。</li>
+            <li>7天是"安全性"与"用户体验"之间的权衡。想要立即到账的用户可使用<strong>第三方快速桥</strong>（如第二节方式4所述，第三方桥垫付资金、替用户承担挑战期风险，收取一定费用），或使用交易所直接提币（方式1，由交易所内部处理）。</li>
+        </ul>
+
+        <div class="note">
+            <strong>一图看懂两种方向：</strong>存款（L1→L2）快——只等L1消息确认，数分钟；提款（L2→L1）慢——必须经过证明+挑战期，约7天。方向不对称是Optimistic Rollup的固有特性（ZK Rollup的提款等待可缩短到小时级，但证明生成成本不同）。
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>六、核心概念小结</h2>
+        <ul class="flow-step">
+            <li>ETH主网 = L1 底层结算链；Optimism(OP链) = L2乐观Rollup扩容链，安全依附以太坊L1。</li>
+            <li>OP代币原生合约在L1，日常使用多在OP L2；想用ETH换OP，要先把ETH跨链桥到OP链，再在L2 DEX兑换，L1不能直接兑换。</li>
+            <li>L2内部转账(A→B转100OP)：L2立刻执行；随后Sequencer批量压缩交易数据上送L1（Blob），Proposer提交状态根到争议游戏；L1保存原始交易数据+状态摘要，约7天无需许可故障证明窗口完成最终确认；L1不执行这笔转账逻辑。</li>
+            <li>OP提升的是<strong>整个系统（L1+L2）的吞吐量</strong>：执行搬离L1、批量压缩、Blob载体三个机制叠加，L1处理1笔批次交易就能支撑数百~数千笔真实用户交易；L1本身吞吐不变，但安全等级不打折。</li>
+            <li>资产进出不对称：存款（L1→L2）数分钟；提款（L2→L1）需证明+约7天挑战期；第三方快速桥可换取速度但引入桥风险。</li>
+            <li>只要L1保存了压缩原始交易数据，任意节点可以全部重放，重建OP链全部账户状态，实现L2的安全性保障。</li>
+        </ul>
+    </div>
+
+    <div class="card">
+        <h3>参考概念术语</h3>
+        <table>
+            <tr>
+                <th>名词</th>
+                <th>释义</th>
+            </tr>
+            <tr>
+                <td>Sequencer排序器</td>
+                <td>OP链负责接收、执行、打包L2交易的组件（当前由Optimism官方运营）</td>
+            </tr>
+            <tr>
+                <td>Batcher批处理器</td>
+                <td>压缩L2交易数据，发送到以太坊L1保存</td>
+            </tr>
+            <tr>
+                <td>Proposer提议者</td>
+                <td>生成L2状态根（Output Root），通过争议游戏提交到L1</td>
+            </tr>
+            <tr>
+                <td>Challenger挑战者（OP-Challenger）</td>
+                <td>无需许可的挑战客户端，7天窗口内可对错误状态根发起故障证明</td>
+            </tr>
+            <tr>
+                <td>Cannon</td>
+                <td>链上运行的MIPS指令虚拟机，L1通过它执行故障证明、仲裁争议</td>
+            </tr>
+            <tr>
+                <td>StateRoot状态根</td>
+                <td>L2全部账户状态的密码学Merkle树根摘要</td>
+            </tr>
+            <tr>
+                <td>Fault Proof故障证明</td>
+                <td>基于Cannon的无需许可争议游戏：约7天窗口，任何人质押保证金即可挑战错误状态根，输者保证金被罚没</td>
+            </tr>
+            <tr>
+                <td>Blob(EIP‑4844)</td>
+                <td>以太坊专门的数据存储载体，用于L2提交大批量压缩数据，成本远低于calldata；约18天后过期删除（足够验证者同步与挑战）</td>
+            </tr>
+            <tr>
+                <td>OptimismPortal2</td>
+                <td>L1上的存取款入口合约，管理L1↔L2的资产与跨链消息</td>
+            </tr>
+            <tr>
+                <td>DisputeGameFactory / FaultDisputeGame</td>
+                <td>状态根提议与故障证明的"争议游戏"合约</td>
+            </tr>
+            <tr>
+                <td>AnchorStateRegistry</td>
+                <td>记录锚定状态（可信基准状态根），供争议游戏参考</td>
+            </tr>
+            <tr>
+                <td>L2OutputOracle（已废弃）</td>
+                <td>2024年6月前接收Proposer状态根的旧许可制合约，已被故障证明体系取代</td>
+            </tr>
+        </table>
+    </div>
+
+</body>
+</html>
