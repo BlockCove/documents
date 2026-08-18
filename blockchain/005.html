@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>以太坊执行层EL与共识层CL调研报告</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({
+            startOnLoad:true,
+            theme:'neutral'
+        });
+    </script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: "Microsoft YaHei", system-ui, sans-serif;
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 24px;
+            background-color: #f7f8fa;
+            color: #222;
+            line-height: 1.7;
+        }
+        .container {
+            background: #ffffff;
+            padding: 32px 40px;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        }
+        h1 {
+            font-size: 26px;
+            border-bottom: 2px solid #2563eb;
+            padding-bottom: 12px;
+            margin-top:0;
+        }
+        h2 {
+            font-size: 20px;
+            margin-top: 32px;
+            color:#1e3a8a;
+            border-left:4px solid #2563eb;
+            padding-left:12px;
+        }
+        h3 {
+            font-size:17px;
+            margin-top:24px;
+        }
+        table {
+            width:100%;
+            border-collapse: collapse;
+            margin:16px 0;
+        }
+        th,td {
+            border:1px solid #cbd5e1;
+            padding:10px 12px;
+        }
+        th {
+            background-color:#eff6ff;
+        }
+        code {
+            background:#f1f5f9;
+            padding:2px 6px;
+            border-radius:4px;
+            font-family:Consolas,monospace;
+        }
+        .mermaid-wrap {
+            margin:24px 0;
+            padding:16px;
+            background:#f8fafc;
+            border-radius:8px;
+        }
+        .summary-box {
+            background:#eff6ff;
+            padding:16px;
+            border-radius:8px;
+            margin:16px 0;
+        }
+        .note {
+            background:#fffbeb;
+            border-left:4px solid #f59e0b;
+            padding:12px 16px;
+            border-radius:6px;
+            margin:16px 0;
+        }
+        .tip {
+            background:#ecfdf5;
+            border-left:4px solid #10b981;
+            padding:12px 16px;
+            border-radius:6px;
+            margin:16px 0;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>以太坊执行层EL与共识层CL架构交互调研报告</h1>
+
+    <div class="summary-box">
+        <p><strong>报告时间：</strong>2026‑08‑18</p>
+        <p><strong>调研对象：</strong>go‑ethereum(Geth)执行层、信标链共识层CL、Engine API交互</p>
+        <p><strong>摘要：</strong>以太坊合并(The Merge)之后拆分为执行层EL + 共识层CL双层架构。Geth仅为执行层客户端，不包含PoS共识逻辑；共识层使用独立信标链客户端(Prysm/Lighthouse等)。两者通过Engine API私有RPC（JWT密钥鉴权）通信，共同完成区块生产、共识、状态落地。本报告涵盖背景演进、两层职责、Engine API（V1→V5）与ExecutionPayload、存储与进程模型。</p>
+    </div>
+
+    <h2>一、背景：从PoW一体机到EL+CL双层架构</h2>
+    <p>合并之前，Geth一个程序包办全部工作：交易执行、EVM、世界状态、PoW挖矿出块，共识与执行耦合在同一进程里。</p>
+    <p>拆分是分两步走的：<strong>2020‑12‑01 信标链（Beacon Chain）先行创世</strong>——一条只有验证者、没有交易和账户的纯PoS共识链，独立运行近两年、积累验证者生态；<strong>2022‑09‑15 全网总难度达到预设的TTD后，The Merge（巴黎升级，块高15537394）把两条链合体</strong>：PoW挖矿永久关闭，信标链接管共识，Geth退化为纯执行层。</p>
+
+    <h3>为什么拆成两层</h3>
+    <ul>
+        <li><strong>节能与安全</strong>：PoS用质押代替算力，能耗下降约99.95%；攻击共识需要质押巨量ETH，且违规会被slash罚没本金。</li>
+        <li><strong>职责解耦</strong>：共识规则（时隙、投票、分叉选择）与执行规则（EVM、状态）各自独立演进——升级blob、提款等共识层能力时不必大改EVM。</li>
+        <li><strong>客户端多样性</strong>：任意EL可以搭配任意CL（Geth×Prysm、Nethermind×Lighthouse……），形成客户端矩阵，单一客户端出bug不再一票否决全网。</li>
+        <li><strong>最小接口</strong>：两层之间只需要一个Engine API契约，两边实现可以自由替换、独立升级。</li>
+    </ul>
+
+    <h3>演进时间线</h3>
+    <table>
+        <thead>
+        <tr>
+            <th>时间</th>
+            <th>事件</th>
+            <th>关键内容</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td>2020‑12‑01</td>
+            <td>信标链创世</td>
+            <td>纯PoS共识链先行运行，无交易、无账户，只处理质押与验证者</td>
+        </tr>
+        <tr>
+            <td>2022‑09‑15</td>
+            <td>The Merge（Paris）</td>
+            <td>TTD=58750000000000000000、块高15537394；PoW永久关闭，信标链接管共识</td>
+        </tr>
+        <tr>
+            <td>2023‑04‑12</td>
+            <td>Shapella（上海/卡佩拉）</td>
+            <td>开放质押提款，ExecutionPayload新增withdrawals字段</td>
+        </tr>
+        <tr>
+            <td>2024‑03‑13</td>
+            <td>Dencun（坎昆/Deneb）</td>
+            <td>EIP‑4844引入blob，L2数据上链成本大幅下降</td>
+        </tr>
+        <tr>
+            <td>2025‑05‑07</td>
+            <td>Pectra（布拉格/Electra）</td>
+            <td>EIP‑7702账户抽象；验证者有效余额上限32→2048 ETH；blob目标/上限3/6→6/9</td>
+        </tr>
+        <tr>
+            <td>2025‑12‑03</td>
+            <td>Fusaka（大阪）</td>
+            <td>PeerDAS（EIP‑7594）数据可用性采样，节点无需下载完整blob即可验证；随后BPO1（12‑09）blob提到10/15、BPO2（2026‑01‑07）提到14/21</td>
+        </tr>
+        <tr>
+            <td>规划中</td>
+            <td>Glamsterdam</td>
+            <td>ePBS（EIP‑7732）提案者‑构建者分离入协议；截至2026‑08仍在开发网测试</td>
+        </tr>
+        </tbody>
+    </table>
+
+    <h2>二、架构总览</h2>
+    <p>合并之后彻底解耦为两层：</p>
+    <ul>
+        <li><strong>执行层 EL Execution Layer</strong>：处理交易、EVM执行、世界状态、生成ExecutionPayload；代表客户端：Geth(go‑ethereum)、Erigon、Besu、Nethermind。</li>
+        <li><strong>共识层 CL Consensus Layer</strong>：信标链，PoS质押、验证者管理、时隙调度、投票、区块终局确认；代表客户端：Prysm(Go)、Lighthouse(Rust)、Teku、Nimbus。</li>
+    </ul>
+
+    <table>
+        <thead>
+        <tr>
+            <th>层级</th>
+            <th>客户端</th>
+            <th>语言</th>
+            <th>说明</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td>执行层 EL</td>
+            <td>Geth</td>
+            <td>Go</td>
+            <td>go‑ethereum官方，仅执行层，无共识层</td>
+        </tr>
+        <tr>
+            <td>执行层 EL</td>
+            <td>Erigon / Besu / Nethermind</td>
+            <td>Go / Java / C#</td>
+            <td>备选执行客户端（曾经的C++客户端Aleth已停止维护）</td>
+        </tr>
+        <tr>
+            <td>共识层 CL</td>
+            <td>Prysm</td>
+            <td>Go</td>
+            <td>独立项目，不属于go‑ethereum，信标链实现</td>
+        </tr>
+        <tr>
+            <td>共识层 CL</td>
+            <td>Lighthouse / Teku / Nimbus</td>
+            <td>Rust / Java / Nim</td>
+            <td>多客户端保障网络去中心化</td>
+        </tr>
+        </tbody>
+    </table>
+
+    <h3>节点架构全景图</h3>
+    <p>从SDK客户端到验证者客户端的完整调用链路：</p>
+    <div class="mermaid-wrap">
+        <div class="mermaid">
+flowchart LR
+    subgraph SDK_Clients
+        direction TB
+        S1[ethclient]
+        S2[ethers.js]
+        S3[web3j]
+    end
+
+    subgraph ValOuter["Ethereum Validator"]
+        direction TB
+        subgraph EthNode["Ethereum node"]
+            direction LR
+            EL[Execution Layer]
+            CL_Beacon[Consensus Layer<br/>Beacon node]
+            EL <-->|Engine API<br/>Jwt Auth| CL_Beacon
+        end
+        VAL[Consensus Layer<br/>Validator]
+        CL_Beacon -->|grpc/http| VAL
+    end
+
+    SDK_Clients -->|Json Rpc Request| EL
+        </div>
+    </div>
+
+    <h2>三、执行层 EL(Geth)职责</h2>
+    <ul>
+        <li>维护txpool交易池，校验交易签名、nonce、gas、余额；通过eth/68等P2P协议在EL节点间传播交易</li>
+        <li>EVM虚拟机执行，维护Merkle‑Patricia世界状态树（账户、合约、存储、收据）</li>
+        <li>收到CL指令后组装 ExecutionPayload 执行负载</li>
+        <li>对外暴露 <code>eth_*</code>、<code>debug_*</code> 等公开RPC给dApp/钱包</li>
+        <li>对内暴露Engine API(<code>engine_*</code>)供CL调用</li>
+    </ul>
+    <p><strong>EL不做：</strong>信标链、质押验证者、attestation投票、时隙调度，不能独立出块——合并后EL自己不知道哪个是链头，没有CL驱动就无法生产新区块。</p>
+
+    <h2>四、共识层 CL（信标链）职责</h2>
+    <ul>
+        <li><strong>质押管理</strong>：验证者激活/退出队列、奖励惩罚、slash罚没（双重提案、双重投票、环绕投票）；Pectra(2025‑05)前每验证者固定32 ETH，之后有效余额上限提高到2048 ETH</li>
+        <li><strong>时钟与随机</strong>：时隙Slot(12s)、纪元Epoch(32个slot，6.4分钟)调度；每slot提议者揭示RANDAO随机数，混入种子后选出下一轮区块提议者与证明委员会</li>
+        <li><strong>提议</strong>：被选中时通过Engine API驱动EL生成payload，组装信标区块签名后全网广播</li>
+        <li><strong>验证与分叉选择</strong>：区块到达后调用newPayload执行校验、fcu更新链头；LMD‑GHOST做分叉选择</li>
+        <li><strong>最终性finality</strong>：attestation同时投"链头票"和"检查点票"，连续两个Epoch超2/3质押确认后经Casper‑FFG完成最终确认（最快约12.8分钟）</li>
+    </ul>
+    <p><strong>CL不做：</strong>不执行EVM，看不懂交易，不维护账户状态，没有交易池。</p>
+
+    <h2>五、EL‑CL交互与Engine API</h2>
+    <h3>交互时序图</h3>
+    <div class="mermaid-wrap">
+        <div class="mermaid">
+sequenceDiagram
+    participant CL as 共识层CL(Prysm)
+    participant EL as 执行层EL(Geth)
+
+    Note over CL,EL: 提议阶段：Slot到达(12s)，本节点被RANDAO选为区块提议者
+    CL->>EL: engine_forkchoiceUpdated<br/>同步head/safe/finalized + payloadAttributes<br/>(timestamp/prevRandao/feeRecipient)
+    Note over EL: EL后台异步构建：txpool选交易→执行→计算stateRoot→组装ExecutionPayload
+    CL->>EL: engine_getPayload 获取构建好的payload
+    EL-->>CL: 返回ExecutionPayload（尚未获得任何投票）
+    Note over CL: CL打包进信标区块并签名，gossip广播全网
+
+    Note over CL,EL: 验证阶段：全网每个节点收到信标区块后，在其本地CL/EL之间重复以下步骤
+    CL->>EL: engine_newPayload 执行全部交易、校验stateRoot
+    EL-->>CL: 返回VALID/INVALID/SYNCING
+    CL->>EL: engine_forkchoiceUpdated 把该块设为最新head
+    Note over EL: head确定后，EL才把状态/收据真正落盘
+    Note over CL: 验证者对该head投Attestation；连续2个Epoch超2/3确认→finality(约12.8分钟)
+        </div>
+    </div>
+    <p>注意两点：①图中省略了版本号后缀，方法版本随硬分叉独立演进（见下表），但"forkchoiceUpdated→getPayload→newPayload"三步核心模式始终不变；②区块提议者若接入MEV‑Boost，getPayload返回的可能是builder（区块构建者）构建的payload，而非本地EL构建的。</p>
+
+    <h3>三大核心Engine API说明</h3>
+    <table>
+        <thead>
+        <tr>
+            <th>API</th>
+            <th>调用方向</th>
+            <th>时机</th>
+            <th>作用</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td>engine_forkchoiceUpdated</td>
+            <td>CL → EL</td>
+            <td>slot开始(带属性) / 区块到达</td>
+            <td>①同步head/safe/finalized链头视图；②携带payloadAttributes时触发EL后台构建新区块</td>
+        </tr>
+        <tr>
+            <td>engine_getPayload</td>
+            <td>CL → EL</td>
+            <td>提议者构建阶段</td>
+            <td>获取EL（或MEV‑Boost builder）构建好的ExecutionPayload，此时尚未获得任何投票</td>
+        </tr>
+        <tr>
+            <td>engine_newPayload</td>
+            <td>CL → EL</td>
+            <td>每次区块到达</td>
+            <td>执行交易并校验stateRoot等字段，返回VALID/INVALID/SYNCING；只校验不改变链头</td>
+        </tr>
+        <tr>
+            <td>engine_exchangeTransitionConfiguration</td>
+            <td>CL → EL</td>
+            <td>合并过渡期</td>
+            <td>握手核对TTD等配置一致，上海升级后各客户端已不再必需</td>
+        </tr>
+        </tbody>
+    </table>
+    <div class="tip">
+        核心语义：<strong>getPayload拿到的是"候选区块"，newPayload是"执行并校验"，forkchoiceUpdated才决定"它是不是链头"</strong>。区块真正成为canonical并落盘发生在fcu更新head之后，而不是newPayload阶段——这正是原文档时序图中容易被误解为"共识完成后才下发执行"的地方。
+    </div>
+
+    <h3>Engine API版本演进</h3>
+    <p>Engine API随硬分叉演进，每次升级只新增/修改必要的字段与方法：</p>
+    <table>
+        <thead>
+        <tr>
+            <th>版本</th>
+            <th>硬分叉</th>
+            <th>激活时间</th>
+            <th>关键变化</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td>V1</td>
+            <td>Paris（The Merge）</td>
+            <td>2022‑09</td>
+            <td>初始版本：newPayload/getPayload/forkchoiceUpdated三大件</td>
+        </tr>
+        <tr>
+            <td>V2</td>
+            <td>Shanghai（Shapella）</td>
+            <td>2023‑04</td>
+            <td>payload增加withdrawals提款列表</td>
+        </tr>
+        <tr>
+            <td>V3</td>
+            <td>Cancun（Dencun）</td>
+            <td>2024‑03</td>
+            <td>增加blobGasUsed/excessBlobGas、parentBeaconBlockRoot（EIP‑4844）</td>
+        </tr>
+        <tr>
+            <td>V4</td>
+            <td>Prague（Pectra）</td>
+            <td>2025‑05</td>
+            <td>增加executionRequests（EIP‑7685，EL交易驱动的系统合约请求）</td>
+        </tr>
+        <tr>
+            <td>V5</td>
+            <td>Osaka（Fusaka）</td>
+            <td>2025‑12</td>
+            <td>getPayloadV5返回BlobsBundleV2（含cell证明，配套PeerDAS）；新增getBlobsV2/V3</td>
+        </tr>
+        </tbody>
+    </table>
+    <p>版本号按方法<strong>独立</strong>递增：例如forkchoiceUpdated直到Prague仍是V3（字段没变就不升版）。EL对跨版本调用会返回 <code>-38005 Unsupported fork</code> 错误，因此EL、CL必须处于同一硬分叉世代。截至2026‑08主网处于Fusaka（V5）世代。</p>
+
+    <h3>JWT鉴权与部署要求</h3>
+    <p>Engine API虽只跑在本机，但<strong>并非无鉴权</strong>：EL和CL启动时读取同一个 <code>jwt.hex</code>（32字节随机密钥），每个请求携带HS256签名的Bearer token，验签失败直接拒绝。Geth侧通过 <code>--authrpc.addr</code> / <code>--authrpc.port</code>（默认127.0.0.1:8551）/ <code>--authrpc.jwtsecret</code> 三个参数配置。</p>
+    <div class="note">
+        ⚠️ jwt.hex泄露＝攻击者可以伪造forkchoiceUpdated/newPayload指令，等于交出出块指令权。因此Engine API绝不能暴露公网，仅本机127.0.0.1访问。
+    </div>
+
+    <h3>ExecutionPayload结构</h3>
+    <p>ExecutionPayload是EL交给CL的"执行结果信封"。CL把payload放进信标区块（连同proposer签名、attestation聚合等共识信息）后广播。字段按来源分为三类：</p>
+    <table>
+        <thead>
+        <tr>
+            <th>字段</th>
+            <th>含义</th>
+            <th>来源</th>
+            <th>引入版本</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td>parentHash / blockNumber / blockHash</td>
+            <td>父块哈希 / 块号 / 本块哈希</td>
+            <td>EL</td>
+            <td>—</td>
+        </tr>
+        <tr>
+            <td>stateRoot</td>
+            <td>世界状态根（执行结果）</td>
+            <td>EL执行产生</td>
+            <td>—</td>
+        </tr>
+        <tr>
+            <td>receiptsRoot / logsBloom</td>
+            <td>收据树根 / 日志bloom过滤器</td>
+            <td>EL执行产生</td>
+            <td>—</td>
+        </tr>
+        <tr>
+            <td>transactions</td>
+            <td>本块交易列表</td>
+            <td>EL从txpool选择</td>
+            <td>—</td>
+        </tr>
+        <tr>
+            <td>gasLimit / gasUsed / baseFeePerGas</td>
+            <td>gas上限 / 实际消耗 / 基础费(EIP‑1559)</td>
+            <td>EL计算</td>
+            <td>—</td>
+        </tr>
+        <tr>
+            <td>feeRecipient</td>
+            <td>手续费接收地址</td>
+            <td>CL下发（payloadAttributes）</td>
+            <td>—</td>
+        </tr>
+        <tr>
+            <td>prevRandao</td>
+            <td>RANDAO随机值（PoS的随机源）</td>
+            <td>CL下发</td>
+            <td>—</td>
+        </tr>
+        <tr>
+            <td>timestamp / extraData</td>
+            <td>时间戳（＝信标slot时间）/ 附加数据</td>
+            <td>CL下发</td>
+            <td>—</td>
+        </tr>
+        <tr>
+            <td>withdrawals</td>
+            <td>质押提款列表</td>
+            <td>CL下发（来自信标链状态）</td>
+            <td>V2(Shanghai)</td>
+        </tr>
+        <tr>
+            <td>parentBeaconBlockRoot</td>
+            <td>父信标区块根（打通信标链上下文）</td>
+            <td>CL下发</td>
+            <td>V3(Cancun)</td>
+        </tr>
+        <tr>
+            <td>blobGasUsed / excessBlobGas</td>
+            <td>blob gas用量 / 超额量（EIP‑4844定价）</td>
+            <td>EL计算</td>
+            <td>V3(Cancun)</td>
+        </tr>
+        <tr>
+            <td>requestsHash</td>
+            <td>系统合约请求根（EL交易触发的质押/提款请求）</td>
+            <td>EL计算</td>
+            <td>V4(Prague)</td>
+        </tr>
+        </tbody>
+    </table>
+
+    <h2>六、存储与进程模型</h2>
+    <h3>两套独立数据库</h3>
+    <ul>
+        <li><strong>Geth数据库(EL)</strong>：区块、交易、收据、账户状态trie，业务账本；底层LevelDB/Pebble KV库，老区块头/体/收据存在ancient冷数据区。</li>
+        <li><strong>Prysm数据库(CL)</strong>：信标区块、信标状态、验证者、attestation投票记录，共识账本；底层BoltDB KV库。</li>
+    </ul>
+    <p>两套数据库完全独立、互不读写对方数据，只通过Engine API交换payload与链头信息。</p>
+
+    <h3>进程模型</h3>
+    <ul>
+        <li><strong>普通节点</strong>（同步链、查数据、提供RPC）：EL + CL 两个进程，缺一不可。</li>
+        <li><strong>质押验证者节点</strong>：EL + CL信标节点 + <strong>VC验证者客户端</strong>三个进程。</li>
+    </ul>
+
+    <h3>验证者客户端 Validator Client（VC）</h3>
+    <ul>
+        <li>VC持有BLS签名密钥，是唯一需要"签名"的进程：签区块提案、签attestation、聚合投票；信标节点负责链同步与分叉选择，VC通过本地RPC/gRPC向信标节点领取本验证者的职责。</li>
+        <li>Prysm、Lighthouse的VC是独立二进制进程；Teku、Nimbus可内嵌在信标节点进程内。</li>
+        <li>密钥安全：提款密钥建议离线保管；也可用Web3Signer等远程签名服务托管签名。</li>
+        <li>大量质押用户通过质押池（如Lido）质押，个人并不直接运行验证者节点。</li>
+    </ul>
+
+    <h2>七、常见误区与风险</h2>
+    <ul>
+        <li>❌ go‑ethereum包含共识层 → ✅ Geth只有执行层，内部仅有一个共识引擎接口（clique PoA只用于私链/测试网）；Prysm是独立Go项目。</li>
+        <li>❌ 只跑Geth可以同步链 → ✅ 合并后Geth自己不知道哪个是链头，区块同步到合并点附近就会停下，必须搭配CL。</li>
+        <li>❌ Engine API没有鉴权 → ✅ 实际使用JWT共享密钥鉴权（jwt.hex）；密钥泄露等于把出块指令权交给攻击者。</li>
+        <li>⚠️ Engine API禁止暴露公网，默认仅监听127.0.0.1:8551。</li>
+        <li>⚠️ EL、CL客户端必须处于同一硬分叉世代，跨版本调用返回-38005(Unsupported fork)，升级时需同步切换。</li>
+        <li>⚠️ 客户端集中风险：单一客户端占比超过2/3时，其bug可能导致全网无法finality；Geth、Prysm长期占比过半，社区持续呼吁客户端多样性。</li>
+    </ul>
+
+    <h2>八、总结</h2>
+    <p>以太坊合并实现<strong>执行与共识完全解耦</strong>：CL负责"决策、投票、调度"，EL负责"干活、执行交易、维护账本"。</p>
+    <p>不是EL挖出区块上报CL；而是CL驱动EL生产payload，CL完成共识审批，再命令EL落地状态。准确地说：<strong>getPayload产出候选区块 → newPayload执行校验 → forkchoiceUpdated确立链头并落盘</strong>，Attestation投票紧随其后，两个Epoch后完成finality。</p>
+    <p>Engine API是两层之间的标准契约：自Merge的V1演进到Fusaka的V5，核心三步交互始终不变——理解这套交互，就理解了PoS以太坊节点的全部核心。</p>
+
+</div>
+</body>
+</html>
