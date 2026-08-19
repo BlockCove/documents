@@ -162,6 +162,7 @@
         <ul class="flow-step">
             <li>以太坊L1是OP链的<strong>结算层、数据可用层、安全根</strong>；OP链没有自己独立的共识，安全性完全依托以太坊主网。</li>
             <li>OP链使用OP‑Stack开源模块构建，属于<strong>Optimistic Rollup</strong>；大量交易在L2快速执行，不占用L1计算资源，降低gas费。</li>
+            <li>OP链与以太坊<strong>EVM等价（EVM Equivalence）</strong>：L1上能跑的所有 Solidity 智能合约都可以原样部署到OP L2（同一份编译字节码、同样的opcode与gas语义），开发工具链不变（Hardhat / Foundry / Remix 只需切换RPC）。合约部署后代码与存储写入L2状态，随状态根一起提交L1；地址推导规则与L1相同（CREATE/CREATE2），因此同一部署者在两链可得到相同合约地址。</li>
             <li>OP链有一组部署在以太坊L1上的核心合约：<code>OptimismPortal2</code>（存取款）、<code>DisputeGameFactory</code> / <code>FaultDisputeGame</code>（状态根提议与故障证明争议游戏）、<code>AnchorStateRegistry</code>（锚定状态管理）等，控制L2存款、提款、状态提交、故障证明逻辑。</li>
             <li>旧版的 <code>L2OutputOracle</code> 状态根提交机制（许可制）已于 <strong>2024年6月</strong> 被无需许可的故障证明体系取代，现仅部分OP Stack链仍在使用（详见1.3）。</li>
             <li>L2只负责高速执行交易；<strong>交易原始压缩数据、状态根（Output Root）最终必须写入以太坊L1</strong>，保证数据可恢复、可验证。</li>
@@ -225,7 +226,61 @@
         <h3>2.1 OP代币基础</h3>
         <p>OP是Optimism的治理代币。<strong>OP代币原生部署在以太坊L1上</strong>（ERC‑20，合约地址 <code>0x4200000000000000000000000000000000000042</code>）；OP链L2上的OP是通过官方桥桥接的版本（由L2标准桥在L2铸造）。日常交易与使用绝大多数发生在OP L2网络，但代币的"根"（原生合约）在L1。</p>
 
-        <h3>2.2 获取OP代币4种途径</h3>
+        <div class="note">
+            <strong>重要区分：OP链L2的"原生代币"（gas代币）不是OP，而是ETH。</strong>OP链上所有交易的gas费都以ETH支付；钱包里显示的"OP‑ETH"或"ETH on Optimism"只是钱包对桥接到OP链的ETH的标注方式，并不是另一种代币。OP是<strong>治理代币</strong>（用于治理投票、激励分配如RetroPGF），<strong>不能用来支付gas</strong>，也不参与L2出块安全（L2没有自己的共识）。
+        </div>
+
+        <table>
+            <tr>
+                <th>代币</th>
+                <th>在OP链L2上的角色</th>
+            </tr>
+            <tr>
+                <td>ETH（L2‑ETH / 俗称OP‑ETH）</td>
+                <td><strong>原生代币 / gas代币</strong>：支付所有L2交易手续费（L2执行费 + 转嫁的L1数据费）；同时是DeFi最主要的基础资产（WETH交易对、借贷抵押品）</td>
+            </tr>
+            <tr>
+                <td>OP</td>
+                <td><strong>治理代币</strong>：Optimism Collective治理投票、激励分配（空投 / RetroPGF）；不能支付gas</td>
+            </tr>
+        </table>
+
+        <h3>2.2 OP代币原理：ERC‑20 与治理设计</h3>
+        <ul class="flow-step">
+            <li><strong>标准ERC‑20代币</strong>：OP就是标准的ERC‑20合约（实现 transfer / approve / balanceOf 等标准接口），没有特殊的铸造/销毁逻辑。额外实现了 <code>ERC20Votes</code>（EIP‑2612 permit签名转账 + 投票权委托），支持链上治理。</li>
+            <li><strong>总量与通胀</strong>：总量 4,294,967,296 枚（2³²），初始年通胀率 2%（治理可投票调整）。</li>
+            <li><strong>双链形态（1:1锁定铸造）</strong>：L1 合约是"根"；L2 上的 OP 由官方桥 1:1 铸造（存L1锁资产→L2铸币，反向提款时L2销毁），两链合计总量始终守恒。两条链上合约地址相同（<code>0x4200…0042</code>），但各自维护<strong>独立的余额账本</strong>——同地址≠同资产，持有L1 OP与L2 OP是两笔不同记录。</li>
+            <li><strong>治理机制（Optimism Collective双议院）</strong>：Token House——OP持币人（可委托投票权）对协议升级、资金分配投票；Citizens' House——不可转让的公民身份，投票决定 RetroPGF 资助名单。投票在L1链上进行。</li>
+            <li><strong>价值捕获</strong>：OP Mainnet 的 L2 base fee 收入目前归入 Optimism 治理基金（由链上配置决定），是 OP 代币未来价值捕获的一条路径。</li>
+        </ul>
+        <table>
+            <tr>
+                <th>初始分配（2022）</th>
+                <th>占比</th>
+            </tr>
+            <tr>
+                <td>Ecosystem 生态基金 / 治理基金</td>
+                <td>25%</td>
+            </tr>
+            <tr>
+                <td>RetroPGF 追溯公共产品资助</td>
+                <td>20%</td>
+            </tr>
+            <tr>
+                <td>User Airdrops 用户空投</td>
+                <td>19%</td>
+            </tr>
+            <tr>
+                <td>Core Contributors 核心贡献者</td>
+                <td>19%</td>
+            </tr>
+            <tr>
+                <td>Investors 投资者</td>
+                <td>17%</td>
+            </tr>
+        </table>
+
+        <h3>2.3 获取OP代币4种途径</h3>
         <ol class="flow-step">
             <li>
                 <strong>方式1：交易所直接提币，网络选择Optimism（最简单）</strong>
@@ -256,7 +311,7 @@
             <strong>重要澄清：</strong>以太坊L1上的ETH<strong>不能直接在L1兑换OP</strong>。兑换操作发生在OP链L2的DEX合约；必须先将ETH跨链桥到OP链，才能拿这份L2‑ETH去兑换OP代币。
         </div>
 
-        <h3>2.3 操作顺序：想用ETH换OP完整路径</h3>
+        <h3>2.4 操作顺序：想用ETH换OP完整路径</h3>
 <pre>
 1. 钱包拥有以太坊L1的ETH
 2. 通过官方桥，把L1 ETH跨链 → OP链L2（钱包切换为Optimism网络）
@@ -280,6 +335,8 @@
         ▼
    ③ 数据上链：以 1 笔 L1 交易把压缩数据写入以太坊（默认 Blob(EIP-4844)，calldata 为回退）
         │   └─ L1 只保存原始数据，不执行这笔 L2 转账
+        │      结果：A、B 在 L1 上的余额（ETH / OP）不发生任何变化
+        │      （L1 上唯一的活动是 Batcher 用自己的 ETH 支付这笔上链交易的 gas）
         ▼
    ④ 状态提交：Proposer 生成 Output Root（状态根摘要）→ 提交到 FaultDisputeGame 争议游戏
         │
@@ -304,7 +361,7 @@
         <h3>步骤3：Batcher将压缩交易数据提交到以太坊L1</h3>
         <ul class="flow-step">
             <li>Batcher组件调用以太坊L1上rollup合约，把压缩过的批次数据写入以太坊L1链上。<strong>Ecotone升级（2024-03）后默认使用 Blob（EIP‑4844）</strong>，calldata 作为回退方案。</li>
-            <li>此时A转100OP这笔交易的<strong>压缩原始数据已经永久保存在以太坊L1</strong>，但L1并没有运行、执行这笔转账。L1只存原始输入数据。</li>
+            <li>此时A转100OP这笔交易的<strong>压缩原始数据已经永久保存在以太坊L1</strong>，但L1并没有运行、执行这笔转账。L1只存原始输入数据。<br/>注意：A、B两个账户在<strong>L1上的余额（ETH / OP）完全不会发生变化</strong>；L1上唯一发生的是Batcher用自己的ETH支付了这笔批量上链交易的gas费（与A、B无关）。</li>
         </ul>
 
         <h3>步骤4：Proposer提交L2状态根（Output Root）到L1的争议游戏合约</h3>
