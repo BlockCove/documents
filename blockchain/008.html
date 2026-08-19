@@ -60,6 +60,18 @@
             padding: 0 24px;
         }
 
+        /* Layout: 左侧目录 + 右侧内容 */
+        .layout {
+            display: flex;
+            gap: 32px;
+            align-items: flex-start;
+        }
+
+        .content {
+            flex: 1;
+            min-width: 0;
+        }
+
         /* Header */
         .header {
             background: linear-gradient(135deg, #1a1f3a 0%, #0d1117 50%, #1a1a2e 100%);
@@ -129,11 +141,14 @@
             background: var(--bg-secondary);
             border: 1px solid var(--border-color);
             border-radius: 12px;
-            padding: 24px;
-            margin-bottom: 40px;
+            padding: 20px;
             position: sticky;
             top: 20px;
             z-index: 10;
+            flex: 0 0 250px;
+            align-self: flex-start;
+            max-height: calc(100vh - 40px);
+            overflow-y: auto;
         }
 
         .toc h3 {
@@ -144,8 +159,7 @@
 
         .toc ul {
             list-style: none;
-            columns: 3;
-            gap: 16px;
+            columns: 1;
         }
 
         .toc li {
@@ -290,6 +304,21 @@
             margin-top: 12px;
         }
 
+        /* 让图表占满容器宽度，避免被外层 div 压缩成小图 */
+        .mermaid-container > div {
+            width: 100%;
+        }
+
+        .mermaid-container .mermaid {
+            display: flex;
+            justify-content: center;
+        }
+
+        .mermaid-container .mermaid svg {
+            height: auto;
+            min-width: 480px;
+        }
+
         /* Code blocks */
         code {
             background: var(--bg-tertiary);
@@ -430,7 +459,9 @@
 
         @media (max-width: 768px) {
             .header h1 { font-size: 1.8rem; }
-            .toc ul { columns: 1; }
+            .layout { flex-direction: column; }
+            .toc { position: static; width: 100%; max-height: none; margin-bottom: 24px; }
+            .toc ul { columns: 2; }
             .pros-cons { grid-template-columns: 1fr; }
             .card-grid { grid-template-columns: 1fr; }
             table { font-size: 0.85rem; }
@@ -452,6 +483,7 @@
     </header>
 
     <div class="container">
+        <div class="layout">
         <!-- 目录 -->
         <nav class="toc">
             <h3>📑 报告目录</h3>
@@ -469,6 +501,8 @@
                 <li><a href="#future">十一、未来发展趋势</a></li>
             </ul>
         </nav>
+
+        <div class="content">
 
         <!-- 一、背景 -->
         <section id="background">
@@ -509,7 +543,7 @@
                 </div>
                 <div class="timeline-item">
                     <div class="year">2025-2026 年 — 聚合与互操作</div>
-                    <div class="desc">Superchain、ZK 聚合、L3 应用链等概念落地，生态从碎片化走向互联互通</div>
+                    <div class="desc">Superchain、AggLayer 等多链聚合落地；通用 L2 进入整合洗牌期，Unichain、HyperEVM 等顶级应用链崛起，生态从碎片化走向互联互通</div>
                 </div>
             </div>
         </section>
@@ -720,7 +754,7 @@ sequenceDiagram
             <h2>五、Optimistic Rollup 深度解析</h2>
 
             <h3>5.1 工作原理</h3>
-            <p>Optimistic Rollup 基于<strong>"乐观假设"</strong>运行：排序器（Sequencer）定期向 L1 提交状态根，但不附带任何证明。系统默认提交的状态是正确的，任何人都可以在挑战期内对状态根提出质疑。</p>
+            <p>Optimistic Rollup 基于<strong>"乐观假设"</strong>运行：排序器（Sequencer）定期向 L1 提交<strong>状态根 + 压缩后的交易数据（Batch）</strong>，但不附带任何正确性证明。L1 只保存数据、不执行交易；系统默认提交的状态是正确的，任何人都可以基于链上数据重新执行计算，在挑战期内对状态根提出质疑。</p>
 
             <div class="mermaid-container">
                 <div>
@@ -877,18 +911,15 @@ flowchart LR
             <div class="mermaid-container">
                 <div>
                 <div class="mermaid">
-graph TD
-    T1[Type 1: 完全等效以太坊<br/>完全不改共识，证明最慢]
-    T2[Type 2: 完全等效 EVM<br/>字节码级兼容，内部微调]
-    T3[Type 2.5: EVM 等效 + Gas 优化<br/>牺牲部分兼容性提速]
-    T4[Type 3: 接近 EVM<br/>部分功能删减，证明更快]
-    T5[Type 4: 高级语言兼容<br/>编译到自定义 VM，证明最快]
-    
+graph LR
+    T1[Type 1<br/>完全等效以太坊<br/>完全不改共识 · 证明最慢]
+    T2[Type 2<br/>完全等效 EVM<br/>字节码级兼容 · 内部微调]
+    T3[Type 2.5<br/>EVM 等效 + Gas 优化<br/>牺牲部分兼容性提速]
+    T4[Type 3<br/>接近 EVM<br/>部分功能删减 · 证明更快]
+    T5[Type 4<br/>高级语言兼容<br/>编译到自定义 VM · 证明最快]
+
     T1 --> T2 --> T3 --> T4 --> T5
-    
-    Note over T1: 兼容性 ↑
-    Note over T5: 证明速度 ↑
-    
+
     style T1 fill:#3fb950,stroke:#3fb950,color:#fff
     style T5 fill:#d29922,stroke:#d29922,color:#fff
                 </div>
@@ -956,17 +987,19 @@ flowchart LR
     subgraph 以太坊 L1
         A[锁定资产合约]
     end
-    
-    subgraph 侧链 (独立共识)
+
+    subgraph SC[侧链（独立共识）]
         B[铸造等量映射资产]
         C[交易执行<br/>高 TPS / 低费用]
     end
-    
+
     A <-->|双向桥| B
     B --> C
-    
+
+    C ~~~ N1[不继承 L1 安全性]
+
     style C fill:#d29922,stroke:#d29922,color:#fff
-    Note over C: 不继承 L1 安全性
+    style N1 fill:none,stroke:none,color:#f85149
                 </div>
                 <p class="caption">图 7：侧链工作模式</p>
                 </div>
@@ -1268,7 +1301,7 @@ graph TD
     subgraph Optimistic Rollup 阵营
         ARB[Arbitrum<br/>Stylus / Orbit]
         OP[Optimism<br/>OP Stack / Superchain]
-        BASE[Base (Coinbase)<br/>基于 OP Stack]
+        BASE["Base (Coinbase)<br/>基于 OP Stack"]
         ZORA[Zora Network<br/>基于 OP Stack]
     end
     
@@ -1277,7 +1310,7 @@ graph TD
         STARK[Starknet<br/>STARK 证明]
         SCRL[Scroll<br/>Type 2 zkEVM]
         PZKE[Polygon zkEVM<br/>Type 2/3]
-        LINEA[Linea (ConsenSys)<br/>Type 2/3 zkEVM]
+        LINEA["Linea (ConsenSys)<br/>Type 2/3 zkEVM"]
         TAIKO[Taiko<br/>Type 1 Based Rollup]
     end
 
@@ -1323,6 +1356,26 @@ graph TD
 
             <h4>④ L3 与应用专属链</h4>
             <p>在 L2 之上再构建 L3 应用链，针对特定场景深度优化（如游戏、DeFi、NFT），实现极致性能和定制化。zkSync 的 ZK Stack 已支持 L3 部署。</p>
+
+            <h3>10.3 2026 年格局：通用 L2 整合与应用链分化</h3>
+            <p>进入 2026 年，L2 生态呈现<strong>"两端分化"</strong>：通用 L2 进入整合洗牌期，而由顶级应用主导的应用链叙事迎来第二春。</p>
+
+            <ul style="margin-left: 24px; margin-bottom: 16px;">
+                <li><strong>通用 L2 大洗牌：</strong>区块空间供给已超过需求，行业研究提出"L2 大灭绝"论——多数 L2 沦为"僵尸链"，市场围绕 Arbitrum、Optimism、Base 三巨头整合，"再复制一条通用 EVM L2"的时代结束</li>
+                <li><strong>应用链复苏：</strong>建链门槛因 RaaS 大幅降低；顶级应用通过自建链捕获 Gas 费用、内化 MEV，从"胖协议"转向"胖应用"（Fat Applications）范式</li>
+            </ul>
+
+            <div class="highlight-box">
+                <h4>💡 2026 年中关键数据</h4>
+                <p><strong>OP Stack：</strong>50+ 条生产链（Base、Unichain、Soneium、Ink 等），Superchain 约 60 条成员链，占 L2 活动量约 62%</p>
+                <p><strong>Arbitrum Orbit：</strong>40+ 条链在运行，含开发中超过 100 条</p>
+                <p><strong>头部应用链：</strong>Unichain（Uniswap，约 10 亿美元 TVL，跻身 L2 前五）、HyperEVM（Hyperliquid，超 20 亿美元 TVL），两者从通用链抽走近 30 亿美元 TVL</p>
+                <p><strong>冷数据：</strong>全部 Rollup 中仅约 5-10 条拥有真实活跃用户，链数量增长更多是供给侧繁荣</p>
+            </div>
+
+            <p>Vitalik Buterin 在 2026 年 2 月明确表态：反对"再复制一条 EVM 链 + 乐观桥"，但支持两类应用链——<strong>深度互联应用链</strong>（如 L1 结算 + L2 交易的预测市场，最大化与以太坊的互操作性）与<strong>机构型 L2</strong>（链上放置 Merkle 根 + STARK 证明，用于政务、社交、游戏等规则透明的场景）。</p>
+
+            <p>应用链并非普适路线：它适合<strong>有品牌、有用户、有定制需求的顶级应用</strong>（尤其仅依赖预言机的 Perp DEX）；腰部应用建链收益有限，Aave 等强依赖跨协议组合性的协议也不适合。排序器中心化、L3 安全假设与流动性割裂仍是待解问题——互操作性（Superchain、AggLayer、Orbit 聚合）正成为应用链能否成立的前提。</p>
         </section>
 
         <!-- 十一、未来趋势 -->
@@ -1368,6 +1421,8 @@ graph TD
         <div class="footer">
             <p>以太坊扩展问题深度研究报告 | 技术研究系列</p>
             <p style="margin-top: 6px;">本报告基于公开技术资料整理，仅供学习参考</p>
+        </div>
+        </div>
         </div>
     </div>
 
