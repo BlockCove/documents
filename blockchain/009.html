@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Optimism 跨链桥技术详解报告</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f7fa;
+            color: #1a202c;
+            line-height: 1.7;
+            padding: 30px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            padding: 50px 60px;
+        }
+        h1 {
+            font-size: 32px;
+            color: #1a365d;
+            border-bottom: 3px solid #3182ce;
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+        }
+        h2 {
+            font-size: 24px;
+            color: #2c5282;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            border-left: 4px solid #3182ce;
+            padding-left: 15px;
+        }
+        h3 {
+            font-size: 18px;
+            color: #2b6cb0;
+            margin-top: 25px;
+            margin-bottom: 12px;
+        }
+        p { margin-bottom: 15px; color: #2d3748; }
+        .highlight {
+            background: #ebf8ff;
+            border-left: 4px solid #3182ce;
+            padding: 15px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 15px 0;
+        }
+        .warning {
+            background: #fffaf0;
+            border-left: 4px solid #ed8936;
+            padding: 15px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 15px 0;
+        }
+        .code-block {
+            background: #1a202c;
+            color: #e2e8f0;
+            padding: 18px 22px;
+            border-radius: 8px;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+        .code-block .comment { color: #718096; }
+        .code-block .keyword { color: #63b3ed; }
+        .code-block .func { color: #9f7aea; }
+        .code-block .string { color: #68d391; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        th {
+            background: #edf2f7;
+            font-weight: 600;
+            color: #2d3748;
+        }
+        tr:hover { background: #f7fafc; }
+        .mermaid {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 25px;
+            margin: 20px 0;
+            display: flex;
+            justify-content: center;
+        }
+        .step-list {
+            counter-reset: step;
+            list-style: none;
+            padding-left: 0;
+        }
+        .step-list li {
+            counter-increment: step;
+            position: relative;
+            padding-left: 45px;
+            margin-bottom: 15px;
+            padding-top: 3px;
+        }
+        .step-list li::before {
+            content: counter(step);
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 32px;
+            height: 32px;
+            background: #3182ce;
+            color: #fff;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 32px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .contract-addr {
+            font-family: 'Fira Code', monospace;
+            background: #f0fff4;
+            padding: 2px 8px;
+            border-radius: 4px;
+            color: #276749;
+            font-size: 13px;
+        }
+        .toc {
+            background: #f7fafc;
+            border-radius: 8px;
+            padding: 20px 30px;
+            margin-bottom: 30px;
+        }
+        .toc h3 { margin-top: 0; color: #2d3748; }
+        .toc ul { list-style: none; padding-left: 0; }
+        .toc li { margin: 8px 0; }
+        .toc a { color: #3182ce; text-decoration: none; }
+        .toc a:hover { text-decoration: underline; }
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+            color: #718096;
+            font-size: 14px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Optimism 跨链桥技术详解报告</h1>
+        
+        <div class="toc">
+            <h3>目录</h3>
+            <ul>
+                <li><a href="#section1">一、整体架构概述</a></li>
+                <li><a href="#section2">二、ETH 从 L1 跨链到 L2（存款）</a></li>
+                <li><a href="#section3">三、ETH 从 L2 提现到 L1（提款）</a></li>
+                <li><a href="#section4">四、ERC20 代币从 L1 跨链到 L2</a></li>
+                <li><a href="#section5">五、L2 无对应合约的解决方案</a></li>
+                <li><a href="#section6">六、ERC20 代币从 L2 提现回 L1</a></li>
+                <li><a href="#section7">七、核心合约地址速查表</a></li>
+            </ul>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- Section 1: 整体架构 -->
+        <!-- ========================================== -->
+        <h2 id="section1">一、整体架构概述</h2>
+        
+        <p>Optimism 采用 Optimistic Rollup 技术方案，其标准跨链桥（Standard Bridge）构建在跨域消息传递系统（Cross Domain Messenger）之上，实现了 L1 以太坊与 L2 OP 链之间的资产双向转移。</p>
+        
+        <div class="highlight">
+            <strong>核心设计思想：</strong> L1 托管资产 + L2 映射资产。存款时资产锁定在 L1（ETH 由 OptimismPortal 托管、ERC20 由 L1 桥托管），L2 铸造等额映射代币（ERC20）或转入等额原生 ETH；提款时 L2 销毁映射代币（或扣回 ETH），L1 释放对应资产。
+        </div>
+
+        <h3>1.1 整体架构图</h3>
+        <div class="mermaid">
+graph TD
+    subgraph L1["🔷 以太坊 L1 (Ethereum Mainnet)"]
+        L1SB["L1StandardBridge<br/>0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1"]
+        L1CDM["L1CrossDomainMessenger"]
+        L1Portal["OptimismPortal"]
+        L1Token["L1 ERC20 Token"]
+        L1ETH["ETH (原生)"]
+    end
+
+    subgraph L2["🟢 Optimism L2 (OP Mainnet)"]
+        L2SB["L2StandardBridge<br/>0x4200000000000000000000000000000000000010"]
+        L2CDM["L2CrossDomainMessenger<br/>0x4200000000000000000000000000000000000007"]
+        L2Token["L2 Standard ERC20<br/>(OptimismMintableERC20)"]
+        L2ETH["ETH (原生)"]
+        L2Factory["OptimismMintableERC20Factory<br/>0x4200000000000000000000000000000000000012"]
+    end
+
+    User["👤 用户钱包"] -->|depositETH / depositERC20| L1SB
+    L1SB -->|锁定 ERC20| L1Token
+    L1SB -->|transferFrom| L1Token
+    L1Portal -->|托管存款 ETH| L1ETH
+    L1SB -->|sendMessage| L1CDM
+    L1CDM -->|depositTransaction| L1Portal
+    
+    L1Portal -.->|Sequencer 排序| L2CDM
+    L2CDM -->|relayMessage| L2SB
+    L2SB -->|mint| L2Token
+    L2SB -->|转账| L2ETH
+    L2Token -->|用户收到| User
+    L2ETH -->|用户收到| User
+    
+    L2Factory -.->|部署| L2Token
+
+    style L1 fill:#ebf8ff,stroke:#3182ce
+    style L2 fill:#f0fff4,stroke:#38a169
+        </div>
+
+        <h3>1.2 核心组件说明</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>组件</th>
+                    <th>所在层</th>
+                    <th>核心职责</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>L1StandardBridge</strong></td>
+                    <td>L1</td>
+                    <td>接收用户存款，托管 ERC20 并发起跨域消息（存款 ETH 由 Portal 托管）</td>
+                </tr>
+                <tr>
+                    <td><strong>L2StandardBridge</strong></td>
+                    <td>L2（预部署）</td>
+                    <td>接收 L1 消息，铸造 L2 代币；处理 L2 提款，销毁代币</td>
+                </tr>
+                <tr>
+                    <td><strong>L1CrossDomainMessenger</strong></td>
+                    <td>L1</td>
+                    <td>跨域消息发送入口，封装消息并发送到 Portal</td>
+                </tr>
+                <tr>
+                    <td><strong>L2CrossDomainMessenger</strong></td>
+                    <td>L2（预部署）</td>
+                    <td>L2 端消息中继，验证消息来源并执行目标调用</td>
+                </tr>
+                <tr>
+                    <td><strong>OptimismPortal</strong></td>
+                    <td>L1</td>
+                    <td>L1 与 L2 交互的核心门户，处理存款交易与提款证明</td>
+                </tr>
+                <tr>
+                    <td><strong>OptimismMintableERC20Factory</strong></td>
+                    <td>L2（预部署）</td>
+                    <td>工厂合约，用于部署标准 L2 映射代币</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- ========================================== -->
+        <!-- Section 2: ETH 存款 -->
+        <!-- ========================================== -->
+        <h2 id="section2">二、ETH 从 L1 跨链到 L2（存款）</h2>
+
+        <p>ETH 是以太坊原生资产，存款流程相对简单。用户将 ETH 发送到 L1 桥合约后，L2 会自动向用户地址转入等额原生 ETH。</p>
+
+        <h3>2.1 存款时序图</h3>
+        <div class="mermaid">
+sequenceDiagram
+    autonumber
+    participant User as 用户
+    participant L1SB as L1StandardBridge
+    participant L1CDM as L1CrossDomainMessenger
+    participant Portal as OptimismPortal
+    participant Seq as Sequencer
+    participant L2CDM as L2CrossDomainMessenger
+    participant L2SB as L2StandardBridge
+
+    Note over User,L1SB: ETH 数量由 msg.value 指定
+    User->>+L1SB: depositETHTo(to, minGasLimit, extraData)
+    Note over L1SB: 接收 ETH（将随消息<br/>转入 Portal 托管）
+
+    L1SB->>+L1CDM: sendMessage(L2SB, finalizeBridgeETH 调用数据)
+    L1CDM->>+Portal: depositTransaction(to, value, gasLimit, isCreation, data)
+    Note over Portal: 交易进入存款队列
+    
+    Portal-->>L1CDM: 交易确认
+    L1CDM-->>L1SB: 返回
+    L1SB-->>User: 交易回执
+    
+    Note over Portal,Seq: 排序器读取 L1 存款事件
+    
+    Seq->>L2CDM: 执行 deposit 交易
+    L2CDM->>+L2SB: finalizeBridgeETH(from, to, amount, extraData)
+
+    Note over L2SB: 校验消息来自 L1StandardBridge<br/>（onlyOtherBridge）且 msg.value == amount
+    
+    L2SB->>User: 转账 ETH (原生)
+    Note right of L2SB: L2 上 ETH 是原生资产<br/>直接从桥合约转出
+    
+    L2SB-->>L2CDM: 执行完成
+    L2CDM-->>Seq: 交易完成
+        </div>
+
+        <h3>2.2 详细步骤</h3>
+        <ol class="step-list">
+            <li><strong>用户发起存款交易</strong>：调用 <code>L1StandardBridge.depositETH()</code> 或 <code>depositETHTo()</code>，随交易发送 ETH。</li>
+            <li><strong>L1 托管 ETH</strong>：ETH 随跨域消息转入 OptimismPortal 合约托管（Bedrock 起存款 ETH 不再存放于 L1 桥合约）。</li>
+            <li><strong>构造跨域消息</strong>：L1 桥调用 L1CrossDomainMessenger，封装对 L2StandardBridge.finalizeBridgeETH 的调用。</li>
+            <li><strong>写入 Portal</strong>：消息通过 OptimismPortal 的 depositTransaction 写入 L1，触发存款事件。</li>
+            <li><strong>Sequencer 拾取</strong>：L2 排序器监听 L1 存款事件，将其作为 L2 存款交易纳入区块。</li>
+            <li><strong>L2 执行 finalizeBridgeETH</strong>：L2CrossDomainMessenger 中继消息，调用 L2StandardBridge。</li>
+            <li><strong>用户收到 ETH</strong>：L2 桥合约将等额原生 ETH 转入用户地址。</li>
+        </ol>
+
+        <div class="highlight">
+            <strong>耗时：</strong> L1 交易确认后约 1~15 分钟到账 L2，取决于排序器打包速度。用户仅需支付 L1 Gas 费。
+        </div>
+
+        <!-- ========================================== -->
+        <!-- Section 3: ETH 提现 -->
+        <!-- ========================================== -->
+        <h2 id="section3">三、ETH 从 L2 提现到 L1（提款）</h2>
+
+        <p>提现流程更为复杂，涉及 Optimistic Rollup 的<strong>欺诈证明挑战期</strong>。提现发起后需等待约 7 天挑战期：期间任何人可对包含该交易的输出根提交欺诈证明，输出根通过挑战期后提现方可最终确认。</p>
+
+        <h3>3.1 提现阶段图</h3>
+        <div class="mermaid">
+graph LR
+    A[发起提现<br/>L2 交易] --> B[交易打包进<br/>L2 区块]
+    B --> C[输出根提交到 L1<br/>L2OutputOracle]
+    C --> D[提交 Merkle 证明<br/>Prove Withdrawal]
+    D --> E[等待 7 天挑战期<br/>Fault Proof Window]
+    E --> F{输出根<br/>挑战成功?}
+    F -->|否| G[Finalize 最终确认<br/>释放 ETH 到用户]
+    F -->|是| H[输出根被删除<br/>需针对新根重新证明]
+
+    style E fill:#fffaf0,stroke:#ed8936
+    style G fill:#f0fff4,stroke:#38a169
+    style H fill:#fed7d7,stroke:#e53e3e
+        </div>
+
+        <h3>3.2 完整提现时序</h3>
+        <div class="mermaid">
+sequenceDiagram
+    autonumber
+    participant User as 用户
+    participant L2SB as L2StandardBridge
+    participant L2CDM as L2CrossDomainMessenger
+    participant L2Output as L2OutputOracle (L1)
+    participant Portal as OptimismPortal (L1)
+    participant L1SB as L1StandardBridge (L1)
+
+    Note over User,L2SB: === 阶段一：发起提现 (L2) ===
+    User->>+L2SB: 发送 ETH 到桥合约（receive）<br/>或调用 withdrawTo(to, ...)
+    Note over L2SB: 从用户扣除 ETH<br/>存入 L2 桥
+
+    L2SB->>+L2CDM: sendMessage(L1SB, finalizeBridgeETH 调用数据)
+    L2CDM-->>L2SB: 返回消息哈希
+    L2SB-->>User: 交易回执 (withdrawalHash)
+
+    Note over L2Output: 输出根约每小时提交到 L1<br/>包含该提现的输出根提交后<br/>即可进入阶段二
+
+    Note over User,Portal: === 阶段二：提交提现证明 (L1) ===
+    User->>+Portal: proveWithdrawalTransaction(withdrawalTx, outputIndex, proof)
+    Note over Portal: 验证 Merkle 证明<br/>标记为已证明<br/>（无需等待挑战期结束）
+
+    Portal-->>User: 证明成功
+
+    Note over User,Portal: === 阶段三：等待 7 天挑战期 ===
+    Note over Portal: 输出根须通过 7 天挑战期<br/>期间可被欺诈证明质疑
+
+    Note over User,L1SB: === 阶段四：最终确认 (L1) ===
+    User->>+Portal: finalizeWithdrawalTransaction(withdrawalTx)
+    Note over Portal: 校验输出根已最终确认<br/>且未被挑战删除
+
+    Portal->>+L1SB: 执行 finalizeBridgeETH（附 ETH）
+    L1SB->>User: 转账释放 ETH
+    L1SB-->>Portal: 完成
+    Portal-->>User: 提现完成
+        </div>
+
+        <h3>3.3 四步提现详解</h3>
+        
+        <h4>第一步：发起提现（Initiate Withdrawal）</h4>
+        <p>用户在 L2 向 <code>L2StandardBridge</code> 发送 ETH（<code>receive()</code> 直接触发）或调用 <code>withdrawTo()</code>，ETH 转入 L2 桥合约。交易生成一条跨域消息，随后包含该交易的输出根会被提交到 L1。</p>
+
+        <h4>第二步：等待输出根提交并通过挑战期</h4>
+        <p>L2 的状态输出根（Output Root）约每小时提交一次到 L1 的 L2OutputOracle 合约。每个输出根都有 7 天的挑战窗口，在此期间验证者可提交欺诈证明。</p>
+
+        <div class="warning">
+            <strong>7 天挑战期的意义：</strong> Optimistic Rollup 「乐观假设」交易正确，但留出时间让任何人挑战。只有挑战期内无人成功挑战，状态根才被视为最终确认。这是资金安全的核心保障。
+        </div>
+
+        <h4>第三步：提交提现证明（Prove Withdrawal）</h4>
+        <p>输出根提交到 L1 后，用户即可调用 <code>OptimismPortal.proveWithdrawalTransaction()</code> 提交 Merkle 证明，证明该提现交易已包含在某个输出根中（此步无需等待挑战期结束）。</p>
+
+        <h4>第四步：最终确认（Finalize Withdrawal）</h4>
+        <p>输出根通过 7 天挑战期后，调用 <code>finalizeWithdrawalTransaction()</code>，Portal 将托管的 ETH 经 L1 桥释放给用户。（合约要求输出根提案与证明提交均满 7 天，正常流程下二者几乎同时满足。）</p>
+
+        <div class="highlight">
+            <strong>⚠️ 2024 年起的现状：</strong> OP Mainnet 已于 2024 年 6 月启用无许可欺诈证明（Cannon Fault Proofs），<code>L2OutputOracle</code> 被 DisputeGame 争议游戏合约体系取代，提现证明改为针对争议游戏进行。但用户可感知的提现总等待时间仍约 7 天。本文沿用经典的 L2OutputOracle 模型讲解，便于理解整体机制。
+        </div>
+
+        <!-- ========================================== -->
+        <!-- Section 4: ERC20 存款 -->
+        <!-- ========================================== -->
+        <h2 id="section4">四、ERC20 代币从 L1 跨链到 L2</h2>
+
+        <p>ERC20 代币跨链比 ETH 多了一步授权操作，且 L2 需要有对应的映射代币合约。代币在 L1 被锁定，在 L2 被铸造。</p>
+
+        <h3>4.1 ERC20 存款流程图</h3>
+        <div class="mermaid">
+flowchart TD
+    Start([用户发起]) --> A[approve<br/>授权 L1 桥转账额度]
+    A --> B["depositERC20<br/>（l1Token、l2Token、amount）"]
+    B --> C[transferFrom<br/>L1 桥转入代币]
+    C --> D[锁定代币于<br/>L1StandardBridge]
+    D --> E[sendMessage<br/>L1CrossDomainMessenger]
+    E --> F[depositTransaction<br/>OptimismPortal]
+    F --> G[Sequencer 拾取<br/>生成 L2 存款交易]
+    G --> H[L2CrossDomainMessenger<br/>中继消息]
+    H --> I[finalizeBridgeERC20<br/>L2StandardBridge]
+    I --> J{L2 代币为 OptimismMintableERC20?<br/>（ERC-165 接口检测）}
+    J -->|是| K[mint 铸造 L2 代币<br/>到用户地址]
+    J -->|否| L[从桥托管余额转账<br/>余额不足则执行失败<br/>代币滞留 L1 桥合约]
+    K --> End([完成])
+    L --> End
+
+    style K fill:#c6f6d5,stroke:#38a169
+    style L fill:#fed7d7,stroke:#e53e3e
+        </div>
+
+        <h3>4.2 关键函数调用</h3>
+        <div class="code-block">
+<span class="comment">// L1 端：存款 ERC20</span>
+<span class="keyword">function</span> <span class="func">depositERC20</span>(
+    <span class="keyword">address</span> _l1Token,    <span class="comment">// L1 代币地址</span>
+    <span class="keyword">address</span> _l2Token,    <span class="comment">// 对应 L2 代币地址</span>
+    <span class="keyword">uint256</span> _amount,     <span class="comment">// 存款数量</span>
+    <span class="keyword">uint32</span>  _minGasLimit,<span class="comment">// L2 执行最小 Gas</span>
+    <span class="keyword">bytes</span>   _extraData   <span class="comment">// 额外数据</span>
+) <span class="keyword">external</span>;
+
+<span class="comment">// L2 端：确认存款（OptimismMintableERC20 则 mint，否则从桥托管余额转账）</span>
+<span class="keyword">function</span> <span class="func">finalizeBridgeERC20</span>(
+    <span class="keyword">address</span> _localToken,
+    <span class="keyword">address</span> _remoteToken,
+    <span class="keyword">address</span> _from,
+    <span class="keyword">address</span> _to,
+    <span class="keyword">uint256</span> _amount,
+    <span class="keyword">bytes</span>   _extraData
+) <span class="keyword">external</span>;
+        </div>
+
+        <!-- ========================================== -->
+        <!-- Section 5: L2 无对应合约解决方案 -->
+        <!-- ========================================== -->
+        <h2 id="section5">五、L2 无对应合约的解决方案</h2>
+
+        <p>这是开发者最常遇到的问题：<strong>L1 上有 ERC20 合约，但 L2 上没有对应的映射代币，能直接跨链吗？</strong></p>
+
+        <div class="warning">
+            <strong>答案：不能直接跨链。</strong> Standard Bridge 在 L2 端通过 ERC-165 检测识别 <code>OptimismMintableERC20</code> 并铸造代币；如果 L2 没有对应合约（或未实现接口），L2 端的 <code>finalizeBridgeERC20</code> 会执行失败，存款交易失败，代币滞留 L1 桥合约，且<strong>没有自动退款机制</strong>。必须先部署映射代币再发起存款。
+        </div>
+
+        <h3>5.1 解决方案对比</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>方案</th>
+                    <th>适用场景</th>
+                    <th>优点</th>
+                    <th>缺点</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>标准工厂部署</strong><br/>OptimismMintableERC20Factory</td>
+                    <td>大多数标准 ERC20</td>
+                    <td>无需写合约，一键部署，符合标准，桥自动兼容</td>
+                    <td>功能固定，无法自定义逻辑</td>
+                </tr>
+                <tr>
+                    <td><strong>自定义 L2 代币</strong><br/>实现 ILegacyMintableERC20 / IOptimismMintableERC20</td>
+                    <td>需要自定义逻辑的代币</td>
+                    <td>灵活，可扩展功能</td>
+                    <td>需自行开发审计</td>
+                </tr>
+                <tr>
+                    <td><strong>第三方桥</strong><br/>如 Across、Stargate</td>
+                    <td>不想部署合约的长尾资产</td>
+                    <td>无需部署，到账快</td>
+                    <td>有手续费，信任第三方</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>5.2 方案一：使用标准工厂部署（推荐）</h3>
+        
+        <p>Optimism 在 L2 预部署了 <span class="contract-addr">OptimismMintableERC20Factory</span>，任何人都可以调用它为 L1 代币创建标准映射合约。</p>
+
+        <div class="mermaid">
+flowchart LR
+    subgraph L1
+        TokenL1["L1 ERC20 合约"]
+    end
+    
+    subgraph L2
+        Factory["OptimismMintableERC20Factory"]
+        TokenL2["L2 Standard ERC20<br/>(新部署)"]
+        Bridge["L2StandardBridge"]
+    end
+    
+    Dev["开发者"] -->|createOptimismMintableERC20| Factory
+    Factory -->|部署| TokenL2
+    TokenL2 -.->|l1Token / remoteToken<br/>指向 L1 地址| TokenL1
+    TokenL2 -->|mint/burn 仅限| Bridge
+    
+    style Factory fill:#fefcbf,stroke:#d69e2e
+        </div>
+
+        <h4>部署代码示例</h4>
+        <div class="code-block">
+<span class="comment">// L2 上调用工厂合约部署标准映射代币（createStandardL2Token 为遗留别名）</span>
+<span class="keyword">function</span> <span class="func">createOptimismMintableERC20</span>(
+    <span class="keyword">address</span> _remoteToken,<span class="comment">// L1 上的 ERC20 地址</span>
+    <span class="keyword">string</span>  _name,      <span class="comment">// 代币名称</span>
+    <span class="keyword">string</span>  _symbol     <span class="comment">// 代币符号</span>
+) <span class="keyword">external</span> <span class="keyword">returns</span> (
+    <span class="keyword">address</span>             <span class="comment">// 返回新部署的 L2 代币地址</span>
+);
+
+<span class="comment">// 默认 decimals = 18；其他小数位使用 createOptimismMintableERC20WithDecimals(...)</span>
+
+<span class="comment">// 部署后的 L2 代币自动实现：</span>
+<span class="comment">// - l1Token() / remoteToken() → 返回对应 L1 地址</span>
+<span class="comment">// - supportsInterface() → 兼容 ILegacyMintableERC20 与 IOptimismMintableERC20</span>
+<span class="comment">// - mint / burn 权限仅授予 L2StandardBridge（部署时写入 BRIDGE）</span>
+        </div>
+
+        <h3>5.3 方案二：自定义 L2 代币合约</h3>
+
+        <p>如果需要自定义逻辑（如征税、反射、权限控制等），可以自行部署合约，但必须实现 <code>ILegacyMintableERC20</code>（旧 L2 标准接口）或新版 <code>IOptimismMintableERC20</code> 接口，并通过 ERC-165 声明支持——标准桥正是通过 ERC-165 接口检测来识别「可铸造代币」的。注意 <code>mint</code>/<code>burn</code> 应仅允许桥合约调用，且代币配对地址（<code>l1Token()</code> / <code>remoteToken()</code>）必须准确。</p>
+
+        <div class="code-block">
+<span class="keyword">interface</span> <span class="func">ILegacyMintableERC20</span> {
+    <span class="keyword">function</span> <span class="func">l1Token</span>() <span class="keyword">external view returns</span> (<span class="keyword">address</span>);
+    <span class="keyword">function</span> <span class="func">l2Bridge</span>() <span class="keyword">external view returns</span> (<span class="keyword">address</span>);
+    
+    <span class="keyword">function</span> <span class="func">mint</span>(<span class="keyword">address</span> _to, <span class="keyword">uint256</span> _amount) <span class="keyword">external</span>;
+    <span class="keyword">function</span> <span class="func">burn</span>(<span class="keyword">address</span> _from, <span class="keyword">uint256</span> _amount) <span class="keyword">external</span>;
+    
+    <span class="comment">// ERC-165 接口支持检查（新接口 IOptimismMintableERC20</span>
+    <span class="comment">// 对应 getter 为 remoteToken() / bridge()，标准实现两者都兼容）</span>
+    <span class="keyword">function</span> <span class="func">supportsInterface</span>(<span class="keyword">bytes4</span> _interfaceId)
+        <span class="keyword">external view returns</span> (<span class="keyword">bool</span>);
+}
+        </div>
+
+        <div class="highlight">
+            <strong>重要约束：</strong>
+            <ul style="margin: 8px 0 8px 20px;">
+                <li><code>l1Token()</code> / <code>remoteToken()</code> 必须准确返回 L1 对应代币地址，桥合约会校验代币配对</li>
+                <li><code>mint</code> 和 <code>burn</code> 权限必须仅限 L2StandardBridge 调用</li>
+                <li>必须通过 ERC-165 声明支持 <code>ILegacyMintableERC20</code> 或 <code>IOptimismMintableERC20</code> 接口</li>
+                <li>小数位数（decimals）建议与 L1 保持一致，否则数量会有偏差</li>
+            </ul>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- Section 6: ERC20 提现 -->
+        <!-- ========================================== -->
+        <h2 id="section6">六、ERC20 代币从 L2 提现回 L1</h2>
+
+        <p>ERC20 提现流程与 ETH 提现的挑战期机制相同，区别在于资产处理方式：L2 销毁映射代币，L1 释放锁定的原生代币。</p>
+
+        <h3>6.1 ERC20 提现时序图</h3>
+        <div class="mermaid">
+sequenceDiagram
+    autonumber
+    participant User as 用户
+    participant L2SB as L2StandardBridge
+    participant L2Token as L2 ERC20
+    participant Portal as OptimismPortal (L1)
+    participant L1SB as L1StandardBridge (L1)
+    participant L1Token as L1 ERC20
+
+    Note over User,L2Token: === 阶段一：L2 发起提现 ===
+    User->>+L2SB: withdraw(l2Token, amount, minGasLimit, extraData)
+    L2SB->>+L2Token: burn(msg.sender, amount)
+    Note over L2Token: 销毁 L2 映射代币
+    L2Token-->>L2SB: 销毁成功
+    
+    L2SB->>L2SB: 构造跨域消息<br/>finalizeBridgeERC20
+    L2SB-->>User: 返回交易哈希
+    
+    Note over Portal: === 阶段二：输出根提交 ===
+    Note over Portal: 输出根约每小时提交到 L1<br/>提交后即可证明（阶段三）
+    
+    Note over User,L1Token: === 阶段三：L1 提交证明 ===
+    User->>+Portal: proveWithdrawalTransaction(proof)
+    Portal-->>User: 证明通过
+
+    Note over Portal: 输出根通过 7 天挑战期后<br/>方可最终确认（阶段四）
+
+    Note over User,L1Token: === 阶段四：最终确认 ===
+    User->>+Portal: finalizeWithdrawalTransaction(tx)
+    Portal->>+L1SB: 执行 finalizeBridgeERC20
+    L1SB->>+L1Token: transfer(to, amount)
+    Note over L1Token: 从 L1 桥合约转出<br/>释放锁定的代币
+    L1Token-->>L1SB: 转账成功
+    L1SB-->>Portal: 完成
+    Portal-->>User: 提现完成
+        </div>
+
+        <h3>6.2 提现核心逻辑</h3>
+        <ol class="step-list">
+            <li><strong>L2 销毁代币</strong>：调用 L2StandardBridge.withdraw，桥合约调用 L2 代币的 burn 方法销毁映射代币。</li>
+            <li><strong>生成跨域消息</strong>：构造调用 L1 桥 finalizeBridgeERC20 的消息，随 L2 状态根提交到 L1。</li>
+            <li><strong>等待挑战期</strong>：同 ETH 提现，需等待 7 天确保状态根最终确认。</li>
+            <li><strong>提交 Merkle 证明</strong>：在 L1 证明该提现交易存在于已确认的状态根中。</li>
+            <li><strong>最终确认释放代币</strong>：调用 finalizeWithdrawalTransaction，L1 桥将之前锁定的 ERC20 代币转账给用户。</li>
+        </ol>
+
+        <div class="warning">
+            <strong>注意：</strong> 如果 L2 代币合约不标准（如转账收税、实际到账少于转账额），可能导致 burn 数量与 L1 释放数量不一致，引发会计问题。建议使用标准代币实现。
+        </div>
+
+        <!-- ========================================== -->
+        <!-- Section 7: 合约速查表 -->
+        <!-- ========================================== -->
+        <h2 id="section7">七、核心合约地址速查表（OP Mainnet）</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>合约名称</th>
+                    <th>网络</th>
+                    <th>地址</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>L1StandardBridge</td>
+                    <td>以太坊 L1</td>
+                    <td><code class="contract-addr">0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1</code></td>
+                </tr>
+                <tr>
+                    <td>L1CrossDomainMessenger</td>
+                    <td>以太坊 L1</td>
+                    <td><code class="contract-addr">0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1</code></td>
+                </tr>
+                <tr>
+                    <td>OptimismPortal</td>
+                    <td>以太坊 L1</td>
+                    <td><code class="contract-addr">0xbEb5Fc579115071764c7423A4f12eDde41f106Ed</code></td>
+                </tr>
+                <tr>
+                    <td>L2StandardBridge</td>
+                    <td>OP L2（预部署）</td>
+                    <td><code class="contract-addr">0x4200000000000000000000000000000000000010</code></td>
+                </tr>
+                <tr>
+                    <td>L2CrossDomainMessenger</td>
+                    <td>OP L2（预部署）</td>
+                    <td><code class="contract-addr">0x4200000000000000000000000000000000000007</code></td>
+                </tr>
+                <tr>
+                    <td>OptimismMintableERC20Factory</td>
+                    <td>OP L2（预部署）</td>
+                    <td><code class="contract-addr">0x4200000000000000000000000000000000000012</code></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>总结对比</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>维度</th>
+                    <th>ETH 跨链</th>
+                    <th>ERC20 跨链</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>L1 操作</td>
+                    <td>直接随交易发送 ETH</td>
+                    <td>需先 approve 授权，再 deposit</td>
+                </tr>
+                <tr>
+                    <td>L2 资产形式</td>
+                    <td>原生 ETH</td>
+                    <td>映射 ERC20 代币</td>
+                </tr>
+                <tr>
+                    <td>L2 是否需要部署合约</td>
+                    <td>不需要</td>
+                    <td>必须部署对应 L2 映射代币</td>
+                </tr>
+                <tr>
+                    <td>存款到账时间</td>
+                    <td>~1-15 分钟</td>
+                    <td>~1-15 分钟</td>
+                </tr>
+                <tr>
+                    <td>提现到账时间</td>
+                    <td>约 7 天挑战期 + 证明确认</td>
+                    <td>约 7 天挑战期 + 证明确认</td>
+                </tr>
+                <tr>
+                    <td>L1 托管方式</td>
+                    <td>ETH 托管于 OptimismPortal</td>
+                    <td>ERC20 转账到桥合约持有</td>
+                </tr>
+                <tr>
+                    <td>L2 处理方式</td>
+                    <td>桥合约直接转出原生 ETH</td>
+                    <td>调用代币合约 mint 铸造</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="footer">
+            Optimism 跨链桥技术报告 | 基于 Bedrock 架构 | 参考官方规范与 ethereum.org 开发者文档
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            },
+            sequence: {
+                showSequenceNumbers: true,
+                wrap: true
+            }
+        });
+    </script>
+</body>
+</html>
