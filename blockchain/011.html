@@ -1,0 +1,1488 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="creative-medium" content="visual-report">
+  <title>Clear Signing 明签技术研究报告</title>
+
+  <style>
+    /* ========== 基础变量 ========== */
+    :root {
+      --bg: #0b1020;
+      --bg-soft: #0f162b;
+      --bg-elev: #141d38;
+      --bg-code: #0a0f1f;
+      --border: #1e2a4a;
+      --border-soft: #1a2545;
+      --text: #e6ecff;
+      --text-soft: #a8b3d1;
+      --text-muted: #7a84a8;
+      --accent: #3da9fc;
+      --accent-2: #5b8def;
+      --accent-warm: #f59e0b;
+      --accent-good: #34d399;
+      --accent-bad: #f87171;
+      --violet: #8b5cf6;
+      --grid-line: rgba(61, 169, 252, 0.06);
+      --grid-line-strong: rgba(61, 169, 252, 0.12);
+      --font-serif: "Source Han Serif SC", "Noto Serif SC", "Songti SC", "SimSun", Georgia, serif;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+      --font-mono: "SF Mono", "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace;
+      --max-w: 1120px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ========== 蓝图网格背景 ========== */
+    .blueprint-bg {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      background:
+        linear-gradient(var(--grid-line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+        radial-gradient(ellipse at 20% 0%, rgba(91, 141, 239, 0.12) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 100%, rgba(139, 92, 246, 0.08) 0%, transparent 50%),
+        var(--bg);
+      background-size: 56px 56px, 56px 56px, 100% 100%, 100% 100%, 100% 100%;
+    }
+    .blueprint-bg::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(var(--grid-line-strong) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-line-strong) 1px, transparent 1px);
+      background-size: 280px 280px, 280px 280px;
+      opacity: 0.6;
+    }
+
+    /* ========== 顶部锚栏 ========== */
+    .top-bar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      background: rgba(11, 16, 32, 0.72);
+      border-bottom: 1px solid var(--border);
+    }
+    .top-bar-inner {
+      max-width: var(--max-w);
+      margin: 0 auto;
+      padding: 14px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+    .top-bar-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-soft);
+      letter-spacing: 0.02em;
+    }
+    .top-bar-logo .mark {
+      width: 22px; height: 22px;
+      border: 1.5px solid var(--accent);
+      border-radius: 4px;
+      display: grid;
+      place-items: center;
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .top-bar-nav {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .top-bar-nav::-webkit-scrollbar { display: none; }
+    .top-bar-nav a {
+      flex-shrink: 0;
+      font-size: 13px;
+      color: var(--text-muted);
+      text-decoration: none;
+      padding: 6px 10px;
+      border-radius: 6px;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .top-bar-nav a:hover {
+      color: var(--accent);
+      background: rgba(61, 169, 252, 0.08);
+    }
+
+    /* ========== 通用容器 ========== */
+    .container {
+      max-width: var(--max-w);
+      margin: 0 auto;
+      padding: 0 32px;
+    }
+
+    /* ========== 封面 / Hero ========== */
+    .hero {
+      padding: 100px 0 80px;
+      position: relative;
+    }
+    .hero-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 28px;
+      background: rgba(20, 29, 56, 0.6);
+    }
+    .hero-tag .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent-good);
+      box-shadow: 0 0 8px var(--accent-good);
+    }
+    .hero h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(36px, 5.6vw, 64px);
+      font-weight: 900;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      margin-bottom: 24px;
+      color: var(--text);
+    }
+    .hero h1 em {
+      font-style: normal;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--violet) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero-sub {
+      font-size: clamp(16px, 1.8vw, 19px);
+      color: var(--text-soft);
+      max-width: 680px;
+      line-height: 1.7;
+      margin-bottom: 40px;
+    }
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px 40px;
+      padding-top: 28px;
+      border-top: 1px solid var(--border);
+      max-width: 680px;
+    }
+    .hero-meta-item .label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    .hero-meta-item .value {
+      font-size: 15px;
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    .report-note {
+      max-width: 760px;
+      margin: 24px 0 0;
+      padding: 14px 18px;
+      border: 1px solid rgba(61, 169, 252, 0.25);
+      border-left: 3px solid var(--accent);
+      border-radius: 8px;
+      background: rgba(61, 169, 252, 0.05);
+      color: var(--text-soft);
+      font-size: 13px;
+      line-height: 1.65;
+    }
+    .report-note strong {
+      color: var(--accent);
+      margin-right: 8px;
+    }
+    .report-note b { color: var(--text); }
+
+    .source-link {
+      color: var(--text-soft);
+      text-decoration: none;
+      border-bottom: 1px dotted var(--text-muted);
+    }
+    .source-link:hover {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    /* ========== 章节通用 ========== */
+    .section {
+      padding: 80px 0;
+      border-top: 1px solid var(--border);
+    }
+    .section-head {
+      margin-bottom: 48px;
+      max-width: 760px;
+    }
+    .section-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--accent);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-eyebrow::before {
+      content: "";
+      display: inline-block;
+      width: 24px;
+      height: 1px;
+      background: var(--accent);
+    }
+    .section-num {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .section h2 {
+      font-family: var(--font-serif);
+      font-size: clamp(28px, 3.6vw, 40px);
+      font-weight: 700;
+      line-height: 1.25;
+      letter-spacing: -0.01em;
+      margin-bottom: 16px;
+      color: var(--text);
+    }
+    .section-lead {
+      font-size: 17px;
+      color: var(--text-soft);
+      line-height: 1.7;
+    }
+
+    /* ========== 正文排版 ========== */
+    .prose {
+      max-width: 760px;
+    }
+    .prose p {
+      margin-bottom: 18px;
+      color: var(--text-soft);
+      font-size: 16px;
+      line-height: 1.8;
+    }
+    .prose p strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+    .prose code {
+      font-family: var(--font-mono);
+      font-size: 0.9em;
+      padding: 2px 6px;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--accent);
+    }
+
+    /* ========== 第一章：什么是明签 ========== */
+    .intro-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      align-items: start;
+    }
+    .wysiwygs-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 18px;
+      background: rgba(61, 169, 252, 0.1);
+      border: 1px solid rgba(61, 169, 252, 0.3);
+      border-radius: 8px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 20px;
+    }
+    .wysiwygs-badge::before {
+      content: "✓";
+      font-weight: 700;
+    }
+
+    /* 对比卡片：传统 vs 明签 */
+    .compare-card {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .compare-card .head {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--text-muted);
+    }
+    .compare-card .head .tag {
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .compare-card .head .tag.bad {
+      background: rgba(248, 113, 113, 0.15);
+      color: var(--accent-bad);
+    }
+    .compare-card .head .tag.good {
+      background: rgba(52, 211, 153, 0.15);
+      color: var(--accent-good);
+    }
+    .compare-card .body {
+      padding: 20px;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      line-height: 1.6;
+      word-break: break-all;
+      color: var(--text-muted);
+    }
+    .compare-card.good .body {
+      font-family: var(--font-sans);
+      color: var(--text);
+      font-size: 14.5px;
+      word-break: normal;
+      line-height: 1.7;
+    }
+    .compare-card.good .body .field {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border-soft);
+    }
+    .compare-card.good .body .field:last-child { border-bottom: none; }
+    .compare-card.good .body .field .k { color: var(--text-muted); font-size: 13px; }
+    .compare-card.good .body .field .v { color: var(--text); font-weight: 600; font-size: 14px; }
+    .compare-card.good .body .field .v.accent { color: var(--accent-good); }
+    .compare-card + .compare-card { margin-top: 16px; }
+
+    /* ========== 第二章：盲签危害 ========== */
+    .figure-full {
+      margin: 40px 0;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--bg-elev);
+    }
+    .figure-full img {
+      width: 100%;
+      display: block;
+      height: auto;
+    }
+    .figure-full figcaption {
+      padding: 14px 20px;
+      font-size: 13px;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+      font-family: var(--font-mono);
+    }
+    .figure-full figcaption::before {
+      content: "FIGURE ";
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .attack-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin: 32px 0;
+    }
+    .attack-card {
+      padding: 22px;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      border-left: 3px solid var(--accent-bad);
+    }
+    .attack-card .icon {
+      font-family: var(--font-mono);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--accent-bad);
+      margin-bottom: 10px;
+    }
+    .attack-card h4 {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .attack-card p {
+      font-size: 13.5px;
+      color: var(--text-soft);
+      line-height: 1.6;
+    }
+
+    .callout-warn {
+      margin: 32px 0;
+      padding: 20px 24px;
+      background: rgba(245, 158, 11, 0.06);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      border-radius: 10px;
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+    .callout-warn .icon {
+      flex-shrink: 0;
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      background: var(--accent-warm);
+      color: var(--bg);
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: 14px;
+      margin-top: 1px;
+    }
+    .callout-warn .content strong {
+      display: block;
+      color: var(--accent-warm);
+      font-size: 15px;
+      margin-bottom: 4px;
+    }
+    .callout-warn .content p {
+      color: var(--text-soft);
+      font-size: 14.5px;
+      line-height: 1.65;
+      margin: 0;
+    }
+
+    /* ========== 第三章：工作原理 ========== */
+    .flow-steps {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 2px;
+      margin: 32px 0;
+      background: var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .flow-step {
+      background: var(--bg-elev);
+      padding: 24px 20px;
+      position: relative;
+    }
+    .flow-step .step-num {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--accent);
+      font-weight: 600;
+      margin-bottom: 10px;
+      letter-spacing: 0.1em;
+    }
+    .flow-step h4 {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .flow-step p {
+      font-size: 13px;
+      color: var(--text-soft);
+      line-height: 1.6;
+    }
+    .flow-step::after {
+      content: "→";
+      position: absolute;
+      right: -8px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-family: var(--font-mono);
+      font-size: 14px;
+      color: var(--accent);
+      z-index: 2;
+      background: var(--bg-elev);
+      width: 16px;
+      text-align: center;
+    }
+    .flow-step:last-child::after { display: none; }
+
+    .keypoint-box {
+      margin: 32px 0;
+      padding: 24px;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+    .keypoint-box .badge {
+      flex-shrink: 0;
+      width: 48px; height: 48px;
+      border-radius: 10px;
+      background: rgba(52, 211, 153, 0.12);
+      border: 1px solid rgba(52, 211, 153, 0.3);
+      display: grid;
+      place-items: center;
+      font-family: var(--font-mono);
+      font-size: 20px;
+      color: var(--accent-good);
+      font-weight: 700;
+    }
+    .keypoint-box .text strong {
+      display: block;
+      color: var(--text);
+      margin-bottom: 4px;
+      font-size: 15px;
+    }
+    .keypoint-box .text p {
+      color: var(--text-soft);
+      font-size: 14px;
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    /* ========== 第四章：描述符结构 ========== */
+    .descriptor-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      align-items: start;
+    }
+    .descriptor-parts {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin: 24px 0;
+    }
+    .desc-part {
+      padding: 20px;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      transition: border-color 0.2s;
+    }
+    .desc-part:hover { border-color: var(--accent); }
+    .desc-part .part-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .desc-part .part-key {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--violet);
+    }
+    .desc-part .part-tag {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(139, 92, 246, 0.15);
+      color: var(--violet);
+    }
+    .desc-part p {
+      font-size: 13.5px;
+      color: var(--text-soft);
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    .code-block {
+      background: var(--bg-code);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 24px 0;
+    }
+    .code-block .code-head {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-elev);
+    }
+    .code-block .code-head .dots {
+      display: flex;
+      gap: 6px;
+    }
+    .code-block .code-head .dots span {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--border);
+    }
+    .code-block .code-head .dots span:nth-child(1) { background: #f87171; }
+    .code-block .code-head .dots span:nth-child(2) { background: #fbbf24; }
+    .code-block .code-head .dots span:nth-child(3) { background: #34d399; }
+    .code-block .code-head .label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .code-block pre {
+      padding: 20px;
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      line-height: 1.7;
+      color: var(--text-soft);
+    }
+    .tok-key { color: var(--accent-2); }
+    .tok-str { color: var(--accent-good); }
+    .tok-num { color: var(--accent-warm); }
+    .tok-pun { color: var(--text-muted); }
+    .tok-comment { color: #5b6485; font-style: italic; }
+
+    .verify-section {
+      margin-top: 32px;
+      padding-top: 32px;
+      border-top: 1px dashed var(--border);
+    }
+    .verify-section h4 {
+      font-size: 16px;
+      color: var(--text);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .verify-section h4::before {
+      content: "";
+      width: 3px; height: 18px;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+    .verify-items {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .verify-item {
+      display: flex;
+      gap: 10px;
+      padding: 12px 16px;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--text-soft);
+      line-height: 1.5;
+    }
+    .verify-item .vk {
+      flex-shrink: 0;
+      color: var(--accent);
+      font-weight: 600;
+      font-family: var(--font-mono);
+    }
+
+    /* ========== 第五章：好处表格 ========== */
+    .benefits-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 32px 0;
+      font-size: 15px;
+    }
+    .benefits-table thead th {
+      text-align: left;
+      padding: 14px 20px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      background: var(--bg-elev);
+      border-bottom: 2px solid var(--border);
+    }
+    .benefits-table tbody td {
+      padding: 18px 20px;
+      color: var(--text-soft);
+      border-bottom: 1px solid var(--border-soft);
+      vertical-align: top;
+      line-height: 1.65;
+    }
+    .benefits-table tbody td:first-child {
+      font-weight: 600;
+      color: var(--text);
+      width: 22%;
+      white-space: nowrap;
+      position: relative;
+      padding-left: 36px;
+    }
+    .benefits-table tbody td:first-child::before {
+      content: "+";
+      position: absolute;
+      left: 20px;
+      top: 18px;
+      color: var(--accent-good);
+      font-weight: 700;
+      font-family: var(--font-mono);
+    }
+    .benefits-table tbody tr:last-child td { border-bottom: none; }
+    .benefits-table tbody tr:hover { background: rgba(61, 169, 252, 0.03); }
+
+    /* ========== 第六章：局限 ========== */
+    .limitation-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin: 32px 0;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .lim-item {
+      display: grid;
+      grid-template-columns: 64px 1fr;
+      gap: 24px;
+      padding: 24px 28px;
+      background: var(--bg-elev);
+      border-bottom: 1px solid var(--border-soft);
+      transition: background 0.2s;
+    }
+    .lim-item:last-child { border-bottom: none; }
+    .lim-item:hover { background: var(--bg-soft); }
+    .lim-num {
+      font-family: var(--font-serif);
+      font-size: 36px;
+      font-weight: 700;
+      color: var(--accent-bad);
+      line-height: 1;
+      opacity: 0.7;
+    }
+    .lim-content h4 {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .lim-content p {
+      font-size: 14.5px;
+      color: var(--text-soft);
+      line-height: 1.7;
+      margin: 0;
+    }
+    .lim-content p strong {
+      color: var(--accent-warm);
+      font-weight: 600;
+    }
+
+    /* ========== 第七章：总结 ========== */
+    .summary-card {
+      padding: 40px;
+      background: linear-gradient(135deg, rgba(61, 169, 252, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin: 32px 0;
+      position: relative;
+      overflow: hidden;
+    }
+    .summary-card::before {
+      content: "";
+      position: absolute;
+      top: -50%;
+      right: -20%;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(61, 169, 252, 0.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .summary-card h3 {
+      font-family: var(--font-serif);
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 16px;
+      position: relative;
+    }
+    .summary-card p {
+      font-size: 16px;
+      color: var(--text-soft);
+      line-height: 1.8;
+      margin-bottom: 14px;
+      position: relative;
+      max-width: 720px;
+    }
+    .summary-card p:last-child { margin-bottom: 0; }
+
+    .sources {
+      margin-top: 32px;
+      padding: 20px 24px;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .sources-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+    .sources-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .source-tag {
+      padding: 5px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-soft);
+    }
+
+    /* ========== Footer ========== */
+    .footer {
+      padding: 48px 0;
+      border-top: 1px solid var(--border);
+      margin-top: 40px;
+    }
+    .footer-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .footer .copyright {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .footer .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .footer .status .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent-good);
+      box-shadow: 0 0 6px var(--accent-good);
+    }
+
+    /* ========== 响应式 ========== */
+    @media (max-width: 860px) {
+      .container { padding: 0 20px; }
+      .top-bar-inner { padding: 12px 20px; }
+      .hero { padding: 60px 0 48px; }
+      .section { padding: 56px 0; }
+      .intro-grid, .descriptor-layout { grid-template-columns: 1fr; gap: 32px; }
+      .attack-cards { grid-template-columns: 1fr; }
+      .flow-steps { grid-template-columns: 1fr 1fr; }
+      .flow-step::after { display: none; }
+      .verify-items { grid-template-columns: 1fr; }
+      .benefits-table { display: block; overflow-x: auto; }
+      .lim-item { grid-template-columns: 44px 1fr; gap: 16px; padding: 18px 20px; }
+      .lim-num { font-size: 28px; }
+      .summary-card { padding: 28px; }
+      .callout-warn { flex-direction: column; }
+      .hero-meta { gap: 16px 28px; }
+      .report-note { margin-top: 20px; }
+    }
+    @media (max-width: 480px) {
+      .flow-steps { grid-template-columns: 1fr; }
+      .top-bar-nav { gap: 0; }
+      .top-bar-nav a { padding: 6px 8px; font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="blueprint-bg"></div>
+
+  <!-- 顶部导航 -->
+  <header class="top-bar">
+    <div class="top-bar-inner">
+      <div class="top-bar-logo">
+        <div class="mark">CS</div>
+        <span>Clear Signing / 明签技术研究</span>
+      </div>
+      <nav class="top-bar-nav">
+        <a href="#intro">明签是什么</a>
+        <a href="#problem">盲签危害</a>
+        <a href="#how">工作原理</a>
+        <a href="#erc7730">ERC-7730</a>
+        <a href="#scope">边界</a>
+        <a href="#benefits">优势</a>
+        <a href="#limits">局限</a>
+        <a href="#summary">总结</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-tag">
+        <span class="dot"></span>
+        <span>Technical Report · 2026</span>
+      </div>
+      <h1>终结盲签：<br><em>Clear Signing</em> 与 <em>ERC-7730</em><br>技术研究报告</h1>
+      <p class="hero-sub">
+        从十六进制乱码到人类可读的交易摘要——明签如何通过一套开放标准、公共注册库与本地解码机制，
+        把加密货币交易的"最后一道防线"从盲猜变成可读可验。
+      </p>
+      <div class="report-note">
+        <strong>口径说明</strong>
+        <span>本文区分 <b>Clear Signing</b>（整体方案 / 用户体验）与 <b>ERC-7730</b>（描述符格式标准）。文中生态状态以 2026-08-25 可查到的公开资料为准；钱包实际展示能力取决于具体实现。</span>
+      </div>
+
+      <div class="hero-meta">
+        <div class="hero-meta-item">
+          <div class="label">Active Schema</div>
+          <div class="value">ERC-7730 v2</div>
+        </div>
+        <div class="hero-meta-item">
+          <div class="label">Clear Signing Launch</div>
+          <div class="value">2026.05.12</div>
+        </div>
+        <div class="hero-meta-item">
+          <div class="label">Registry</div>
+          <div class="value">clearsigning.org</div>
+        </div>
+        <div class="hero-meta-item">
+          <div class="label">Principle</div>
+          <div class="value">WYSIWYS</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 第一章：什么是明签 -->
+  <section class="section" id="intro">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-eyebrow">Chapter 01</div>
+        <h2>什么是明签（Clear Signing）</h2>
+        <p class="section-lead">
+          一套由以太坊基金会、Ledger、MetaMask、Trezor、WalletConnect 等多方联合推动的开放标准，
+          目标是终结加密货币领域的"盲签"问题，实现所见即所签。
+        </p>
+      </div>
+
+      <div class="intro-grid">
+        <div class="prose">
+          <div class="wysiwygs-badge">WYSIWYS · What You See Is What You Sign</div>
+          <p>
+            明签的核心是 <strong>ERC-7730</strong>——一种结构化数据的清晰签名格式，配合
+            <strong>clearsigning.org</strong> 公共注册库，让钱包在用户签名前把原本不可读的
+            十六进制交易数据（calldata）翻译成人类能理解的交易摘要。
+          </p>
+          <p>
+            2026 年 5 月 12 日，以太坊基金会宣布由钱包开发者、安全公司及其万亿美元安全倡议等参与的
+            Clear Signing 工作组启动公开方案。需要注意：<strong>ERC-7730 本身并非在这一天才诞生</strong>，
+            当前规范的 <strong>2.0.0</strong> schema 为 Active；2026-05-12 是 Clear Signing 生态方案正式对外发布的重要节点。
+          </p>
+          <p>
+            对用户而言，最大的变化是：<strong>签名确认界面不再只有难以理解的 hex，
+            而是将操作意图、金额、地址 / 对手方、协议等关键信息转成可读字段。</strong>
+            具体展示字段并不是固定的"四要素"，而由 descriptor 和钱包 UI 决定。
+          </p>
+        </div>
+
+        <div>
+          <!-- 盲签展示 -->
+          <div class="compare-card">
+            <div class="head">
+              <span>传统钱包 · 盲签</span>
+              <span class="tag bad">Blind</span>
+            </div>
+            <div class="body">
+              0x414bf389000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc200000000000000000000000000000000...
+            </div>
+          </div>
+
+          <!-- 明签展示 -->
+          <div class="compare-card good">
+            <div class="head">
+              <span>明签钱包 · Clear Signing</span>
+              <span class="tag good">Clear</span>
+            </div>
+            <div class="body">
+              <div class="field"><span class="k">操作</span><span class="v accent">Swap · 兑换</span></div>
+              <div class="field"><span class="k">支付</span><span class="v">1,000 USDC</span></div>
+              <div class="field"><span class="k">最少获得</span><span class="v">0.42 WETH</span></div>
+              <div class="field"><span class="k">协议</span><span class="v">Uniswap V3</span></div>
+              <div class="field"><span class="k">网络</span><span class="v">Ethereum Mainnet</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 第二章：盲签的危害 -->
+  <section class="section" id="problem">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-eyebrow">Chapter 02</div>
+        <h2>解决什么问题：盲签的危害</h2>
+        <p class="section-lead">
+          在许多重大加密安全事件中，攻击链的最后一步涉及用户批准一笔自己无法充分理解的交易。
+          盲签会削弱"签名前人工复核"这道防线，因此是钱包安全体验中的重要风险点。
+        </p>
+      </div>
+
+      <figure class="figure-full">
+        <img src="./011/blind-vs-clear.jpg" alt="盲签 vs 明签对比图">
+        <figcaption>01 · Blind Signing vs. Clear Signing — 从不可读的十六进制到清晰的交易意图</figcaption>
+      </figure>
+
+      <div class="prose">
+        <p>
+          明签要解决的核心问题是 <strong>盲签（Blind Signing）</strong>——用户在无法理解交易
+          真实内容的情况下被迫签名确认。钱包界面上那串长长的十六进制 calldata，对绝大多数用户
+          来说等同于乱码，但点击"确认"的那一刻，授权已经生效。
+        </p>
+      </div>
+
+      <div class="attack-cards">
+        <div class="attack-card">
+          <div class="icon">01</div>
+          <h4>无限授权 Draining</h4>
+          <p>诱导用户签署 <code style="font-size:12px">approve(spender, max)</code>，把无限额度授权给恶意 spender；
+            一旦授权生效，该 spender 后续可通过 <code>transferFrom</code> 等机制转移代币。</p>
+        </div>
+        <div class="attack-card">
+          <div class="icon">02</div>
+          <h4>前端伪装</h4>
+          <p>dApp 界面看起来完全合法，但底层构造的 calldata 指向恶意合约，用户在不知情下签名。</p>
+        </div>
+        <div class="attack-card">
+          <div class="icon">03</div>
+          <h4>硬件钱包盲区</h4>
+          <p>硬件钱包只能显示原始十六进制，用户要么开启盲签（放弃硬件钱包安全意义），要么无法使用复杂 DeFi。</p>
+        </div>
+      </div>
+
+      <div class="callout-warn">
+        <div class="icon">!</div>
+        <div class="content">
+          <strong>Bybit：为什么"看清楚再签"很重要</strong>
+          <p>2025 年 Bybit 事件中，攻击者通过 Safe 钱包前端 / 供应链层面的入侵操纵签名者看到的交易内容，诱导其批准恶意操作。
+          以太坊基金会随后在 Clear Signing 公告中将该事件作为盲签风险的典型案例之一。它并不意味着"明签能解决所有供应链攻击"，而是说明可信签名屏幕的重要性。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 第三章：工作原理 -->
+  <section class="section" id="how">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-eyebrow">Chapter 03</div>
+        <h2>工作原理：从 calldata 到可读摘要</h2>
+        <p class="section-lead">
+          明签架构拆成三个核心组件：ERC-7730 描述符标准、公共注册库、钱包端本地解码与显示。
+          四步流水线把十六进制变成人类可验证的交易摘要。
+        </p>
+      </div>
+
+      <figure class="figure-full">
+        <img src="./011/how-it-works.jpg" alt="Clear Signing 工作原理图">
+        <figcaption>02 · Clear Signing 工作原理 — 描述符如何将 calldata 翻译为可读信息</figcaption>
+      </figure>
+
+      <div class="flow-steps">
+        <div class="flow-step">
+          <div class="step-num">STEP 01</div>
+          <h4>dApp 发起交易</h4>
+          <p>用户在 dApp 上操作，dApp 构造包含函数选择器和参数的原始 calldata，发送给钱包。</p>
+        </div>
+        <div class="flow-step">
+          <div class="step-num">STEP 02</div>
+          <h4>钱包查询注册库</h4>
+          <p>钱包根据目标合约地址，从 clearsigning.org 公共注册库（或本地缓存）获取 ERC-7730 描述符。</p>
+        </div>
+        <div class="flow-step">
+          <div class="step-num">STEP 03</div>
+          <h4>本地解码</h4>
+          <p>钱包用描述符中的格式化规则，把原始参数翻译成人类可读字段（如 "1,000 USDC"）。</p>
+        </div>
+        <div class="flow-step">
+          <div class="step-num">STEP 04</div>
+          <h4>安全显示</h4>
+          <p>解码后的结构化摘要被送到硬件钱包的可信屏幕上，用户确认后才进行签名。</p>
+        </div>
+      </div>
+
+      <div class="keypoint-box">
+        <div class="badge">✓</div>
+        <div class="text">
+          <strong>关键点：签名时由钱包掌控最终展示与信任策略</strong>
+          <p>钱包在签名时根据交易数据、匹配到的 descriptor 以及自身信任策略生成展示结果；descriptor 可以预先缓存，
+          因此不要求每次签名都实时访问链上 RPC。与此同时，注册库、地址命名、代币元数据等外部数据仍可能引入额外信任假设，
+          钱包应对来源、版本和匹配关系进行校验。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 第四章：ERC-7730 描述符结构 -->
+  <section class="section" id="erc7730">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-eyebrow">Chapter 04</div>
+        <h2>ERC-7730 描述符结构</h2>
+        <p class="section-lead">
+          描述符是一个独立的 JSON 文件，与合约本身分离——无需重新部署合约，就能为现有协议添加明签支持。
+        </p>
+      </div>
+
+      <figure class="figure-full">
+        <img src="./011/descriptor-structure.jpg" alt="ERC-7730 描述符文件结构图">
+        <figcaption>03 · ERC-7730 Descriptor Structure — 一份 JSON 如何定义合约的可读展示规则</figcaption>
+      </figure>
+
+      <div class="descriptor-layout">
+        <div>
+          <div class="descriptor-parts">
+            <div class="desc-part">
+              <div class="part-head">
+                <span class="part-key">context</span>
+                <span class="part-tag">绑定层</span>
+              </div>
+              <p>通过 chainId + address 将描述符绑定到具体的合约部署。钱包据此判断"这笔交易该用哪份描述符"。</p>
+            </div>
+            <div class="desc-part">
+              <div class="part-head">
+                <span class="part-key">metadata</span>
+                <span class="part-tag">元数据层</span>
+              </div>
+              <p>定义项目名称、版本号和可复用常量（如代币地址、合约地址别名），供 display 层引用。</p>
+            </div>
+            <div class="desc-part">
+              <div class="part-head">
+                <span class="part-key">display</span>
+                <span class="part-tag">展示层</span>
+              </div>
+              <p>核心部分——将每个函数签名映射为人类可读的标签和字段格式化规则（tokenAmount、contract、token 等显示类型）。</p>
+            </div>
+          </div>
+
+          <div class="verify-section">
+            <h4>验证机制 &amp; 内置支持</h4>
+            <div class="verify-items">
+              <div class="verify-item">
+                <span class="vk">✓</span>
+                <span>描述符可以由任何人贡献；注册流程可结合独立审查与 attestation，钱包再按自身信任策略决定是否采用</span>
+              </div>
+              <div class="verify-item">
+                <span class="vk">✓</span>
+                <span>钱包自行决定信任哪些来源——可信中立治理模式</span>
+              </div>
+              <div class="verify-item">
+                <span class="vk">✓</span>
+                <span>以太坊基金会的 Trillion Dollar Security Initiative（1TS）承担 Clear Signing 注册基础设施的中立托管角色</span>
+              </div>
+              <div class="verify-item">
+                <span class="vk">✓</span>
+                <span>ERC-7730 v2 提供 tokenAmount、addressName、date、calldata 等字段格式，可组合描述常见交易数据</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="code-block">
+            <div class="code-head">
+              <div class="dots"><span></span><span></span><span></span></div>
+              <span class="label">uniswap-v3-router.json</span>
+            </div>
+<pre><span class="tok-pun">{</span>
+  <span class="tok-key">"$schema"</span><span class="tok-pun">:</span> <span class="tok-str">"https://eips.ethereum.org/assets/eip-7730/erc7730-v2.schema.json"</span><span class="tok-pun">,</span>
+  <span class="tok-key">"context"</span><span class="tok-pun">:</span> <span class="tok-pun">{</span>
+    <span class="tok-key">"$id"</span><span class="tok-pun">:</span> <span class="tok-str">"uniswap-v3-router-mainnet"</span><span class="tok-pun">,</span>
+    <span class="tok-key">"contract"</span><span class="tok-pun">:</span> <span class="tok-pun">{</span>
+      <span class="tok-key">"deployments"</span><span class="tok-pun">:</span> <span class="tok-pun">[</span>
+        <span class="tok-pun">{</span>
+          <span class="tok-key">"chainId"</span><span class="tok-pun">:</span> <span class="tok-num">1</span><span class="tok-pun">,</span>
+          <span class="tok-key">"address"</span><span class="tok-pun">:</span> <span class="tok-str">"0x..."</span>
+        <span class="tok-pun">}</span>
+      <span class="tok-pun">]</span>
+    <span class="tok-pun">}</span>
+  <span class="tok-pun">},</span>
+  <span class="tok-key">"metadata"</span><span class="tok-pun">:</span> <span class="tok-pun">{</span>
+    <span class="tok-key">"owner"</span><span class="tok-pun">:</span> <span class="tok-str">"Example Swap Protocol"</span><span class="tok-pun">,</span>
+    <span class="tok-key">"contractName"</span><span class="tok-pun">:</span> <span class="tok-str">"SwapRouter"</span>
+  <span class="tok-pun">},</span>
+  <span class="tok-key">"display"</span><span class="tok-pun">:</span> <span class="tok-pun">{</span>
+    <span class="tok-key">"formats"</span><span class="tok-pun">:</span> <span class="tok-pun">{</span>
+      <span class="tok-key">"swapExactTokensForTokens(uint256 amountIn,uint256 amountOutMin,address[] path,address to,uint256 deadline)"</span><span class="tok-pun">:</span> <span class="tok-pun">{</span>
+        <span class="tok-key">"intent"</span><span class="tok-pun">:</span> <span class="tok-str">"Swap"</span><span class="tok-pun">,</span>
+        <span class="tok-key">"interpolatedIntent"</span><span class="tok-pun">:</span> <span class="tok-str">"Swap {amountIn} for at least {amountOutMin}"</span><span class="tok-pun">,</span>
+        <span class="tok-key">"fields"</span><span class="tok-pun">:</span> <span class="tok-pun">[</span>
+          <span class="tok-pun">{</span>
+            <span class="tok-key">"path"</span><span class="tok-pun">:</span> <span class="tok-str">"#.amountIn"</span><span class="tok-pun">,</span>
+            <span class="tok-key">"label"</span><span class="tok-pun">:</span> <span class="tok-str">"Send"</span><span class="tok-pun">,</span>
+            <span class="tok-key">"format"</span><span class="tok-pun">:</span> <span class="tok-str">"tokenAmount"</span><span class="tok-pun">,</span>
+            <span class="tok-key">"params"</span><span class="tok-pun">:</span> <span class="tok-pun">{</span>
+              <span class="tok-key">"tokenPath"</span><span class="tok-pun">:</span> <span class="tok-str">"#.path[0]"</span>
+            <span class="tok-pun">}</span>
+          <span class="tok-pun">}</span><span class="tok-pun">,</span>
+          <span class="tok-pun">{</span>
+            <span class="tok-key">"path"</span><span class="tok-pun">:</span> <span class="tok-str">"#.amountOutMin"</span><span class="tok-pun">,</span>
+            <span class="tok-key">"label"</span><span class="tok-pun">:</span> <span class="tok-str">"Receive minimum"</span><span class="tok-pun">,</span>
+            <span class="tok-key">"format"</span><span class="tok-pun">:</span> <span class="tok-str">"tokenAmount"</span><span class="tok-pun">,</span>
+            <span class="tok-key">"params"</span><span class="tok-pun">:</span> <span class="tok-pun">{</span>
+              <span class="tok-key">"tokenPath"</span><span class="tok-pun">:</span> <span class="tok-str">"#.path[1]"</span>
+            <span class="tok-pun">}</span>
+          <span class="tok-pun">}</span>
+        <span class="tok-pun">]</span>
+      <span class="tok-pun">}</span>
+    <span class="tok-pun">}</span>
+  <span class="tok-pun">}</span>
+<span class="tok-pun">}</span></pre>
+          </div>
+          <p style="font-size:13px; color:var(--text-muted); font-family:var(--font-mono); margin-top: -12px;">
+            ▲ v2 结构示意：字段与函数签名请以实际 ABI / 官方 schema 校验结果为准
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 明签边界补充 -->
+  <section class="section" id="scope">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-eyebrow">Scope</div>
+        <h2>明签到底解决什么，不解决什么</h2>
+        <p class="section-lead">
+          最容易产生的误解，是把"可读"等同于"安全"。更准确的理解是：Clear Signing 强化的是签名前的可验证性，而不是替代整个安全体系。
+        </p>
+      </div>
+
+      <div class="attack-cards">
+        <div class="attack-card" style="border-left-color:var(--accent-good);">
+          <div class="icon" style="color:var(--accent-good);">✓</div>
+          <h4>它能解决</h4>
+          <p>把函数参数、金额、地址、意图等从机器可读数据转换成更适合人工复核的签名界面，降低"不知道自己签了什么"的风险。</p>
+        </div>
+        <div class="attack-card" style="border-left-color:var(--accent-warm);">
+          <div class="icon" style="color:var(--accent-warm);">!</div>
+          <h4>它不能保证</h4>
+          <p>不能证明合约没有漏洞、协议不是 rug pull、经济模型没有风险，也不能替代交易模拟、审计、权限分析和运营安全。</p>
+        </div>
+        <div class="attack-card">
+          <div class="icon">→</div>
+          <h4>正确的安全模型</h4>
+          <p><strong>Clear Signing + trusted display + transaction simulation + contract / protocol risk analysis</strong> 才更接近完整的交易安全闭环。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 第五章：好处 -->
+  <section class="section" id="benefits">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-eyebrow">Chapter 05</div>
+        <h2>明签的核心价值</h2>
+        <p class="section-lead">
+          从用户安全到生态开放，明签在多个维度上重构了加密交易签名的信任模型。
+        </p>
+      </div>
+
+      <div class="benefits-table-wrap">
+        <table class="benefits-table">
+          <thead>
+            <tr>
+              <th>维度</th>
+              <th>说明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>终结盲签</td>
+              <td>用户能看到交易真实意图（操作、金额、对手方、协议），而非十六进制乱码，从根本上降低钓鱼和恶意授权成功率。</td>
+            </tr>
+            <tr>
+              <td>硬件钱包价值回归</td>
+              <td>硬件钱包安全意义在于"可信屏幕上确认后再签名"，盲签让这道防线形同虚设；明签让硬件钱包真正发挥作用。</td>
+            </tr>
+            <tr>
+              <td>无需重新部署</td>
+              <td>描述符是独立的 off-chain JSON，现有协议无需修改或重新部署合约即可增加明签元数据；但仍需要 ABI / descriptor 编写、验证、注册及钱包侧支持，因此并非"零成本接入"。</td>
+            </tr>
+            <tr>
+              <td>开放标准、生态协作</td>
+              <td>ERC-7730 是开放标准，Ledger 最初发起，Clear Signing 注册基础设施由以太坊基金会承担中立托管角色；协议方提供描述符，钱包决定采用哪些来源与信任信号。</td>
+            </tr>
+            <tr>
+              <td>钱包侧验证与展示</td>
+              <td>钱包负责在签名前匹配 context、应用 display 规则并执行自身信任策略；descriptor 可预先缓存，但外部注册库、名称 / 代币元数据等仍可能存在额外信任假设。</td>
+            </tr>
+            <tr>
+              <td>防钓鱼</td>
+              <td>配合 Contract Lists（类似 Token Lists 的合约身份列表），钱包可以验证合约身份，防止仿冒合约。</td>
+            </tr>
+            <tr>
+              <td>生态正在扩张</td>
+              <td>官方 Clear Signing 生态页面的 2026-06-30 快照显示已有 51 个协议、380 个已发布 descriptor；钱包集成仍在持续推进，不能把"参与生态"等同于所有钱包均已完整支持。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- 第六章：缺点与局限 -->
+  <section class="section" id="limits">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-eyebrow">Chapter 06</div>
+        <h2>缺点与局限性</h2>
+        <p class="section-lead">
+          明签不是银弹。了解它能解决什么、不能解决什么，才能正确评估其在安全体系中的位置。
+        </p>
+      </div>
+
+      <div class="limitation-list">
+        <div class="lim-item">
+          <div class="lim-num">01</div>
+          <div class="lim-content">
+            <h4>覆盖率仍受长尾协议影响</h4>
+            <p>当前公共注册路径是开放、无许可的，任何人都可以提交 descriptor；真正的瓶颈变成<strong>是否有人为协议编写、验证并维护 descriptor，以及钱包是否接受其来源</strong>。
+            因此大量新部署或低关注度合约仍可能无法获得可读展示，最终回退到未明签 / 原始或基础解码展示。</p>
+          </div>
+        </div>
+        <div class="lim-item">
+          <div class="lim-num">02</div>
+          <div class="lim-content">
+            <h4>descriptor 信任与注册表仍是安全面</h4>
+            <p>ERC-7730 通过 <strong>context</strong> 约束 descriptor 适用于哪个合约 / 消息，并要求钱包校验这些约束；但 descriptor 本身是链下元数据。
+            因此恶意或错误 descriptor、注册表污染、来源与 attestation 信任策略，以及外部名称 / 元数据解析，仍然是需要防护的风险面。钱包必须避免把"可读"误认为"天然可信"。</p>
+          </div>
+        </div>
+        <div class="lim-item">
+          <div class="lim-num">03</div>
+          <div class="lim-content">
+            <h4>钱包支持与 descriptor 供给仍是双侧瓶颈</h4>
+            <p>钱包必须支持 ERC-7730 才能消费 descriptor；协议方则需要提供并维护准确的描述符。这里不是要求 dApp 在每次交易时参与解码，而是生态需要同时具备<strong>descriptor 供给</strong>与<strong>wallet consumer</strong>。
+            任一侧缺失，用户都可能回退到未明签展示。</p>
+          </div>
+        </div>
+        <div class="lim-item">
+          <div class="lim-num">04</div>
+          <div class="lim-content">
+            <h4>不验证业务逻辑和经济安全性</h4>
+            <p>明签只解决"你知不知道自己在签什么"，不验证合约代码是否有漏洞、经济模型是否合理、项目是否是骗局。一个明签显示清晰的 rug pull 交易仍然危险。</p>
+          </div>
+        </div>
+        <div class="lim-item">
+          <div class="lim-num">05</div>
+          <div class="lim-content">
+            <h4>不等于完整的执行模拟 / trace</h4>
+            <p>ERC-7730 可以描述 <strong>embedded calldata</strong> 等嵌套调用，但它本身不是 EVM 执行模拟器，也不会自动重建任意交易执行后的 internal-call trace。
+            对 <code>multicall</code>、复杂 proxy、动态调用等场景，仍需要相应 descriptor、钱包实现以及必要时的交易模拟 / trace 能力。</p>
+          </div>
+        </div>
+        <div class="lim-item">
+          <div class="lim-num">06</div>
+          <div class="lim-content">
+            <h4>跨链与实现碎片化</h4>
+            <p>ERC-7730 当前核心规范面向 EVM calldata 与 EIP-712 typed messages。其他生态可以复用 descriptor 思路，但仍需定义自己的交易容器、地址与信任策略。
+            例如 TRON 在 2026 年已出现跟进 ERC-7730 的 <strong>TIP-7730 草案</strong>，说明跨链适配正在发生，但仍处于早期。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 第七章：总结 -->
+  <section class="section" id="summary">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-eyebrow">Chapter 07</div>
+        <h2>总结</h2>
+        <p class="section-lead">
+          明签是以太坊安全基础设施的重要升级，但它只是多层安全体系中的一环。
+        </p>
+      </div>
+
+      <div class="summary-card">
+        <h3>核心判断</h3>
+        <p>
+          明签把"签名确认"这道最后防线从"盲猜"变成"可读可验"。核心是 <strong>ERC-7730 标准 + 公共注册库 + 钱包本地解码</strong>，
+          最大价值是让硬件钱包的可信屏幕真正发挥作用——在此之前，硬件钱包对复杂 DeFi 交易几乎形同虚设。
+        </p>
+        <p>
+          但目前仍处于<strong>早期推广阶段</strong>，存在长尾覆盖不足、缺乏链上密码学绑定、需要生态双向支持等局限。
+          明签不能替代用户自身的风险判断，也不能替代交易模拟、合约审计、代码审查等其他安全层。
+        </p>
+        <p>
+          长远来看，随着 On-chain Clear Signing、跨链标准统一、生态参与度提升，明签有潜力成为
+          加密钱包的默认体验——就像今天浏览器地址栏的 HTTPS 锁标识一样，从"新功能"变成"基础设施"。
+        </p>
+      </div>
+
+      <div class="sources">
+        <div class="sources-label">Information Sources</div>
+        <div class="sources-list">
+          <a class="source-tag source-link" href="https://clearsigning.org/" target="_blank" rel="noopener noreferrer">clearsigning.org</a>
+          <a class="source-tag source-link" href="https://blog.ethereum.org/2026/05/12/clear-signing-announcement" target="_blank" rel="noopener noreferrer">Ethereum Foundation · Clear Signing 公告</a>
+          <a class="source-tag source-link" href="https://eips.ethereum.org/EIPS/eip-7730" target="_blank" rel="noopener noreferrer">ERC-7730 规范</a>
+          <a class="source-tag source-link" href="https://ethereum.org/developers/tutorials/clear-signing/" target="_blank" rel="noopener noreferrer">Ethereum.org · ERC-7730 教程</a>
+          <a class="source-tag source-link" href="https://clearsigning.org/ecosystem/" target="_blank" rel="noopener noreferrer">Clear Signing · Ecosystem</a>
+          <a class="source-tag source-link" href="https://github.com/tronprotocol/tips/blob/master/tip-7730.md" target="_blank" rel="noopener noreferrer">TRON · TIP-7730 Draft</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-inner">
+        <div class="copyright">Clear Signing Technical Report · 2026</div>
+        <div class="status">
+          <span class="dot"></span>
+          <span>ERC-7730 v2 · Active schema</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
