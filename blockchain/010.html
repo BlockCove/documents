@@ -52,7 +52,6 @@
   <a href="#diagram-principle">四、原理图</a>
   <a href="#diagram-flow">五、登录流程图</a>
   <a href="#diagram-arch">六、系统架构图</a>
-  <a href="#practice">七、代码实践</a>
   <a href="#security">八、安全要点</a>
 </div>
 
@@ -221,148 +220,7 @@ flowchart TB
 </div>
 
 <!-- ============ 七、实践 ============ -->
-<h2 id="practice">七、代码实践</h2>
-
-<h3>1. 前端（ethers.js v6 + siwe）</h3>
-<p>下面示例针对 EOA。SIWE 的标准签名基于 ERC-191；<code>signer.signMessage()</code> 会走 Ethereum personal-sign 语义。实际生产环境中，<code>chainId</code>、<code>domain</code> 和 <code>uri</code> 应从应用配置/当前站点得到，而不是把错误的网络或域名写死。</p>
-<pre><code>import { SiweMessage } from 'siwe';
-import { BrowserProvider } from 'ethers';
-
-async function loginWithSIWE() {
-  const provider = new BrowserProvider(window.ethereum);
-  await provider.send('eth_requestAccounts', []);
-  const signer = await provider.getSigner();
-  const address = await signer.getAddress();
-
-  // 1. 从后端获取 nonce
-  const nonceRes = await fetch('/api/nonce');
-  const { nonce } = await nonceRes.json();
-
-  // 2. 构造 SIWE 消息
-  const message = new SiweMessage({
-    domain: window.location.host,
-    address,
-    statement: '登录到 Example DApp',
-    uri: window.location.origin,
-    version: '1',
-    chainId: 1,
-    nonce,
-  });
-
-  // 3. 钱包签名
-  const signature = await signer.signMessage(message.prepareMessage());
-
-  // 4. 提交后端验证
-  const verifyRes = await fetch('/api/verify', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, signature }),
-    credentials: 'include',
-  });
-
-  if (verifyRes.ok) {
-    console.log('登录成功');
-  }
-}</code></pre>
-
-<h3>2. 后端（Node.js + Express + siwe）</h3>
-<p><strong>示例说明：</strong>这里用 <code>express-session</code> 保存 nonce 只是为了演示。生产环境不要使用默认 MemoryStore，应使用 Redis 等共享 session store；nonce 必须具备短 TTL，并在验证时一次性消费，最好采用原子 compare-and-delete 逻辑以防并发重放。</p>
-<pre><code>import express from 'express';
-import { SiweMessage } from 'siwe';
-import session from 'express-session';
-import crypto from 'node:crypto';
-
-const app = express();
-app.use(express.json());
-app.set('trust proxy', 1);
-
-// 演示用 session；生产环境应替换为 Redis 等共享 session store。
-app.use(session({
-  secret: process.env.SECRET,
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 10 * 60 * 1000,
-  },
-}));
-
-// 1. 下发 nonce
-app.get('/api/nonce', (req, res) => {
-  // SIWE 要求 nonce 至少 8 个字母/数字字符；这里生成 32 hex chars。
-  const nonce = crypto.randomBytes(16).toString('hex');
-  req.session.nonce = nonce;
-  req.session.save((err) => {
-    if (err) return res.status(500).json({ error: 'session save failed' });
-    res.json({ nonce });
-  });
-});
-
-// 2. 验证签名
-app.post('/api/verify', async (req, res) => {
-  try {
-    const { message, signature } = req.body;
-
-    if (!req.session.nonce) {
-      return res.status(401).json({ ok: false, error: 'nonce missing or expired' });
-    }
-
-    const siweMessage = new SiweMessage(message);
-
-    // verify() 会检查消息结构、签名以及 nonce/domain 等验证条件。
-    const result = await siweMessage.verify({
-      signature,
-      nonce: req.session.nonce,
-      domain: 'example.com', // 生产环境应从服务端可信配置读取
-    });
-
-    if (!result.success) {
-      req.session.nonce = null;
-      return res.status(401).json({ ok: false, error: 'invalid SIWE message' });
-    }
-
-    const { data } = result;
-
-    // nonce 必须一次性消费；生产 Redis 场景建议使用原子 compare-and-delete。
-    req.session.nonce = null;
-
-    // 3. 建立会话
-    req.session.address = data.address;
-    req.session.chainId = data.chainId;
-
-    req.session.save((err) => {
-      if (err) return res.status(500).json({ ok: false, error: 'session save failed' });
-      res.json({ ok: true, address: data.address });
-    });
-  } catch (err) {
-    console.error('SIWE verify failed:', err.message);
-    res.status(401).json({ ok: false, error: err.message });
-  }
-});
-
-// 3. 受保护接口
-app.get('/api/me', (req, res) => {
-  if (!req.session.address) return res.status(401).json({ error: '未登录' });
-  res.json({ address: req.session.address });
-});
-
-app.listen(3000);</code></pre>
-
-<h3>3. 裸验签（不依赖 siwe 库，理解 EOA 底层）</h3>
-<pre><code>import { verifyMessage, getAddress } from 'ethers';
-
-// message 必须是 EIP-4361 prepareMessage() 得到的原始字符串。
-// 该示例只覆盖 EOA + ERC-191，不覆盖 EIP-1271 合约钱包。
-function rawVerifyEOA(message, signature, claimedAddress) {
-  const recovered = verifyMessage(message, signature); // ERC-191 personal-sign 语义
-  return getAddress(recovered) === getAddress(claimedAddress);
-}</code></pre>
-<p class="callout warn"><strong>注意：</strong><code>ethers.verifyMessage()</code> 能很好地帮助理解 EOA 签名恢复，但它不是完整的 SIWE verifier。生产环境仍应校验 EIP-4361 消息格式、<code>domain</code>、<code>nonce</code>、<code>chainId</code>、有效时间等；对合约钱包还要支持 EIP-1271。</p>
-
-<!-- ============ 八、安全 ============ -->
-<h2 id="security">八、安全要点</h2>
+<h2 id="security">七、安全要点</h2>
 <table>
   <tr><th>攻击面</th><th>防御措施</th></tr>
   <tr><td>重放攻击</td><td>nonce 一次性 + 短 TTL，验证后立即销毁</td></tr>
@@ -379,7 +237,7 @@ function rawVerifyEOA(message, signature, claimedAddress) {
   <strong>SIWE ≠ 授权：</strong>它主要解决“证明某个 Ethereum account 控制权并建立会话”（Authentication），不定义你的业务权限（Authorization）。登录后权限体系仍由后端业务逻辑控制。
 </div>
 
-<h3>9. EOA 与合约钱包：不要只看 ecrecover</h3>
+<h3>EOA 与合约钱包：不要只看 ecrecover</h3>
 <p>SIWE 规范区分两类账户：<strong>EOA</strong> 可按 ERC-191 验签；<strong>合约账户</strong>推荐按 <strong>EIP-1271</strong> 在消息指定的 <code>chainId</code> 对应网络上验证。也就是说，“SIWE 登录”不等于“所有钱包都能直接用本地 <code>ecrecover</code> 验签”。</p>
 
 </div>
