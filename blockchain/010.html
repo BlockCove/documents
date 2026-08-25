@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>以太坊 SIWE 登录签名 — 原理 · 实践 · 图解</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --border:#30363d; --text:#e6edf3;
+    --muted:#8b949e; --accent:#58a6ff; --green:#3fb950; --orange:#d29922; --red:#f85149;
+    --code:#0d1117;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;line-height:1.7}
+  .wrap{max-width:1080px;margin:0 auto;padding:40px 24px 80px}
+  h1{font-size:2rem;border-bottom:1px solid var(--border);padding-bottom:16px;margin-top:0}
+  h2{font-size:1.4rem;color:var(--accent);margin-top:48px;border-left:4px solid var(--accent);padding-left:12px}
+  h3{font-size:1.1rem;color:var(--green);margin-top:28px}
+  p{color:#c9d1d9}
+  code{background:var(--code);border:1px solid var(--border);padding:2px 6px;border-radius:4px;font-size:.9em;color:var(--orange)}
+  pre{background:var(--code);border:1px solid var(--border);border-radius:8px;padding:16px;overflow-x:auto;font-size:.85rem;line-height:1.5}
+  pre code{background:none;border:none;padding:0;color:#c9d1d9}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:.9rem}
+  th,td{border:1px solid var(--border);padding:10px 12px;text-align:left}
+  th{background:var(--panel);color:var(--accent)}
+  .mermaid{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:24px;margin:20px 0;display:flex;justify-content:center}
+  .tag{display:inline-block;background:#1f6feb33;color:var(--accent);border:1px solid #1f6feb66;border-radius:4px;padding:2px 8px;font-size:.75rem;margin-right:6px}
+  .callout{background:#1f6feb15;border-left:4px solid var(--accent);padding:12px 16px;border-radius:0 6px 6px 0;margin:16px 0}
+  .warn{background:#d2992215;border-left-color:var(--orange)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:720px){.grid2{grid-template-columns:1fr}}
+  .toc{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px 24px;margin-bottom:32px}
+  .toc a{color:var(--accent);text-decoration:none;display:block;padding:4px 0}
+  .toc a:hover{text-decoration:underline}
+  .kv{display:grid;grid-template-columns:160px 1fr;gap:8px 16px;font-size:.9rem}
+  .kv dt{color:var(--muted)}
+  .kv dd{margin:0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>🔐 以太坊 SIWE 登录签名</h1>
+<p><span class="tag">EIP-4361 / ERC-4361</span><span class="tag">Sign-In with Ethereum</span><span class="tag">无密码登录</span><span class="tag">链下签名</span></p>
+
+<div class="toc">
+  <strong>目录</strong>
+  <a href="#intro">一、什么是 SIWE</a>
+  <a href="#principle">二、核心原理</a>
+  <a href="#message">三、EIP-4361 消息格式</a>
+  <a href="#diagram-principle">四、原理图</a>
+  <a href="#diagram-flow">五、登录流程图</a>
+  <a href="#diagram-arch">六、系统架构图</a>
+  <a href="#practice">七、代码实践</a>
+  <a href="#security">八、安全要点</a>
+</div>
+
+<!-- ============ 一、介绍 ============ -->
+<h2 id="intro">一、什么是 SIWE</h2>
+<p><strong>SIWE（Sign-In with Ethereum）</strong> 是 <strong>EIP-4361（当前以 ERC-4361 形式登记）</strong>定义的一套标准化"用以太坊账户登录"协议。用户通过钱包（MetaMask 等）对一段符合 EIP-4361 的<strong>人类可读结构化文本</strong>进行链下签名，服务端验证签名及消息中的安全字段后，可以建立与该以太坊地址绑定的 Web 会话。整个签名过程<strong>不需要发起链上交易，因此不会产生登录本身的 Gas 消耗</strong>。</p>
+
+<div class="callout">
+  <strong>一句话类比：</strong>传统登录 = 你输入密码，服务器比对哈希；SIWE = 你用私钥在"挑战纸条"上签字，服务器用你的公钥（地址）验真。私钥永不离开钱包。
+</div>
+
+<dl class="kv">
+  <dt>标准编号</dt><dd>EIP-4361（现登记为 ERC-4361）</dd>
+  <dt>签名方法</dt><dd>EOA 通常使用 <code>personal_sign</code> / ERC-191；SIWE 规范本身不是 EIP-712 typed-data 协议</dd>
+  <dt>验签算法</dt><dd>EOA：ERC-191 + ECDSA/secp256k1；合约钱包：按 EIP-1271 在对应 chain ID 上验证</dd>
+  <dt>是否上链</dt><dd>否，纯离线签名</dd>
+  <dt>常用库</dt><dd><code>siwe</code>、<code>ethers.js</code>、<code>viem</code></dd>
+</dl>
+
+<!-- ============ 二、原理 ============ -->
+<h2 id="principle">二、核心原理</h2>
+
+<h3>1. 非对称加密基石</h3>
+<p>以太坊账户基于 <strong>secp256k1 椭圆曲线</strong>：</p>
+<ul>
+  <li><strong>EOA 私钥</strong>：256 bit 标量，通常由安全随机数生成并由钱包持有，永不外泄。</li>
+  <li><strong>EOA 公钥</strong>：由私钥通过 secp256k1 椭圆曲线运算派生；从公钥反推出私钥在计算上不可行。</li>
+  <li><strong>EOA 地址</strong>：对未压缩公钥去掉前导 <code>0x04</code> 后做 Keccak-256，取最后 20 字节并加 <code>0x</code>；合约账户的地址并不由此规则“从公钥派生”。</li>
+</ul>
+<p>对于 EOA，签名遵循 ERC-191：钱包对 SIWE 原文按 ERC-191 personal-sign 规则处理后使用 secp256k1 签名；服务端可从<strong>消息 + 签名</strong>恢复签名者地址，再与消息里的 <code>address</code> 比对。对于合约钱包，则应按 EIP-1271 在指定 <code>chainId</code> 对应网络上进行验证。</p>
+
+<h3>2. 挑战-响应（Challenge-Response）</h3>
+<p>为防止<strong>重放攻击</strong>，服务端每次下发一个随机 <code>nonce</code>（挑战值），用户签名必须包含该 nonce。服务端校验 nonce 未被使用过且在有效期内。</p>
+
+<h3>3. 域绑定（Domain Binding）</h3>
+<p>SIWE 消息必须包含 <code>domain</code> 和 <code>uri</code>。其中 <code>domain</code> 表示请求签名的站点 authority，<code>uri</code> 是签名所针对的资源 URI；服务端必须校验它们是否符合本站和本次请求的预期，钱包也应根据请求来源校验 <code>scheme/domain</code>，共同降低跨站和钓鱼风险。<strong>不是“签名天然只能在本站使用”</strong>，而是依赖钱包与服务端正确执行域绑定校验。</p>
+
+<h3>4. 会话签发</h3>
+<p>验签通过后，服务端签发传统 Session / JWT，后续请求走普通 Web 认证，不再每次签名。</p>
+
+<!-- ============ 三、消息格式 ============ -->
+<h2 id="message">三、EIP-4361 消息格式</h2>
+<p>SIWE 消息是一段<strong>人类可读</strong>的结构化文本，钱包会原样展示给用户确认：</p>
+<pre><code>example.com  wants you to sign in with your Ethereum account:
+0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
+
+I accept the ExampleOrg Terms of Service: https://example.com/tos
+
+URI: https://example.com/login
+Version: 1
+Chain ID: 1
+Nonce: 32891756
+Issued At: 2021-09-30T16:25:24Z
+Resources:
+- ipfs://bafybeiemxf5abjwjbikoz4mc3a3dla6ual3jsgpdr4cjr3oz3evfyavhwq/
+- https://example.com/my-web2-claim.json</code></pre>
+
+<table>
+  <tr><th>字段</th><th>必填</th><th>作用</th></tr>
+  <tr><td><code>domain</code></td><td>是</td><td>请求签名的域名，防跨站</td></tr>
+  <tr><td><code>address</code></td><td>是</td><td>签名者以太坊地址</td></tr>
+  <tr><td><code>statement</code></td><td>否</td><td>人类可读声明；禁止换行，可用于说明登录目的或条款</td></tr>
+  <tr><td><code>uri</code></td><td>是</td><td>签名所针对资源的 RFC 3986 URI；不应简单等同于 Origin</td></tr>
+  <tr><td><code>version</code></td><td>是</td><td>固定为 <code>1</code></td></tr>
+  <tr><td><code>chainId</code></td><td>是</td><td>链 ID（1=以太坊主网）</td></tr>
+  <tr><td><code>nonce</code></td><td>是</td><td>每次会话初始化使用的随机字符串，至少 8 个字母/数字字符，用于防重放</td></tr>
+  <tr><td><code>issuedAt</code></td><td>是</td><td>签发时间 ISO 8601</td></tr>
+  <tr><td><code>expirationTime</code></td><td>否</td><td>签名过期时间</td></tr>
+  <tr><td><code>notBefore</code></td><td>否</td><td>生效时间</td></tr>
+  <tr><td><code>requestId</code></td><td>否</td><td>系统内部请求 ID</td></tr>
+  <tr><td><code>resources</code></td><td>否</td><td>声明关联的资源 URI 列表</td></tr>
+</table>
+
+<!-- ============ 四、原理图 ============ -->
+<h2 id="diagram-principle">四、原理图 — 签名与验签数学过程</h2>
+<div class="mermaid">
+flowchart LR
+  subgraph 用户钱包
+    A[私钥 sk<br/>256bit] -->|ECDSA sign| S[(签名 r,s,v)]
+    M[SIWE 消息<br/>含 nonce/domain] -->|keccak256| H[消息哈希]
+    H --> A
+  end
+
+  subgraph 服务端验签
+    M2[收到的 SIWE 消息] -->|keccak256| H2[消息哈希]
+    S2[收到的签名] -->|ecrecover| PK[恢复公钥]
+    H2 --> PK
+    PK -->|keccak256 取后20字节| ADDR[推导地址]
+    ADDR -->|比对| EQ{地址 == 声明地址?}
+    EQ -->|是| OK[✅ 认证通过]
+    EQ -->|否| FAIL[❌ 拒绝]
+  end
+
+  S -.->|传输| S2
+</div>
+
+<div class="callout warn">
+  <strong>关键：</strong>对于普通 EOA，私钥<strong>从不离开钱包</strong>，服务端只拿到“消息 + 签名”，可恢复签名地址进行校验。对于智能合约钱包，则应按 <strong>EIP-1271</strong> 调用链上验证逻辑，而不是简单依赖 <code>ecrecover</code>。
+</div>
+
+<!-- ============ 五、流程图 ============ -->
+<h2 id="diagram-flow">五、登录流程图（时序）</h2>
+<div class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as 用户浏览器
+  participant W as 钱包(MetaMask)
+  participant S as 后端服务
+  participant DB as Nonce/会话存储
+
+  U->>S: 1. 请求 nonce (GET /nonce)
+  S->>DB: 生成并存储随机 nonce (TTL 5min)
+  S-->>U: 2. 返回 nonce
+
+  U->>U: 3. 按 EIP-4361 组装 SIWE 消息
+  U->>W: 4. personal_sign(message)
+  W->>W: 展示消息内容, 用户确认
+  W-->>U: 5. 返回签名 signature
+
+  U->>S: 6. POST /verify {message, signature}
+  S->>S: 7. 解析消息, 校验 domain/uri/chainId
+  S->>DB: 8. 校验 nonce 存在且未使用，并原子化消费
+  S->>S: 9. 校验 EIP-4361 字段 + 时间 + 签名
+  alt 全部通过
+    S->>DB: 10. 创建会话/签发 JWT
+    S-->>U: 11. 200 OK + Set-Cookie(session)
+  else 任一失败
+    S-->>U: 11. 401 Unauthorized
+  end
+</div>
+
+<!-- ============ 六、架构图 ============ -->
+<h2 id="diagram-arch">六、系统架构图</h2>
+<div class="mermaid">
+flowchart TB
+  subgraph Client["前端层 (Browser)"]
+    DApp[DApp 前端<br/>React/Vue]
+    Wallet[以太坊钱包<br/>MetaMask / WalletConnect]
+    DApp <-->|window.ethereum| Wallet
+  end
+
+  subgraph Gateway["接入层"]
+    Nginx[反向代理 / TLS]
+  end
+
+  subgraph Server["后端服务层"]
+    Auth[Auth Controller<br/>/nonce /verify /logout]
+    SIWE[SIWE Verifier<br/>siwe 库 + ethers]
+    NonceSvc[Nonce 服务<br/>生成/校验/销毁]
+    Session[Session/JWT 签发]
+    Auth --> SIWE
+    Auth --> NonceSvc
+    Auth --> Session
+  end
+
+  subgraph Storage["存储层"]
+    Redis[(Redis<br/>nonce 黑名单 + 会话)]
+    DB[(业务 DB<br/>用户表 address→uid)]
+  end
+
+  DApp -->|HTTPS| Nginx
+  Nginx --> Auth
+  NonceSvc --> Redis
+  Session --> Redis
+  Auth --> DB
+</div>
+
+<!-- ============ 七、实践 ============ -->
+<h2 id="practice">七、代码实践</h2>
+
+<h3>1. 前端（ethers.js v6 + siwe）</h3>
+<p>下面示例针对 EOA。SIWE 的标准签名基于 ERC-191；<code>signer.signMessage()</code> 会走 Ethereum personal-sign 语义。实际生产环境中，<code>chainId</code>、<code>domain</code> 和 <code>uri</code> 应从应用配置/当前站点得到，而不是把错误的网络或域名写死。</p>
+<pre><code>import { SiweMessage } from 'siwe';
+import { BrowserProvider } from 'ethers';
+
+async function loginWithSIWE() {
+  const provider = new BrowserProvider(window.ethereum);
+  await provider.send('eth_requestAccounts', []);
+  const signer = await provider.getSigner();
+  const address = await signer.getAddress();
+
+  // 1. 从后端获取 nonce
+  const nonceRes = await fetch('/api/nonce');
+  const { nonce } = await nonceRes.json();
+
+  // 2. 构造 SIWE 消息
+  const message = new SiweMessage({
+    domain: window.location.host,
+    address,
+    statement: '登录到 Example DApp',
+    uri: window.location.origin,
+    version: '1',
+    chainId: 1,
+    nonce,
+  });
+
+  // 3. 钱包签名
+  const signature = await signer.signMessage(message.prepareMessage());
+
+  // 4. 提交后端验证
+  const verifyRes = await fetch('/api/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, signature }),
+    credentials: 'include',
+  });
+
+  if (verifyRes.ok) {
+    console.log('登录成功');
+  }
+}</code></pre>
+
+<h3>2. 后端（Node.js + Express + siwe）</h3>
+<p><strong>示例说明：</strong>这里用 <code>express-session</code> 保存 nonce 只是为了演示。生产环境不要使用默认 MemoryStore，应使用 Redis 等共享 session store；nonce 必须具备短 TTL，并在验证时一次性消费，最好采用原子 compare-and-delete 逻辑以防并发重放。</p>
+<pre><code>import express from 'express';
+import { SiweMessage } from 'siwe';
+import session from 'express-session';
+import crypto from 'node:crypto';
+
+const app = express();
+app.use(express.json());
+app.set('trust proxy', 1);
+
+// 演示用 session；生产环境应替换为 Redis 等共享 session store。
+app.use(session({
+  secret: process.env.SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 10 * 60 * 1000,
+  },
+}));
+
+// 1. 下发 nonce
+app.get('/api/nonce', (req, res) => {
+  // SIWE 要求 nonce 至少 8 个字母/数字字符；这里生成 32 hex chars。
+  const nonce = crypto.randomBytes(16).toString('hex');
+  req.session.nonce = nonce;
+  req.session.save((err) => {
+    if (err) return res.status(500).json({ error: 'session save failed' });
+    res.json({ nonce });
+  });
+});
+
+// 2. 验证签名
+app.post('/api/verify', async (req, res) => {
+  try {
+    const { message, signature } = req.body;
+
+    if (!req.session.nonce) {
+      return res.status(401).json({ ok: false, error: 'nonce missing or expired' });
+    }
+
+    const siweMessage = new SiweMessage(message);
+
+    // verify() 会检查消息结构、签名以及 nonce/domain 等验证条件。
+    const result = await siweMessage.verify({
+      signature,
+      nonce: req.session.nonce,
+      domain: 'example.com', // 生产环境应从服务端可信配置读取
+    });
+
+    if (!result.success) {
+      req.session.nonce = null;
+      return res.status(401).json({ ok: false, error: 'invalid SIWE message' });
+    }
+
+    const { data } = result;
+
+    // nonce 必须一次性消费；生产 Redis 场景建议使用原子 compare-and-delete。
+    req.session.nonce = null;
+
+    // 3. 建立会话
+    req.session.address = data.address;
+    req.session.chainId = data.chainId;
+
+    req.session.save((err) => {
+      if (err) return res.status(500).json({ ok: false, error: 'session save failed' });
+      res.json({ ok: true, address: data.address });
+    });
+  } catch (err) {
+    console.error('SIWE verify failed:', err.message);
+    res.status(401).json({ ok: false, error: err.message });
+  }
+});
+
+// 3. 受保护接口
+app.get('/api/me', (req, res) => {
+  if (!req.session.address) return res.status(401).json({ error: '未登录' });
+  res.json({ address: req.session.address });
+});
+
+app.listen(3000);</code></pre>
+
+<h3>3. 裸验签（不依赖 siwe 库，理解 EOA 底层）</h3>
+<pre><code>import { verifyMessage, getAddress } from 'ethers';
+
+// message 必须是 EIP-4361 prepareMessage() 得到的原始字符串。
+// 该示例只覆盖 EOA + ERC-191，不覆盖 EIP-1271 合约钱包。
+function rawVerifyEOA(message, signature, claimedAddress) {
+  const recovered = verifyMessage(message, signature); // ERC-191 personal-sign 语义
+  return getAddress(recovered) === getAddress(claimedAddress);
+}</code></pre>
+<p class="callout warn"><strong>注意：</strong><code>ethers.verifyMessage()</code> 能很好地帮助理解 EOA 签名恢复，但它不是完整的 SIWE verifier。生产环境仍应校验 EIP-4361 消息格式、<code>domain</code>、<code>nonce</code>、<code>chainId</code>、有效时间等；对合约钱包还要支持 EIP-1271。</p>
+
+<!-- ============ 八、安全 ============ -->
+<h2 id="security">八、安全要点</h2>
+<table>
+  <tr><th>攻击面</th><th>防御措施</th></tr>
+  <tr><td>重放攻击</td><td>nonce 一次性 + 短 TTL，验证后立即销毁</td></tr>
+  <tr><td>跨站 / 钓鱼</td><td>服务端严格校验 <code>domain</code>（以及 <code>scheme</code>），并校验 <code>uri</code>；浏览器钱包也应做请求来源校验</td></tr>
+  <tr><td>链 ID 混淆</td><td>严格校验 <code>chainId</code> 与服务端允许的网络；它用于把会话绑定到指定网络</td></tr>
+  <tr><td>签名过期</td><td>可设置 <code>expirationTime</code>/<code>notBefore</code>，服务端验证时间窗口</td></tr>
+  <tr><td>statement 欺骗</td><td>statement 只是用户可读声明，不应单独承担授权语义；对敏感操作应在服务端校验预期内容</td></tr>
+  <tr><td>会话劫持</td><td>Cookie 使用 <code>HttpOnly; Secure</code>，并根据部署场景设置合适的 <code>SameSite</code></td></tr>
+  <tr><td>CSRF</td><td>Cookie 会话应结合 <code>SameSite</code> 与 CSRF Token 或 <code>Origin/Referer</code> 校验；不要把“自定义 Header”本身当作完整 CSRF 防线</td></tr>
+  <tr><td>合约钱包</td><td>对智能合约账户支持 <code>EIP-1271</code>；不能只依赖 <code>ecrecover</code></td></tr>
+</table>
+
+<div class="callout">
+  <strong>SIWE ≠ 授权：</strong>它主要解决“证明某个 Ethereum account 控制权并建立会话”（Authentication），不定义你的业务权限（Authorization）。登录后权限体系仍由后端业务逻辑控制。
+</div>
+
+<h3>9. EOA 与合约钱包：不要只看 ecrecover</h3>
+<p>SIWE 规范区分两类账户：<strong>EOA</strong> 可按 ERC-191 验签；<strong>合约账户</strong>推荐按 <strong>EIP-1271</strong> 在消息指定的 <code>chainId</code> 对应网络上验证。也就是说，“SIWE 登录”不等于“所有钱包都能直接用本地 <code>ecrecover</code> 验签”。</p>
+
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#161b22',
+      primaryTextColor: '#e6edf3',
+      primaryBorderColor: '#58a6ff',
+      lineColor: '#8b949e',
+      secondaryColor: '#0d1117',
+      tertiaryColor: '#161b22',
+      fontFamily: '-apple-system, sans-serif',
+    },
+    flowchart: { curve: 'basis', padding: 16 },
+    sequence: { actorMargin: 60, messageMargin: 30 },
+  });
+</script>
+</body>
+</html>
