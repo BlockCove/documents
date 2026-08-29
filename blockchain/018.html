@@ -1,0 +1,554 @@
+<html style="margin:0;padding:0;">
+<div id="app" style="max-width:1100px;margin:0 auto;padding:24px 20px 60px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,'PingFang SC','Microsoft YaHei',sans-serif;color:#1a1a2e;background:#fafbfc;line-height:1.7;">
+
+  <!-- 标题区 -->
+  <div style="border-left:4px solid #4f46e5;padding-left:16px;margin-bottom:28px;">
+    <h1 style="margin:0 0 6px;font-size:26px;font-weight:700;color:#1e1b4b;">NFTMarket × ERC20 购买 ERC721 全流程指南</h1>
+    <p style="margin:0;font-size:14px;color:#6b7280;">架构设计 · 四种购买方案业务流程 · 授权机制对比</p>
+  </div>
+
+  <!-- 目录 -->
+  <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:18px 22px;margin-bottom:32px;">
+    <div style="font-weight:600;font-size:15px;color:#374151;margin-bottom:10px;">目录</div>
+    <ol style="margin:0;padding-left:20px;font-size:14px;color:#4b5563;">
+      <li><a href="#arch" style="color:#4f46e5;text-decoration:none;">系统架构图</a></li>
+      <li><a href="#scheme1" style="color:#4f46e5;text-decoration:none;">方案一：approve + 购买（经典两步）</a></li>
+      <li><a href="#scheme2" style="color:#4f46e5;text-decoration:none;">方案二：Multicall / Router 与 delegatecall 的边界</a></li>
+      <li><a href="#scheme3" style="color:#4f46e5;text-decoration:none;">方案三：Merkle Tree 白名单 50% 优惠</a></li>
+      <li><a href="#scheme4" style="color:#4f46e5;text-decoration:none;">方案四：ERC20 Permit 签名授权（EIP-2612）</a></li>
+      <li><a href="#compare" style="color:#4f46e5;text-decoration:none;">四种相关机制横向对比</a></li>
+    </ol>
+  </div>
+
+  <!-- 加载状态 -->
+  <div id="mermaid-fallback" style="display:none;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:14px 18px;margin-bottom:20px;font-size:13px;color:#92400e;">
+    图表库加载失败，以下为文字版流程说明。
+  </div>
+
+  <!-- ========== 1. 系统架构图 ========== -->
+  <section id="arch" style="margin-bottom:44px;">
+    <h2 style="font-size:20px;font-weight:700;color:#1e1b4b;border-bottom:2px solid #4f46e5;padding-bottom:8px;margin-bottom:18px;">1. 系统架构图</h2>
+    <p style="font-size:14px;color:#4b5563;margin-bottom:16px;">
+      整个购买流程涉及 <strong>5 类核心组件</strong>：买家（EOA）、NFTMarket 市场合约、ERC20 代币合约、ERC721 NFT 合约，以及可选的辅助组件（Merkle 白名单、Permit、预言机等）。
+    </p>
+
+    <div class="mermaid" style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:20px;overflow-x:auto;">
+flowchart TB
+    subgraph BUYER["👤 买家层 (EOA)"]
+        USER["买家钱包<br/>持有 ERC20 / NFT"]
+        SIG["离线签名<br/>(EIP-712 Permit，可选)"]
+    end
+
+    subgraph MARKET["🏪 市场合约层 (NFTMarket)"]
+        LIST["上架模块<br/>list() / 定价"]
+        BUY["购买模块<br/>buyNFT() / buyWithPermit()"]
+        WHITELIST["可选白名单校验<br/>MerkleProof.verify()"]
+        PAYOUT["资金分配<br/>卖家 / 创作者 / 平台"]
+    end
+
+    subgraph TOKEN["💰 资产合约层"]
+        ERC20["ERC20 Token<br/>approve / transferFrom<br/>permit（若支持）"]
+        ERC721["ERC721 NFT<br/>safeTransferFrom<br/>ownerOf / tokenURI"]
+    end
+
+    subgraph AUX["🔧 可选辅助组件"]
+        MERKLE["Merkle Root<br/>白名单树根"]
+        ORACLE["价格预言机<br/>(可选, 动态定价)"]
+        ROUTER["Router / Multicall<br/>仅能批量已有权限的调用"]
+    end
+
+    USER -->|"approve（预先授权）"| ERC20
+    USER -->|"Permit 签名（可选）"| SIG
+    SIG -->|"permit(owner, NFTMarket, ...)"| ERC20
+    USER -->|"buyNFT / buyWithPermit"| BUY
+
+    BUY -->|"校验上架、价格、所有权"| LIST
+    BUY -->|"可选：验证 Merkle Proof"| WHITELIST
+    WHITELIST -->|"读取 Root"| MERKLE
+    BUY -->|"transferFrom 扣款"| ERC20
+    BUY -->|"safeTransferFrom 过户"| ERC721
+    BUY -->|"分账"| PAYOUT
+
+    LIST -->|"卖家需提前授权 NFTMarket<br/>或 NFT 已托管到市场"| ERC721
+    ORACLE -.->|"动态定价参考"| LIST
+    ROUTER -.->|"不能凭 delegatecall<br/>伪造买家的 ERC20 approve"| BUY
+
+    style BUYER fill:#eef2ff,stroke:#4f46e5,stroke-width:2px
+    style MARKET fill:#f0fdf4,stroke:#16a34a,stroke-width:2px
+    style TOKEN fill:#fffbeb,stroke:#d97706,stroke-width:2px
+    style AUX fill:#fdf2f8,stroke:#db2777,stroke-width:2px
+    style BUY fill:#dcfce7,stroke:#16a34a
+    style ERC20 fill:#fef3c7,stroke:#d97706
+    style ERC721 fill:#fef3c7,stroke:#d97706
+    style ROUTER fill:#fce7f3,stroke:#db2777
+    </div>
+
+    <div style="margin-top:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+      <div style="background:#eef2ff;border-radius:8px;padding:12px 14px;font-size:13px;">
+        <div style="font-weight:600;color:#3730a3;margin-bottom:4px;">买家层</div>
+        <div style="color:#4b5563;">发起交易、签名授权、支付 ERC20</div>
+      </div>
+      <div style="background:#f0fdf4;border-radius:8px;padding:12px 14px;font-size:13px;">
+        <div style="font-weight:600;color:#166534;margin-bottom:4px;">市场合约层</div>
+        <div style="color:#4b5563;">定价、撮合、扣款、过户、版税</div>
+      </div>
+      <div style="background:#fffbeb;border-radius:8px;padding:12px 14px;font-size:13px;">
+        <div style="font-weight:600;color:#92400e;margin-bottom:4px;">代币合约层</div>
+        <div style="color:#4b5563;">ERC20 资金流转 + ERC721 权属变更</div>
+      </div>
+      <div style="background:#fdf2f8;border-radius:8px;padding:12px 14px;font-size:13px;">
+        <div style="font-weight:600;color:#9d174d;margin-bottom:4px;">辅助组件</div>
+        <div style="color:#4b5563;">MultiCall 聚合、Merkle 白名单、预言机</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 方案一 ========== -->
+  <section id="scheme1" style="margin-bottom:44px;">
+    <h2 style="font-size:20px;font-weight:700;color:#1e1b4b;border-bottom:2px solid #4f46e5;padding-bottom:8px;margin-bottom:18px;">2. 方案一：approve + 购买（经典两步法）</h2>
+
+    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:16px 20px;margin-bottom:16px;font-size:14px;color:#374151;">
+      <strong style="color:#4f46e5;">核心思想：</strong>买家先调用 ERC20 的 <code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:13px;">approve()</code>，授权 NFTMarket 花费指定额度，再调用市场合约的 <code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:13px;">buyNFT()</code>。市场内部通过 <code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:13px;">transferFrom()</code> 扣款；如果 NFT 仍由卖家持有，则卖家还必须提前通过 <code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:13px;">approve()</code> 或 <code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:13px;">setApprovalForAll()</code> 授权 NFTMarket。
+    </div>
+
+    <div class="mermaid" style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:20px;overflow-x:auto;">
+sequenceDiagram
+    autonumber
+    participant S as 卖家
+    participant U as 买家 (EOA)
+    participant E20 as ERC20 Token
+    participant M as NFTMarket
+    participant E721 as ERC721 NFT
+    participant C as 创作者/平台
+
+    Note over S,E721: 上架前置条件：NFTMarket 必须有权转移 NFT
+    S->>E721: approve(NFTMarket, tokenId)<br/>或 setApprovalForAll(NFTMarket, true)
+    E721-->>S: Approval / ApprovalForAll
+
+    Note over U,E20: 第一笔交易：ERC20 授权
+    U->>E20: approve(NFTMarket, price)
+    E20-->>U: Approval 事件 (授权成功)
+
+    Note over U,M: 第二笔交易：购买
+    U->>M: buyNFT(tokenId)
+    M->>M: 校验 NFT 已上架、价格与状态
+    M->>E20: transferFrom(buyer, seller/market, price)
+    E20-->>M: Transfer 事件 (扣款成功)
+    M->>E721: safeTransferFrom(seller, buyer, tokenId)
+    E721-->>M: Transfer 事件 (NFT 过户)
+    M->>C: 按协议分配创作者版税 / 平台费
+    M-->>U: NFTBought 事件 (购买完成)
+    </div>
+
+    <div style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px 16px;">
+        <div style="font-weight:600;color:#166534;font-size:14px;margin-bottom:8px;">✅ 优点</div>
+        <ul style="margin:0;padding-left:18px;font-size:13px;color:#374151;line-height:1.8;">
+          <li>兼容性最好，所有 ERC20 都支持</li>
+          <li>逻辑简单，审计风险低</li>
+          <li>授权额度可精确控制</li>
+        </ul>
+      </div>
+      <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:14px 16px;">
+        <div style="font-weight:600;color:#991b1b;font-size:14px;margin-bottom:8px;">⚠️ 缺点</div>
+        <ul style="margin:0;padding-left:18px;font-size:13px;color:#374151;line-height:1.8;">
+          <li>需要两笔交易，用户体验差</li>
+          <li>无限授权 (approve max) 有安全隐患</li>
+          <li>两次 Gas 费，成本较高</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 方案二 ========== -->
+  <section id="scheme2" style="margin-bottom:44px;">
+    <h2 style="font-size:20px;font-weight:700;color:#1e1b4b;border-bottom:2px solid #4f46e5;padding-bottom:8px;margin-bottom:18px;">3. 方案二：Multicall / Router —— 为什么不能用 delegatecall 把 approve + 购买合并</h2>
+
+    <div style="background:#fff;border:1px solid #fecaca;border-radius:10px;padding:16px 20px;margin-bottom:16px;font-size:14px;color:#7f1d1d;">
+      <strong>结论：</strong>对于普通 EOA + 标准 ERC20，不能通过“一个 Multicall 合约对 ERC20 使用 <code style="background:#fef2f2;padding:2px 6px;border-radius:4px;font-size:13px;">delegatecall</code>，然后再调用 NFTMarket”的方式，把 <code style="background:#fef2f2;padding:2px 6px;border-radius:4px;font-size:13px;">approve()</code> 和购买可靠地合并成一笔交易。原理上这是错误的用法。
+    </div>
+
+    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:16px 20px;margin-bottom:16px;font-size:14px;color:#374151;">
+      <strong style="color:#4f46e5;">为什么：</strong><code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:13px;">delegatecall</code> 会让目标合约代码在“调用者”的存储上下文中执行。ERC20 的 <code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:13px;">approve()</code> 需要修改的是 <strong>ERC20 合约自己的 allowance 存储</strong>；如果把 ERC20 代码 delegatecall 到 Multicall，写入的却是 Multicall 的存储，而不是 ERC20 的存储，因此不能达到给 NFTMarket 授权 ERC20 的目的。同理，直接 delegatecall 一个有状态的 NFTMarket 也会把其状态读写指向错误的存储上下文。
+    </div>
+
+    <div class="mermaid" style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:20px;overflow-x:auto;">
+sequenceDiagram
+    autonumber
+    participant U as 买家 (EOA)
+    participant MC as Multicall / Router
+    participant E20 as ERC20 Token
+    participant M as NFTMarket
+
+    Note over U,MC: 看似想用一笔交易完成 approve + buy
+    U->>MC: multicall([approveData, buyData])
+
+    Note over MC,E20: 错误做法：delegatecall ERC20.approve
+    MC->>E20: delegatecall approve(NFTMarket, price)
+    Note right of MC: ERC20 代码在 MC 的 storage 上执行
+    Note right of MC: ❌ 不会修改 ERC20.allowance
+
+    MC-->>U: 该方案无法产生有效的 ERC20 授权
+
+    Note over U,M: 正确的“一笔交易”路径
+    U->>M: buyWithPermit(...signature)
+    M->>E20: permit(owner, NFTMarket, value, deadline, ...)
+    E20-->>M: allowance 写入 ERC20 自身存储
+    M->>E20: transferFrom(buyer, ...)
+    M->>M: 完成购买逻辑
+    </div>
+
+    <div style="margin-top:16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px 16px;font-size:13px;color:#166534;">
+      <strong>正确的替代方案：</strong>
+      <ul style="margin:8px 0 0;padding-left:18px;line-height:1.8;">
+        <li><strong>Permit / EIP-2612：</strong>用户链下签名，市场合约在同一笔交易里调用 permit + transferFrom。</li>
+        <li><strong>ERC-1363：</strong>若代币支持 <code>approveAndCall</code> / <code>transferAndCall</code>，可以使用代币扩展定义的一笔交易模式。</li>
+        <li><strong>智能合约钱包 / Account Abstraction：</strong>账户本身可以在一次 UserOperation 中执行多个动作，但这已经不是“EOA 直接通过 delegatecall 完成 approve + buy”。</li>
+      </ul>
+    </div>
+
+    <div style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px 16px;">
+        <div style="font-weight:600;color:#166534;font-size:14px;margin-bottom:8px;">✅ Multicall 真正适合做什么</div>
+        <ul style="margin:0;padding-left:18px;font-size:13px;color:#374151;line-height:1.8;">
+          <li>批量读取多个合约状态</li>
+          <li>批量执行已经拥有权限的多个操作</li>
+          <li>批量购买多个 NFT（前提是授权已经存在）</li>
+          <li>作为 Permit / Account Abstraction 之后的编排层</li>
+        </ul>
+      </div>
+      <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:14px 16px;">
+        <div style="font-weight:600;color:#991b1b;font-size:14px;margin-bottom:8px;">⚠️ 不应这样理解</div>
+        <ul style="margin:0;padding-left:18px;font-size:13px;color:#374151;line-height:1.8;">
+          <li>不能用 delegatecall 伪造“买家的 ERC20 approve”</li>
+          <li>不能因为 msg.sender 保持不变，就认为所有目标合约状态都会写到目标合约自己</li>
+          <li>一个普通 EOA 不能仅靠 Multicall 把两个需要分别授权的外部合约操作神奇地变成一个标准 ERC20 approve + buy 流程</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 方案三 ========== -->
+  <section id="scheme3" style="margin-bottom:44px;">
+    <h2 style="font-size:20px;font-weight:700;color:#1e1b4b;border-bottom:2px solid #4f46e5;padding-bottom:8px;margin-bottom:18px;">4. 方案三：Merkle Tree 白名单 50% 优惠购买</h2>
+
+    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:16px 20px;margin-bottom:16px;font-size:14px;color:#374151;">
+      <strong style="color:#4f46e5;">核心思想：</strong>项目方将白名单地址（或“地址 + 限购额度”等业务字段）生成 Merkle Tree，仅将 <code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:13px;">Merkle Root</code> 存储在链上。买家购买时提交自己的 <code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:13px;">Merkle Proof</code>，合约验证通过后按白名单规则结算，例如 50% 折扣。Merkle 白名单本身<strong>不是授权机制</strong>，可与 approve / Permit 等支付方式组合；仅做地址存在性证明时，若业务要求“每地址只能使用一次”，仍需额外记录 claimed 状态或消耗额度。
+    </div>
+
+    <div class="mermaid" style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:20px;overflow-x:auto;">
+flowchart TB
+    subgraph OFFCHAIN["📋 链下准备 (项目方)"]
+        WL["白名单地址列表<br/>[0xAlice, 0xBob, 0xCarol, ...]"]
+        MT["构建 Merkle Tree<br/>Keccak256 哈希两两合并"]
+        ROOT["Merkle Root<br/>0xabc...123 (32 bytes)"]
+        WL --> MT --> ROOT
+    end
+
+    subgraph ONCHAIN["⛓️ 链上存储 & 购买"]
+        SETROOT["setMerkleRoot(root)<br/>仅存 32 bytes, Gas 极低"]
+        BUYER["买家调用 buyWithWhitelist<br/>(tokenId, merkleProof)"]
+        VERIFY["MerkleProof.verify(<br/>proof, root, leaf)"]
+        DISCOUNT{"验证通过?"}
+        PRICE50["应付价格 = 原价 × 50%"]
+        PRICE100["应付价格 = 原价 (无优惠)"]
+        PAY["transferFrom 扣款 (折扣价)"]
+        TRANSFER["safeTransferFrom 过户 NFT"]
+    end
+
+    ROOT --> SETROOT
+    SETROOT --> BUYER
+    BUYER --> VERIFY
+    VERIFY --> DISCOUNT
+    DISCOUNT -->|"✅ 是"| PRICE50
+    DISCOUNT -->|"❌ 否"| PRICE100
+    PRICE50 --> PAY
+    PRICE100 --> PAY
+    PAY --> TRANSFER
+
+    style OFFCHAIN fill:#fef3c7,stroke:#d97706,stroke-width:2px
+    style ONCHAIN fill:#dbeafe,stroke:#2563eb,stroke-width:2px
+    style VERIFY fill:#fce7f3,stroke:#db2777
+    style PRICE50 fill:#dcfce7,stroke:#16a34a
+    style PRICE100 fill:#fee2e2,stroke:#dc2626
+    </div>
+
+    <div style="margin-top:16px;">
+      <div style="font-weight:600;font-size:15px;color:#374151;margin-bottom:10px;">🔍 Merkle Proof 验证原理</div>
+      <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:14px 16px;font-size:13px;color:#374151;line-height:1.9;">
+        <div style="font-family:monospace;background:#f9fafb;padding:10px 12px;border-radius:6px;margin-bottom:10px;overflow-x:auto;">
+// 叶子节点的构造必须与链下建树方式完全一致
+// 下面仅示意“地址白名单”的一种常见编码
+leaf = keccak256(bytes.concat(keccak256(abi.encode(msg.sender))))
+
+// 沿 proof 路径逐层哈希
+hash = leaf
+for each sibling in proof:
+    if hash &lt; sibling:
+        hash = keccak256(abi.encodePacked(hash, sibling))
+    else:
+        hash = keccak256(abi.encodePacked(sibling, hash))
+
+// 最终比对
+require(hash == merkleRoot, "Invalid whitelist proof")
+        </div>
+        <strong>关键特性：</strong>链上通常只需存 1 个 Root（32 bytes），白名单规模增长不会线性增加 Root 的存储空间。买家提交的 proof 通常为 O(log n) 个兄弟节点，但实际 Gas 仍取决于 proof 长度、哈希实现和其他业务逻辑。
+      </div>
+    </div>
+
+    <div style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px 16px;">
+        <div style="font-weight:600;color:#166534;font-size:14px;margin-bottom:8px;">✅ 优点</div>
+        <ul style="margin:0;padding-left:18px;font-size:13px;color:#374151;line-height:1.8;">
+          <li>链上存储成本极低（仅 32 bytes Root）</li>
+          <li>白名单可动态更新（更换 Root）</li>
+          <li>验证 Gas 与白名单规模无关</li>
+          <li>可叠加任意授权方式</li>
+        </ul>
+      </div>
+      <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:14px 16px;">
+        <div style="font-weight:600;color:#991b1b;font-size:14px;margin-bottom:8px;">⚠️ 注意事项</div>
+        <ul style="margin:0;padding-left:18px;font-size:13px;color:#374151;line-height:1.8;">
+          <li>Merkle Proof 本身不等于“防重放”：若同一地址允许多次购买，proof 可以反复使用；若要求一次性领取，需额外记录 claimed / nonce / 已用额度</li>
+          <li>白名单生成需链下工具配合</li>
+          <li>折扣资格应与明确的价格、限购与领取规则绑定，避免仅凭前端传入价格</li>
+          <li>Root 更新权限需治理（多签/时间锁）</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 方案四 ========== -->
+  <section id="scheme4" style="margin-bottom:44px;">
+    <h2 style="font-size:20px;font-weight:700;color:#1e1b4b;border-bottom:2px solid #4f46e5;padding-bottom:8px;margin-bottom:18px;">5. 方案四：ERC20 Permit 签名授权（EIP-2612）</h2>
+
+    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:16px 20px;margin-bottom:16px;font-size:14px;color:#374151;">
+      <strong style="color:#4f46e5;">核心思想：</strong>对于实现 EIP-2612 的 ERC20，买家<strong>离线签名</strong>一份 EIP-712 Permit 消息（包含 owner、spender、value、nonce、deadline 等字段）。签名不消耗链上 Gas；随后市场合约在一笔交易中调用 ERC20 的 <code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:13px;">permit()</code> 建立 allowance，再调用 <code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:13px;">transferFrom()</code> 完成扣款。这里节省的是“单独的 approve 交易”，但真正提交购买交易的账户仍需要承担这笔交易的 Gas，除非结合 relayer / meta-transaction / Account Abstraction 等方案。
+    </div>
+
+    <div class="mermaid" style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:20px;overflow-x:auto;">
+sequenceDiagram
+    autonumber
+    participant U as 买家 (EOA)
+    participant M as NFTMarket
+    participant E20 as ERC20 Token (支持 Permit)
+    participant E721 as ERC721 NFT
+
+    Note over U: 链下: 构造 EIP-712 签名
+    U->>U: 签名 permit 消息<br/>{owner, spender, value, nonce, deadline}
+    Note right of U: 签名 = (v, r, s)<br/>无需发交易, 零 Gas
+
+    Note over M,E721: 前置条件：若 NFT 仍由卖家持有，NFTMarket 必须已获授权
+    Note over U,M: 仅一笔链上交易
+    U->>M: buyWithPermit(tokenId, value, deadline, nonce, v, r, s)
+
+    Note over M,E20: 第 1 步: 链上 permit 授权
+    M->>E20: permit(owner, spender, value, deadline, v, r, s)
+    E20->>E20: ecrecover 验证签名<br/>nonce++ (防重放)
+    E20->>E20: allowance[owner][spender] = value
+    E20-->>M: Approval 事件
+
+    Note over M,E20: 第 2 步: 扣款
+    M->>E20: transferFrom(buyer, market, price)
+    E20-->>M: Transfer 事件 (扣款成功)
+
+    Note over M,E721: 第 3 步: 过户
+    M->>E721: safeTransferFrom(seller, buyer, tokenId)
+    E721-->>M: Transfer 事件 (NFT 过户)
+
+    M-->>U: NFTBought 事件 (购买完成)
+    </div>
+
+    <div style="margin-top:16px;">
+      <div style="font-weight:600;font-size:15px;color:#374151;margin-bottom:10px;">📝 EIP-712 签名消息结构</div>
+      <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:14px 16px;font-size:13px;color:#374151;line-height:1.9;">
+        <div style="font-family:monospace;background:#f9fafb;padding:10px 12px;border-radius:6px;overflow-x:auto;">
+Permit(
+  owner:    0xBuyerAddress,    // 授权者
+  spender:  0xNFTMarket,       // 被授权者
+  value:    1000000000,        // 授权额度（建议按实际需求限制）
+  nonce:    5,                  // 必须等于 token.nonces(owner)
+  deadline: 1714521600         // 签名有效截止时间
+)
+
+// EIP-712 Domain（示意；具体字段必须以 token 的实现为准）
+EIP712Domain(
+  name: "MyToken",
+  version: "1",
+  chainId: 1,
+  verifyingContract: 0xTokenAddress
+)
+
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px 16px;">
+        <div style="font-weight:600;color:#166534;font-size:14px;margin-bottom:8px;">✅ 优点</div>
+        <ul style="margin:0;padding-left:18px;font-size:13px;color:#374151;line-height:1.8;">
+          <li>仅一笔交易，用户体验最佳</li>
+          <li>可把授权额度精确限制在购买金额或所需额度；但 Permit 若签署过大的 value，仍然存在授权风险</li>
+          <li>签名可设 deadline，过期自动失效</li>
+          <li>nonce 机制天然防重放</li>
+          <li>通常比“approve + purchase”少一笔独立的链上授权交易</li>
+        </ul>
+      </div>
+      <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:14px 16px;">
+        <div style="font-weight:600;color:#991b1b;font-size:14px;margin-bottom:8px;">⚠️ 缺点</div>
+        <ul style="margin:0;padding-left:18px;font-size:13px;color:#374151;line-height:1.8;">
+          <li>ERC20 必须实现 EIP-2612（非所有代币）</li>
+          <li>前端需集成 EIP-712 签名逻辑</li>
+          <li>签名过期需用户重新签名</li>
+          <li>钱包 / 智能合约账户的签名能力存在差异，生产环境需确认 EIP-712 与具体 Permit 方案的兼容性</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 对比表 ========== -->
+  <section id="compare" style="margin-bottom:44px;">
+    <h2 style="font-size:20px;font-weight:700;color:#1e1b4b;border-bottom:2px solid #4f46e5;padding-bottom:8px;margin-bottom:18px;">6. 四种相关机制横向对比</h2>
+
+    <div style="overflow-x:auto;border:1px solid #e5e7eb;border-radius:10px;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;background:#fff;">
+        <thead>
+          <tr style="background:#4f46e5;color:#fff;">
+            <th style="padding:12px 14px;text-align:left;font-weight:600;">对比维度</th>
+            <th style="padding:12px 14px;text-align:left;font-weight:600;">approve + 购买</th>
+            <th style="padding:12px 14px;text-align:left;font-weight:600;">Multicall / Router</th>
+            <th style="padding:12px 14px;text-align:left;font-weight:600;">Merkle 白名单</th>
+            <th style="padding:12px 14px;text-align:left;font-weight:600;">Permit (EIP-2612)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #f3f4f6;">
+            <td style="padding:10px 14px;font-weight:600;color:#374151;">能否单独解决支付授权</td>
+            <td style="padding:10px 14px;color:#16a34a;">✅ 可以</td>
+            <td style="padding:10px 14px;">❌ 不能凭 delegatecall 代替 approve</td>
+            <td style="padding:10px 14px;">❌ 不是授权机制</td>
+            <td style="padding:10px 14px;color:#16a34a;">✅ 可以（需 ERC20 实现）</td>
+          </tr>
+          <tr style="border-bottom:1px solid #f3f4f6;background:#f9fafb;">
+            <td style="padding:10px 14px;font-weight:600;color:#374151;">购买入口通常需几笔交易</td>
+            <td style="padding:10px 14px;color:#dc2626;">2 笔</td>
+            <td style="padding:10px 14px;">通常 1 笔，但前提是权限已存在</td>
+            <td style="padding:10px 14px;">叠加在支付方案之上</td>
+            <td style="padding:10px 14px;color:#16a34a;">1 笔（签名 + 购买交易）</td>
+          </tr>
+          <tr style="border-bottom:1px solid #f3f4f6;">
+            <td style="padding:10px 14px;font-weight:600;color:#374151;">ERC20 兼容性</td>
+            <td style="padding:10px 14px;color:#16a34a;">标准 ERC20</td>
+            <td style="padding:10px 14px;">标准 ERC20 可被批量调用，但不能替代授权前置步骤</td>
+            <td style="padding:10px 14px;color:#16a34a;">可叠加标准 ERC20</td>
+            <td style="padding:10px 14px;color:#dc2626;">需要 EIP-2612 或兼容实现</td>
+          </tr>
+          <tr style="border-bottom:1px solid #f3f4f6;background:#f9fafb;">
+            <td style="padding:10px 14px;font-weight:600;color:#374151;">主要作用</td>
+            <td style="padding:10px 14px;">建立 ERC20 allowance</td>
+            <td style="padding:10px 14px;">编排 / 批量已有权限的调用</td>
+            <td style="padding:10px 14px;">证明地址或地址+业务字段属于白名单</td>
+            <td style="padding:10px 14px;">通过签名建立 ERC20 allowance</td>
+          </tr>
+          <tr style="border-bottom:1px solid #f3f4f6;">
+            <td style="padding:10px 14px;font-weight:600;color:#374151;">安全注意点</td>
+            <td style="padding:10px 14px;">控制 allowance；注意授权长期有效问题</td>
+            <td style="padding:10px 14px;">调用目标白名单、返回值检查、重入与批量执行风险</td>
+            <td style="padding:10px 14px;">Root 权限、叶子编码一致性、claimed / 限购规则</td>
+            <td style="padding:10px 14px;">spender、value、nonce、deadline、chainId / domain 必须严格匹配</td>
+          </tr>
+          <tr style="border-bottom:1px solid #f3f4f6;background:#f9fafb;">
+            <td style="padding:10px 14px;font-weight:600;color:#374151;">折扣 / 白名单</td>
+            <td style="padding:10px 14px;">需额外业务逻辑</td>
+            <td style="padding:10px 14px;">需额外业务逻辑</td>
+            <td style="padding:10px 14px;color:#16a34a;">适合实现折扣资格</td>
+            <td style="padding:10px 14px;">需与业务逻辑组合</td>
+          </tr>
+          <tr style="background:#f9fafb;">
+            <td style="padding:10px 14px;font-weight:600;color:#374151;">典型适用场景</td>
+            <td style="padding:10px 14px;font-size:12px;">兼容性优先<br/>简单市场</td>
+            <td style="padding:10px 14px;font-size:12px;">批量操作<br/>已有授权后的交易编排</td>
+            <td style="padding:10px 14px;font-size:12px;">预售 / 白名单<br/>折扣 / 限购</td>
+            <td style="padding:10px 14px;font-size:12px;">支持 EIP-2612 的代币<br/>追求低摩擦 UX</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="margin-top:20px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:16px 20px;">
+      <div style="font-weight:600;color:#1e40af;font-size:15px;margin-bottom:10px;">💡 推荐组合策略</div>
+      <ul style="margin:0;padding-left:18px;font-size:13px;color:#1e3a8a;line-height:2;">
+        <li><strong>最佳通用 UX：</strong>若 ERC20 支持 EIP-2612，可采用 Permit + NFTMarket 购买；若同时有白名单，再叠加 Merkle Proof。</li>
+        <li><strong>最大兼容性：</strong>标准 ERC20 采用 approve + 购买；Multicall 只作为已有权限下的批量编排层，不应被当成“替代 approve”的机制。</li>
+        <li><strong>白名单设计：</strong>把“资格证明”和“支付授权”分开理解：Merkle 解决“你有没有资格”，approve / Permit 解决“市场能不能扣你的 ERC20”。</li>
+        <li><strong>生产建议：</strong>NFTMarket 至少明确区分 ERC20 授权、ERC721 授权、白名单证明和购买逻辑；前端根据 token 能力选择 approve 或 Permit，并对 Permit 的 domain / nonce / deadline 做链上状态校验。</li>
+      </ul>
+    </div>
+  </section>
+
+  <div style="margin-top:24px;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:14px 16px;font-size:12px;color:#9a3412;line-height:1.8;">
+    <strong>技术边界说明：</strong>本文中的 Permit 以 EIP-2612 为准；DAI 等历史 Permit 实现存在不同接口语义，不能仅凭函数名 <code>permit</code> 就认为它符合 EIP-2612。Merkle Leaf 的编码方式也必须与链下建树实现完全一致。NFTMarket 若从卖家地址直接调用 ERC721 <code>safeTransferFrom</code>，还必须满足卖家已授权市场合约或 NFT 已托管到市场的前置条件。
+  </div>
+
+  <!-- 底部 -->
+  <div style="text-align:center;padding-top:20px;border-top:1px solid #e5e7eb;font-size:12px;color:#9ca3af;">
+    NFTMarket × ERC20 × ERC721 购买流程技术指南 · 架构与流程文档
+  </div>
+
+</div>
+
+<!-- Mermaid CDN -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+(function() {
+  try {
+    if (typeof mermaid === 'undefined') {
+      var fb = document.getElementById('mermaid-fallback');
+      if (fb) fb.style.display = 'block';
+      var diagrams = document.querySelectorAll('.mermaid');
+      for (var i = 0; i < diagrams.length; i++) {
+        diagrams[i].style.display = 'none';
+      }
+      return;
+    }
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'base',
+      themeVariables: {
+        primaryColor: '#eef2ff',
+        primaryTextColor: '#1e1b4b',
+        primaryBorderColor: '#4f46e5',
+        lineColor: '#6366f1',
+        secondaryColor: '#f0fdf4',
+        tertiaryColor: '#fffbeb',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        fontSize: '13px'
+      },
+      sequence: {
+        diagramMarginX: 20,
+        diagramMarginY: 20,
+        actorMargin: 60,
+        width: 140,
+        height: 50,
+        boxMargin: 10,
+        boxTextMargin: 5,
+        noteMargin: 10,
+        messageMargin: 40,
+        mirrorActors: true,
+        useMaxWidth: true
+      },
+      flowchart: {
+        useMaxWidth: true,
+        htmlLabels: true,
+        curve: 'basis',
+        nodeSpacing: 40,
+        rankSpacing: 50
+      }
+    });
+  } catch (e) {
+    var fb2 = document.getElementById('mermaid-fallback');
+    if (fb2) fb2.style.display = 'block';
+  }
+})();
+</script>
+</html>
