@@ -197,6 +197,7 @@
     h2 { font-size: 1.3em; }
   }
 </style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.10.0/styles/github‑dark.min.css">
 </head>
 <body>
 <div class="container">
@@ -669,7 +670,7 @@ graph TD
 
 <h3>6.1 验证流程伪代码</h3>
 
-<pre><code>function verify(leafHash: Hash, proof: MerkleProof, root: Hash): boolean {
+<pre><code class="language-typescript">function verify(leafHash: Hash, proof: MerkleProof, root: Hash): boolean {
   let current = leafHash;
   for (let i = 0; i < proof.siblingHashes.length; i++) {
     const sibling = proof.siblingHashes[i];
@@ -738,7 +739,7 @@ flowchart TD
 <p>以下实现采用<strong>“奇数时复制最后节点”</strong>的 Bitcoin-style 构建规则，包含构建、Proof 生成与验证。
 <strong>注意：由于代码额外采用了叶子/内部节点域分离，因此它不是 Bitcoin Core 的字节级兼容实现；这里只借鉴其奇数节点复制规则。</strong></p>
 
-<pre><code>import { createHash } from "crypto";
+<pre><code class="language-typescript">import { createHash } from "crypto";
 
 type Hash = Buffer;
 
