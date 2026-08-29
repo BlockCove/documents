@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CreateX 合约深度解析</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --card: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --orange: #d29922;
+    --red: #f85149;
+    --purple: #bc8cff;
+    --code-bg: #0d1117;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 0;
+  }
+  .hero {
+    background: linear-gradient(135deg, #1a1f2e 0%, #0d1117 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 48px 24px;
+    text-align: center;
+  }
+  .hero h1 {
+    font-size: 2.4em;
+    font-weight: 800;
+    background: linear-gradient(90deg, #58a6ff, #bc8cff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 12px;
+  }
+  .hero .subtitle { color: var(--muted); font-size: 1.1em; }
+  .hero .addr {
+    display: inline-block;
+    margin-top: 16px;
+    padding: 8px 20px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: 'SF Mono', Consolas, monospace;
+    font-size: 0.9em;
+    color: var(--accent);
+    word-break: break-all;
+  }
+  .container { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+  section { margin-bottom: 48px; }
+  h2 {
+    font-size: 1.6em;
+    font-weight: 700;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h2 .num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px; height: 36px;
+    background: var(--accent);
+    color: var(--bg);
+    border-radius: 50%;
+    font-size: 0.7em;
+    font-weight: 800;
+  }
+  h3 { font-size: 1.2em; font-weight: 600; margin: 24px 0 12px; color: var(--accent); }
+  p { margin-bottom: 14px; color: #c9d1d9; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 768px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  }
+  .problem-card {
+    background: var(--card);
+    border-left: 4px solid var(--red);
+    border-radius: 8px;
+    padding: 18px 20px;
+  }
+  .problem-card h4 { color: var(--red); margin-bottom: 8px; font-size: 1em; }
+  .problem-card p { font-size: 0.92em; margin: 0; }
+  .solution-card {
+    background: var(--card);
+    border-left: 4px solid var(--green);
+    border-radius: 8px;
+    padding: 18px 20px;
+  }
+  .solution-card h4 { color: var(--green); margin-bottom: 8px; font-size: 1em; }
+  .solution-card p { font-size: 0.92em; margin: 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 0.9em;
+  }
+  th, td {
+    padding: 12px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    background: #1c2128;
+    color: var(--accent);
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+  }
+  tr:hover { background: #1c2128; }
+  code {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    padding: 2px 7px;
+    border-radius: 5px;
+    font-family: 'SF Mono', Consolas, 'Liberation Mono', monospace;
+    font-size: 0.85em;
+    color: var(--orange);
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    overflow-x: auto;
+    margin: 14px 0;
+    font-size: 0.85em;
+    line-height: 1.6;
+  }
+  pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    color: #e6edf3;
+  }
+  .mermaid {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin: 20px 0;
+    text-align: center;
+    overflow-x: auto;
+  }
+  .tag {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.78em;
+    font-weight: 600;
+    margin-right: 6px;
+  }
+  .tag-create { background: rgba(88,166,255,0.15); color: var(--accent); }
+  .tag-create2 { background: rgba(63,185,80,0.15); color: var(--green); }
+  .tag-create3 { background: rgba(188,140,255,0.15); color: var(--purple); }
+  .tag-clone { background: rgba(210,153,34,0.15); color: var(--orange); }
+  .tag-util { background: rgba(139,148,158,0.15); color: var(--muted); }
+  .formula {
+    background: #1c2128;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    padding: 14px 18px;
+    font-family: 'SF Mono', Consolas, monospace;
+    font-size: 0.9em;
+    margin: 12px 0;
+    color: var(--green);
+    overflow-x: auto;
+  }
+  .salt-bar {
+    display: flex;
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 16px 0;
+    font-family: 'SF Mono', Consolas, monospace;
+    font-size: 0.8em;
+  }
+  .salt-part {
+    padding: 14px 10px;
+    text-align: center;
+    color: #fff;
+    font-weight: 600;
+  }
+  .salt-part .label { display: block; font-size: 0.85em; opacity: 0.9; margin-bottom: 4px; }
+  .salt-part .bytes { display: block; font-size: 0.75em; opacity: 0.7; }
+  .toc {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 28px;
+    margin-bottom: 32px;
+  }
+  .toc h3 { margin-top: 0; color: var(--text); }
+  .toc ol { padding-left: 20px; }
+  .toc li { margin: 6px 0; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .stat-row { display: flex; gap: 16px; flex-wrap: wrap; margin: 20px 0; }
+  .stat-box {
+    flex: 1;
+    min-width: 140px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    text-align: center;
+  }
+  .stat-box .num { font-size: 1.8em; font-weight: 800; color: var(--accent); }
+  .stat-box .label { font-size: 0.82em; color: var(--muted); margin-top: 4px; }
+  footer {
+    text-align: center;
+    padding: 32px;
+    color: var(--muted);
+    font-size: 0.85em;
+    border-top: 1px solid var(--border);
+  }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>CreateX 合约深度解析</h1>
+  <div class="subtitle">A Trustless, Universal Contract Deployer — 无需信任的通用合约部署工厂</div>
+  <div class="addr">0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed</div>
+</div>
+
+<div class="container">
+
+  <!-- 目录 -->
+  <div class="toc">
+    <h3>目录</h3>
+    <ol>
+      <li><a href="#overview">合约概述</a></li>
+      <li><a href="#problem">解决什么问题</a></li>
+      <li><a href="#principle">核心原理：CREATE / CREATE2 / CREATE3</a></li>
+      <li><a href="#architecture">系统架构</a></li>
+      <li><a href="#flow">部署流程</a></li>
+      <li><a href="#salt">Salt 安全保护机制</a></li>
+      <li><a href="#methods">支持的部署方式（函数全览）</a></li>
+      <li><a href="#code">代码示例</a></li>
+      <li><a href="#summary">总结</a></li>
+    </ol>
+  </div>
+
+  <!-- 1. 概述 -->
+  <section id="overview">
+    <h2><span class="num">1</span>合约概述</h2>
+    <div class="card">
+      <p><strong>CreateX</strong> 是由 <code>pcaversaccio</code> 与 <code>Matt Solomon</code> 共同开发的开源智能合约部署工厂，基于 Solidity 编写，开源协议为 AGPL-3.0-only。CreateX 已部署到多条 EVM 网络，并使用统一的规范地址 <code>0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed</code>；具体网络是否已部署、以及部署代码是否与官方版本一致，应以官方 deployments 列表和链上代码哈希为准。</p>
+      <p>CreateX 的核心价值在于：将 EVM 的 <code>CREATE</code>、<code>CREATE2</code> 以及基于代理模式的 <code>CREATE3</code> 三种合约创建方式封装为一个无需许可（permissionless）、无需信任（trustless）的通用工厂，同时内置权限部署保护、跨链重新部署保护、地址预计算等高级特性。</p>
+      <div class="stat-row">
+        <div class="stat-box"><div class="num">多链</div><div class="label">已部署 EVM 网络</div></div>
+        <div class="stat-box"><div class="num">24</div><div class="label">公开函数（当前 ABI）</div></div>
+        <div class="stat-box"><div class="num">3</div><div class="label">部署模式</div></div>
+        <div class="stat-box"><div class="num">1</div><div class="label">统一部署地址</div></div>
+      </div>
+    </div>
+    <div class="card" style="border-left:4px solid var(--orange);">
+      <p><strong>安全与版本提示：</strong>官方仓库明确说明当前 CreateX 合约为未审计（unaudited）状态；官方也建议在目标链交互前校验链上 runtime bytecode hash。本文按当前官方 ABI 与文档整理，实际部署前仍应以目标链代码、ABI 和官方 deployment registry 为准。</p>
+    </div>
+  </section>
+
+  <!-- 2. 解决的问题 -->
+  <section id="problem">
+    <h2><span class="num">2</span>解决什么问题</h2>
+    <div class="grid-2">
+      <div class="problem-card">
+        <h4>问题 1：CREATE 地址不可预测</h4>
+        <p>传统 <code>CREATE</code>  opcode 的合约地址由 <code>keccak256(rlp([deployer, nonce]))</code> 计算，依赖部署者的 nonce。跨链部署时 nonce 很难保持一致，导致同一合约在不同链上地址不同，增加跨链协议的配置和维护成本。</p>
+      </div>
+      <div class="problem-card">
+        <h4>问题 2：CREATE2 地址依赖 initCode</h4>
+        <p><code>CREATE2</code> 虽然支持确定性地址，但其地址计算包含 <code>keccak256(initCode)</code>。一旦构造函数参数不同（如跨链时 WETH 地址、链 ID 不同），initCode 就不同，最终地址也不同，无法实现真正的"同地址跨链"。</p>
+      </div>
+      <div class="problem-card">
+        <h4>问题 3：缺乏统一的部署工厂</h4>
+        <p>每个项目各自实现部署逻辑，代码重复、审计成本高。没有一个被广泛采用的、在所有链上同地址部署的标准工厂，导致生态碎片化。</p>
+      </div>
+      <div class="problem-card">
+        <h4>问题 4：部署与初始化分离</h4>
+        <p>AndInit 系列可在同一笔交易内完成“部署 + 初始化”。如果部署和初始化拆成两笔独立交易，中间会存在可被其他交易插入的窗口；原子化执行可以消除这个窗口。</p>
+      </div>
+      <div class="problem-card">
+        <h4>问题 5：跨链部署的 frontrun 攻击</h4>
+        <p>在公链上，任何人都可以用相同的 salt 和 initCode 抢先部署合约到目标地址，劫持合约部署。跨链场景下这个风险尤为突出。</p>
+      </div>
+      <div class="problem-card">
+        <h4>问题 6：地址预计算不便</h4>
+        <p>开发者需要自己实现地址计算逻辑，容易出错。尤其是 CREATE3 模式涉及代理合约的中间地址计算，手动计算非常繁琐。</p>
+      </div>
+    </div>
+
+    <h3>CreateX 的解决方案</h3>
+    <div class="grid-2">
+      <div class="solution-card">
+        <h4>统一工厂 + 同地址部署</h4>
+        <p>CreateX 通过确定性部署方式在多条 EVM 网络使用同一规范地址，所有项目可以共享同一个工厂入口，从而降低生态碎片化。</p>
+      </div>
+      <div class="solution-card">
+        <h4>CREATE3：地址与 initCode 解耦</h4>
+        <p>通过“先用 CREATE2 部署固定字节码的代理 → 代理再用 CREATE 部署最终合约”的两步模式，使最终地址计算不再包含最终合约的 initCode 哈希；但在 CreateX 中，实际地址还取决于经过 <code>_guard</code> 处理后的 salt。若启用跨链重新部署保护（salt 第 21 字节为 <code>0x01</code>），chainid 会进入 guardedSalt，因此不同链的地址反而会不同。要实现权限保护下的跨链同地址部署，应使用第 21 字节为 <code>0x00</code> 的模式。</p>
+      </div>
+      <div class="solution-card">
+        <h4>部署+初始化原子化</h4>
+        <p>提供 CREATE / CREATE2 / CREATE3 的 <code>AndInit</code> 系列函数，在单笔交易内完成合约部署和初始化调用，并支持 ETH 转账和多余 ETH 退款，消除 frontrun 窗口。</p>
+      </div>
+      <div class="solution-card">
+        <h4>Salt 编码安全保护</h4>
+        <p>在 32 字节 salt 中编码部署者地址（权限保护）和跨链重放标志，通过内部 <code>_guard</code> 函数重新哈希，有效防止 frontrun 和跨链重放攻击。</p>
+      </div>
+      <div class="solution-card">
+        <h4>内置地址预计算</h4>
+        <p>提供 <code>computeCreateAddress</code>、<code>computeCreate2Address</code>、<code>computeCreate3Address</code> 等只读函数，支持任意部署者地址的地址预计算。</p>
+      </div>
+      <div class="solution-card">
+        <h4>支持 EIP-1167 最小代理克隆</h4>
+        <p>内置 <code>deployCreateClone</code> / <code>deployCreate2Clone</code>，支持低成本部署 EIP-1167 代理克隆并在同一笔交易中初始化，适合工厂模式和批量实例化；注意 EIP-1167 clone 本身并不等于“可升级代理”，clone 的 implementation 地址通常在代理字节码中固定。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. 核心原理 -->
+  <section id="principle">
+    <h2><span class="num">3</span>核心原理：CREATE / CREATE2 / CREATE3</h2>
+
+    <h3>3.1 三种 Opcode 地址计算公式</h3>
+    <div class="card">
+      <p><strong>CREATE（0xF0）</strong>—— 地址依赖部署者 nonce：</p>
+      <div class="formula">address = keccak256( rlpEncode([deployerAddress, deployerNonce]) )[12:]</div>
+
+      <p><strong>CREATE2（0xF5，EIP-1014）</strong>—— 地址依赖 salt + initCode 哈希：</p>
+      <div class="formula">address = keccak256( 0xff || deployerAddress || salt || keccak256(initCode) )[12:]</div>
+
+      <p><strong>CREATE3</strong>—— 非 EVM 原生 opcode，而是一种设计模式。地址仅依赖 salt：</p>
+      <div class="formula">
+proxyAddress = keccak256( 0xff || CreateX || guardedSalt || keccak256(proxyBytecode) )[12:]<br>
+finalAddress = keccak256( rlpEncode([proxyAddress, 0x01]) )[12:]
+      </div>
+      <p style="font-size:0.88em;color:var(--muted);">注：固定的代理字节码使 proxyAddress 不受最终 initCode 影响；代理随后通过 CREATE 创建最终合约，因此 finalAddress 只由 proxyAddress 决定。对 CreateX 而言，更准确地说，它依赖 CreateX 地址与经过 <code>_guard</code> 处理后的 salt，而不是裸 salt 本身。</p>
+    </div>
+
+    <h3>3.2 三种模式对比</h3>
+    <table>
+      <thead>
+        <tr><th>维度</th><th>CREATE</th><th>CREATE2</th><th>CREATE3</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>地址确定性</td><td>否（依赖 nonce）</td><td>是</td><td>是</td></tr>
+        <tr><td>地址依赖 initCode</td><td>否</td><td><strong>是</strong></td><td><strong>否</strong></td></tr>
+        <tr><td>跨链同地址可行性</td><td>困难</td><td>需要 factory、salt、initCodeHash 等条件一致</td><td><strong>更容易：最终地址不含最终 initCode 因子，但仍受 factory 与 guardedSalt 影响</strong></td></tr>
+        <tr><td>Gas 成本</td><td>通常较低</td><td>通常高于 CREATE</td><td>通常高于 CREATE2（额外代理部署）</td></tr>
+        <tr><td>适用场景</td><td>普通部署</td><td>确定性地址、状态通道</td><td>跨链同地址部署</td></tr>
+        <tr><td>是否原生 opcode</td><td>是</td><td>是</td><td>否（CREATE2 + CREATE 组合模式）</td></tr>
+      </tbody>
+    </table>
+
+    <h3>3.3 CREATE3 为什么能摆脱 initCode？</h3>
+    <div class="mermaid">
+graph TD
+    A["调用者调用 deployCreate3(salt, initCode)"] --> B["CreateX 用 CREATE2 部署最小代理<br/>proxyBytecode 固定 → proxyAddr 仅由 salt 决定"]
+    B --> C["代理合约在构造函数中用 CREATE 执行 initCode<br/>代理 nonce 固定为 1"]
+    C --> D["最终合约地址 = keccak256(rlp([proxyAddr, 1]))[12:]<br/>仅依赖 salt，与 initCode 无关"]
+    style A fill:#1c2128,stroke:#58a6ff,color:#e6edf3
+    style B fill:#1c2128,stroke:#3fb950,color:#e6edf3
+    style C fill:#1c2128,stroke:#bc8cff,color:#e6edf3
+    style D fill:#1c2128,stroke:#d29922,color:#e6edf3
+    </div>
+  </section>
+
+  <!-- 4. 系统架构 -->
+  <section id="architecture">
+    <h2><span class="num">4</span>系统架构</h2>
+
+    <h3>4.1 整体架构图</h3>
+    <div class="mermaid">
+graph TB
+    subgraph 用户层["用户层"]
+        U1["外部账户 EOA"]
+        U2["合约调用者<br/>(其他智能合约)"]
+    end
+
+    subgraph 接口层["接口层 (ICreateX.sol)"]
+        I1["Values 结构体<br/>constructorAmount / initCallAmount"]
+        I2["事件: ContractCreation<br/>Create3ProxyContractCreation"]
+        I3["自定义错误: FailedContractCreation<br/>InvalidSalt / FailedEtherTransfer"]
+    end
+
+    subgraph 核心层["核心合约 (CreateX.sol)"]
+        direction TB
+        C1["CREATE 模块<br/>deployCreate / deployCreateAndInit<br/>deployCreateClone / computeCreateAddress"]
+        C2["CREATE2 模块<br/>deployCreate2 / deployCreate2AndInit<br/>deployCreate2Clone / computeCreate2Address"]
+        C3["CREATE3 模块<br/>deployCreate3 / deployCreate3AndInit<br/>computeCreate3Address"]
+        C4["安全模块<br/>_guard() 盐值保护<br/>_generateSalt() 伪随机盐<br/>_parseSalt() 盐值解析<br/>_efficientHash() 高效哈希"]
+    end
+
+    subgraph EVM层["EVM 层"]
+        E1["CREATE opcode (0xF0)"]
+        E2["CREATE2 opcode (0xF5)"]
+        E3["最小代理合约<br/>(CREATE3 中间层)"]
+    end
+
+    subgraph 基础设施层["基础设施层"]
+        F1["Foundry/Forge<br/>单元测试 + Fuzz 测试"]
+        F2["Hardhat<br/>网络管理 + 部署脚本"]
+        F3["外部前端 / 部署工具（可选）<br/>部署查询 + 交互"]
+        F4["deployments.json<br/>官方部署注册表"]
+    end
+
+    U1 --> I1
+    U2 --> I1
+    I1 --> C1
+    I1 --> C2
+    I1 --> C3
+    C1 --> C4
+    C2 --> C4
+    C3 --> C4
+    C1 --> E1
+    C2 --> E2
+    C3 --> E2
+    C3 --> E3
+    E3 --> E1
+    C4 -.-> F1
+    C4 -.-> F2
+
+    style 用户层 fill:#161b22,stroke:#30363d,color:#e6edf3
+    style 接口层 fill:#161b22,stroke:#58a6ff,color:#e6edf3
+    style 核心层 fill:#161b22,stroke:#3fb950,color:#e6edf3
+    style EVM层 fill:#161b22,stroke:#bc8cff,color:#e6edf3
+    style 基础设施层 fill:#161b22,stroke:#d29922,color:#e6edf3
+    </div>
+
+    <h3>4.2 合约函数组织架构</h3>
+    <div class="mermaid">
+graph LR
+    Root["CreateX 合约<br/>(24 个公开函数)"] --> M1["CREATE 系列<br/>(6 函数)"]
+    Root --> M2["CREATE2 系列<br/>(10 函数)"]
+    Root --> M3["CREATE3 系列<br/>(6 函数)"]
+    Root --> M4["内部安全模块<br/>(5 函数)"]
+
+    M1 --> M1a["deployCreate"]
+    M1 --> M1b["deployCreateAndInit ×2"]
+    M1 --> M1c["deployCreateClone"]
+    M1 --> M1d["computeCreateAddress ×2"]
+
+    M2 --> M2a["deployCreate2 ×2"]
+    M2 --> M2b["deployCreate2AndInit ×4"]
+    M2 --> M2c["deployCreate2Clone ×2"]
+    M2 --> M2d["computeCreate2Address ×2"]
+
+    M3 --> M3a["deployCreate3 ×2"]
+    M3 --> M3b["deployCreate3AndInit ×2"]
+    M3 --> M3c["computeCreate3Address ×2"]
+
+    M4 --> M4a["_guard"]
+    M4 --> M4b["_generateSalt"]
+    M4 --> M4c["_parseSalt"]
+    M4 --> M4d["_efficientHash"]
+    M4 --> M4e["_requireSuccessfulContractCreation"]
+
+    style Root fill:#58a6ff,color:#0d1117,stroke:#58a6ff
+    style M1 fill:#1c2128,stroke:#58a6ff,color:#e6edf3
+    style M2 fill:#1c2128,stroke:#3fb950,color:#e6edf3
+    style M3 fill:#1c2128,stroke:#bc8cff,color:#e6edf3
+    style M4 fill:#1c2128,stroke:#d29922,color:#e6edf3
+    </div>
+  </section>
+
+  <!-- 5. 部署流程 -->
+  <section id="flow">
+    <h2><span class="num">5</span>部署流程</h2>
+
+    <h3>5.1 CREATE2 部署+初始化完整流程</h3>
+    <div class="mermaid">
+sequenceDiagram
+    participant U as 调用者 (EOA/合约)
+    participant CX as CreateX 工厂
+    participant G as _guard 安全模块
+    participant NC as 新合约
+    participant R as 退款地址
+
+    U->>CX: deployCreate2AndInit(salt, initCode, data, values, refundAddress)
+    Note over U,CX: msg.value = constructorAmount + initCallAmount
+
+    CX->>G: _guard(salt)
+    G-->>CX: guardedSalt (重新哈希后的盐值)
+
+    CX->>CX: CREATE2 部署合约<br/>value = constructorAmount
+    Note over CX: address = keccak256(0xff || this || guardedSalt || keccak256(initCode))[12:]
+
+    CX->>NC: 调用初始化函数 data<br/>value = initCallAmount
+    NC-->>CX: 初始化成功 / 失败 revert
+
+    alt 初始化失败
+        CX->>CX: 整体 revert (FailedContractInitialisation)
+    else 初始化成功
+        CX->>R: 退还多余 ETH (如有)
+        CX-->>U: 返回 newContract 地址
+        CX->>CX: 触发 ContractCreation 事件
+    end
+    </div>
+
+    <h3>5.2 CREATE3 部署流程（两步创建）</h3>
+    <div class="mermaid">
+sequenceDiagram
+    participant U as 调用者
+    participant CX as CreateX 工厂
+    participant P as 最小代理 (Proxy)
+    participant NC as 最终合约
+
+    U->>CX: deployCreate3(salt, initCode)
+    CX->>CX: _guard(salt) → guardedSalt
+
+    Note over CX,P: 第一步: CREATE2 部署代理
+    CX->>P: CREATE2 部署固定字节码的代理<br/>value = msg.value
+    Note over CX,P: proxyAddr = keccak256(0xff || this || guardedSalt || keccak256(proxyBytecode))[12:]
+
+    CX->>CX: 触发 Create3ProxyContractCreation 事件
+
+    Note over P,NC: 第二步: 代理用 CREATE 部署最终合约
+    P->>NC: 在构造函数中 CALL initCode<br/>(等效 CREATE, nonce=1)
+    Note over P,NC: finalAddr = keccak256(rlp([proxyAddr, 1]))[12:]
+
+    NC-->>P: 部署成功
+    P-->>CX: 返回 newContract
+    CX-->>U: 返回 finalAddr
+    CX->>CX: 触发 ContractCreation 事件
+    </div>
+
+    <h3>5.3 EIP-1167 最小代理克隆流程</h3>
+    <div class="mermaid">
+graph TD
+    A["调用 deployCreate2Clone(salt, implementation, data)"] --> B["CreateX 构建 EIP-1167 代理 bytecode<br/>指向 implementation 地址"]
+    B --> C["CREATE2 部署代理合约<br/>(EIP-1167：典型 runtime 约 45 bytes，creation bytecode 通常约 55 bytes)"]
+    C --> D["代理合约 delegatecall 到 implementation<br/>执行初始化 data"]
+    D --> E["返回代理地址 proxy"]
+    style A fill:#1c2128,stroke:#58a6ff,color:#e6edf3
+    style B fill:#1c2128,stroke:#3fb950,color:#e6edf3
+    style C fill:#1c2128,stroke:#bc8cff,color:#e6edf3
+    style D fill:#1c2128,stroke:#d29922,color:#e6edf3
+    style E fill:#1c2128,stroke:#f85149,color:#e6edf3
+    </div>
+  </section>
+
+  <!-- 6. Salt 安全保护机制 -->
+  <section id="salt">
+    <h2><span class="num">6</span>Salt 安全保护机制</h2>
+
+    <div class="card">
+      <p>CreateX 的核心安全创新在于对 32 字节 <code>salt</code> 的结构化编码。通过在 salt 中嵌入部署者地址和跨链重放标志，再经内部 <code>_guard</code> 函数重新哈希，实现了两种关键保护。</p>
+
+      <h3>6.1 Salt 字节结构</h3>
+      <div class="salt-bar">
+        <div class="salt-part" style="flex:20;background:#58a6ff;">
+          <span class="label">Sender Address</span>
+          <span class="bytes">bytes 0-19 (20 bytes)</span>
+        </div>
+        <div class="salt-part" style="flex:1;background:#d29922;">
+          <span class="label">Flag</span>
+          <span class="bytes">byte 20</span>
+        </div>
+        <div class="salt-part" style="flex:11;background:#bc8cff;">
+          <span class="label">Entropy</span>
+          <span class="bytes">bytes 21-31 (11 bytes)</span>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr><th>字段</th><th>字节范围</th><th>取值</th><th>作用</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Sender Address</td><td>0-19</td><td><code>msg.sender</code> 或 <code>address(0)</code></td><td>权限部署保护：设为 msg.sender 时，只有该地址能成功部署</td></tr>
+          <tr><td>Redeploy Flag</td><td>20</td><td><code>0x00</code> / <code>0x01</code>（>0x01 直接 revert）</td><td>跨链重新部署保护：设为 0x01 时，guardedSalt 包含 chainid，不同链地址不同；设为 0x00 则不加入 chainid</td></tr>
+          <tr><td>Entropy</td><td>21-31</td><td>任意 11 字节</td><td>提供 88 bits 熵，用于盐值挖矿（vanity address）</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>6.2 _guard 函数决策逻辑</h3>
+    <div class="mermaid">
+graph TD
+    S["输入 salt (32 bytes)"] --> P["_parseSalt(salt)<br/>解析 senderBytes 和 redeployFlag"]
+
+    P --> C1{"senderBytes == msg.sender?"}
+    C1 -->|是| C2{"redeployFlag == 0x01?"}
+    C1 -->|否 (零地址)| C3{"redeployFlag == 0x01?"}
+    C1 -->|其他| C4{"salt != 伪随机salt?"}
+
+    C2 -->|是| R1["guardedSalt = keccak256(msg.sender, chainid, salt)<br/>权限保护 + 跨链重新部署保护"]
+    C2 -->|否 (0x00)| R2["guardedSalt = hash(msg.sender, salt)<br/>仅权限保护"]
+    C2 -->|>0x01| REV1["revert InvalidSalt"]
+
+    C3 -->|是| R3["guardedSalt = hash(chainid, salt)<br/>仅跨链重新部署保护"]
+    C3 -->|>0x01| REV2["revert InvalidSalt"]
+
+    C4 -->|是| R4["guardedSalt = keccak256(salt)<br/>普通哈希防止绕过"]
+    C4 -->|否 (伪随机)| R5["guardedSalt = salt (不修改)"]
+
+    style S fill:#1c2128,stroke:#58a6ff,color:#e6edf3
+    style R1 fill:#1c2128,stroke:#3fb950,color:#e6edf3
+    style R2 fill:#1c2128,stroke:#3fb950,color:#e6edf3
+    style R3 fill:#1c2128,stroke:#3fb950,color:#e6edf3
+    style R4 fill:#1c2128,stroke:#8b949e,color:#e6edf3
+    style R5 fill:#1c2128,stroke:#8b949e,color:#e6edf3
+    style R6 fill:#1c2128,stroke:#8b949e,color:#e6edf3
+    style REV1 fill:#1c2128,stroke:#f85149,color:#e6edf3
+    style REV2 fill:#1c2128,stroke:#f85149,color:#e6edf3
+    </div>
+
+    <div class="card">
+      <h3>6.3 两种保护模式详解</h3>
+      <p><strong>权限部署保护（Permissioned Deploy Protection）</strong></p>
+      <p>将 salt 前 20 字节设为 <code>msg.sender</code>，<code>_guard</code> 会将 <code>msg.sender</code> 混入哈希。由于攻击者的 <code>msg.sender</code> 不同，计算出的 guardedSalt 不同，无法部署到同一地址。这有效防止了 frontrun 攻击。</p>
+      <p><strong>跨链重新部署保护（Cross-Chain Redeploy Protection）</strong></p>
+      <p>将第 21 字节设为 <code>0x01</code>，<code>_guard</code> 会将 <code>block.chainid</code> 混入哈希。同一原始 salt 在不同链上会产生不同的 guardedSalt，因此最终地址不同；这正是“跨链重新部署保护”，而不是“跨链同地址”。如果目标是权限保护下的跨链同地址部署，应使用第 21 字节 <code>0x00</code>。</p>
+      <p style="color:var(--orange);font-size:0.9em;">⚠️ 注意：使用只读函数 <code>computeCreate2Address</code> / <code>computeCreate3Address</code> 时，必须传入经过 <code>_guard</code> 处理后的 <code>guardedSalt</code>；这些只读函数不会替你再次执行 <code>_guard</code>。</p>
+    </div>
+  </section>
+
+  <!-- 7. 支持的部署方式 -->
+  <section id="methods">
+    <h2><span class="num">7</span>支持的部署方式（函数全览）</h2>
+
+    <h3>7.1 CREATE 系列</h3>
+    <table>
+      <thead>
+        <tr><th>函数</th><th>标签</th><th>说明</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>deployCreate(bytes initCode)</code></td><td><span class="tag tag-create">CREATE</span></td><td>用 CREATE opcode 部署合约，地址依赖 CreateX 的 nonce</td></tr>
+        <tr><td><code>deployCreateAndInit(bytes initCode, bytes data, Values values, address refundAddress)</code></td><td><span class="tag tag-create">CREATE</span></td><td>部署 + 初始化，支持指定 ETH 分配和退款地址</td></tr>
+        <tr><td><code>deployCreateAndInit(bytes initCode, bytes data, Values values)</code></td><td><span class="tag tag-create">CREATE</span></td><td>同上，退款地址默认为 msg.sender</td></tr>
+        <tr><td><code>deployCreateClone(address implementation, bytes data)</code></td><td><span class="tag tag-clone">CLONE</span></td><td>部署 EIP-1167 最小代理克隆并初始化</td></tr>
+        <tr><td><code>computeCreateAddress(address deployer, uint256 nonce)</code></td><td><span class="tag tag-util">VIEW</span></td><td>预计算任意部署者在指定 nonce 下的 CREATE 地址</td></tr>
+        <tr><td><code>computeCreateAddress(uint256 nonce)</code></td><td><span class="tag tag-util">VIEW</span></td><td>预计算 CreateX 自身在指定 nonce 下的地址</td></tr>
+      </tbody>
+    </table>
+
+    <h3>7.2 CREATE2 系列</h3>
+    <table>
+      <thead>
+        <tr><th>函数</th><th>标签</th><th>说明</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>deployCreate2(bytes32 salt, bytes initCode)</code></td><td><span class="tag tag-create2">CREATE2</span></td><td>用指定 salt 部署，确定性地址</td></tr>
+        <tr><td><code>deployCreate2(bytes initCode)</code></td><td><span class="tag tag-create2">CREATE2</span></td><td>自动生成伪随机 salt（基于区块属性）</td></tr>
+        <tr><td><code>deployCreate2AndInit(salt, initCode, data, values, refundAddress)</code></td><td><span class="tag tag-create2">CREATE2</span></td><td>CREATE2 部署 + 初始化 + ETH 管理（完整参数版）</td></tr>
+        <tr><td><code>deployCreate2AndInit(salt, initCode, data, values)</code></td><td><span class="tag tag-create2">CREATE2</span></td><td>同上，退款地址默认 msg.sender</td></tr>
+        <tr><td><code>deployCreate2AndInit(initCode, data, values, refundAddress)</code></td><td><span class="tag tag-create2">CREATE2</span></td><td>伪随机 salt 版 + 指定退款地址</td></tr>
+        <tr><td><code>deployCreate2AndInit(initCode, data, values)</code></td><td><span class="tag tag-create2">CREATE2</span></td><td>伪随机 salt 版，退款地址默认</td></tr>
+        <tr><td><code>deployCreate2Clone(bytes32 salt, address implementation, bytes data)</code></td><td><span class="tag tag-clone">CLONE</span></td><td>CREATE2 确定性部署 EIP-1167 代理克隆并初始化</td></tr>
+        <tr><td><code>deployCreate2Clone(address implementation, bytes data)</code></td><td><span class="tag tag-clone">CLONE</span></td><td>伪随机 salt 版代理克隆</td></tr>
+        <tr><td><code>computeCreate2Address(bytes32 salt, bytes32 initCodeHash, address deployer)</code></td><td><span class="tag tag-util">PURE</span></td><td>预计算任意部署者的 CREATE2 地址</td></tr>
+        <tr><td><code>computeCreate2Address(bytes32 salt, bytes32 initCodeHash)</code></td><td><span class="tag tag-util">VIEW</span></td><td>预计算 CreateX 自身的 CREATE2 地址</td></tr>
+      </tbody>
+    </table>
+
+    <h3>7.3 CREATE3 系列</h3>
+    <table>
+      <thead>
+        <tr><th>函数</th><th>标签</th><th>说明</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>deployCreate3(bytes32 salt, bytes initCode)</code></td><td><span class="tag tag-create3">CREATE3</span></td><td>用指定 salt 部署，地址仅依赖 salt，与 initCode 无关</td></tr>
+        <tr><td><code>deployCreate3(bytes initCode)</code></td><td><span class="tag tag-create3">CREATE3</span></td><td>自动生成伪随机 salt</td></tr>
+        <tr><td><code>deployCreate3AndInit(salt, initCode, data, values, refundAddress)</code></td><td><span class="tag tag-create3">CREATE3</span></td><td>CREATE3 部署 + 初始化 + ETH 管理（完整参数版）</td></tr>
+        <tr><td><code>deployCreate3AndInit(salt, initCode, data, values)</code></td><td><span class="tag tag-create3">CREATE3</span></td><td>同上，退款地址默认 msg.sender</td></tr>
+        <tr><td><code>computeCreate3Address(bytes32 salt, address deployer)</code></td><td><span class="tag tag-util">PURE</span></td><td>预计算任意部署者的 CREATE3 地址</td></tr>
+        <tr><td><code>computeCreate3Address(bytes32 salt)</code></td><td><span class="tag tag-util">VIEW</span></td><td>预计算 CreateX 自身的 CREATE3 地址</td></tr>
+      </tbody>
+    </table>
+
+    <div class="card">
+      <h3>7.4 Values 结构体</h3>
+      <p>所有 <code>AndInit</code> 函数都接收一个 <code>Values</code> 结构体，用于精细控制 ETH 的分配：</p>
+<pre><code>struct Values {
+    uint256 constructorAmount;  // 部署时随 CREATE/CREATE2/CREATE3 发送的 ETH
+    uint256 initCallAmount;     // 初始化调用时发送的 ETH
+}</code></pre>
+      <p>调用时 <code>msg.value</code> 必须 ≥ <code>constructorAmount + initCallAmount</code>，多余的 ETH 会退还给 <code>refundAddress</code>（默认 <code>msg.sender</code>）。</p>
+    </div>
+  </section>
+
+  <!-- 8. 代码示例 -->
+  <section id="code">
+    <h2><span class="num">8</span>代码示例</h2>
+
+    <h3>8.1 使用 ethers.js 通过 CreateX 部署合约（CREATE2）</h3>
+<pre><code>import { ethers } from "ethers";
+import ICreateX from "./ICreateX.json";
+
+const CREATEx_ADDRESS = "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed";
+
+const provider = new ethers.JsonRpcProvider("https://eth.llamarpc.com");
+const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+const createx = new ethers.Contract(CREATEx_ADDRESS, ICreateX.abi, wallet);
+
+// 1. 构造 initCode（creationCode + 构造参数）
+const factory = new ethers.ContractFactory(MyContract.abi, MyContract.bytecode, wallet);
+const initCode = ethers.concat([
+  factory.bytecode,
+  ethers.AbiCoder.defaultAbiCoder().encode(["address"], [constructorArg])
+]);
+
+// 2. 构造 salt。
+//    这里选择 0x00：权限保护 + 跨链同地址。
+//    如果改成 0x01，则会启用跨链重新部署保护，使不同链的地址不同。
+const salt = ethers.concat([
+  wallet.address,                          // bytes 0-19: 权限保护
+  "0x00",                                  // byte 20: 不加入 chainid
+  ethers.randomBytes(11)                   // bytes 21-31: 88 bits entropy
+]);
+
+// 3. _guard：CreateX 的 compute* 函数不会自动执行 _guard。
+//    对“msg.sender + 0x00”模式，guardedSalt = keccak256(abi.encode(msg.sender, salt))
+const coder = ethers.AbiCoder.defaultAbiCoder();
+const guardedSalt = ethers.keccak256(
+  coder.encode(["address", "bytes32"], [wallet.address, salt])
+);
+
+const initCodeHash = ethers.keccak256(initCode);
+const predictedAddr = await createx.computeCreate2Address(guardedSalt, initCodeHash);
+console.log("预测地址:", predictedAddr);
+
+// 4. 部署
+const tx = await createx.deployCreate2(salt, initCode);
+const receipt = await tx.wait();
+console.log("部署成功，交易:", receipt.hash);</code></pre>
+
+    <h3>8.2 使用 cast 命令行部署（CREATE3）</h3>
+<pre><code># 部署合约
+cast send 0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed \
+  "deployCreate3(bytes32,bytes)" \
+  0xYOUR_SALT \
+  0xINIT_CODE \
+  --rpc-url $RPC_URL --private-key $PK
+
+# 预计算 CREATE3 地址
+cast call 0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed \
+  "computeCreate3Address(bytes32)(address)" \
+  0xYOUR_GUARDED_SALT \
+  --rpc-url $RPC_URL</code></pre>
+
+    <h3>8.3 部署 + 初始化单笔交易（CREATE2AndInit）</h3>
+<pre><code>// Values: constructorAmount = 1 ETH, initCallAmount = 0
+const values = { constructorAmount: ethers.parseEther("1"), initCallAmount: 0 };
+
+// 初始化调用数据（调用 initialize 函数）
+const initData = myContract.interface.encodeFunctionData("initialize", [owner]);
+
+// 单笔交易完成部署 + 初始化
+const tx = await createx.deployCreate2AndInit(
+  salt,
+  initCode,
+  initData,
+  values,
+  wallet.address   // refundAddress
+);
+await tx.wait();</code></pre>
+
+    <h3>8.4 _guard 函数核心逻辑（Solidity 源码摘要）</h3>
+<pre><code>function _guard(bytes32 salt) internal view returns (bytes32 guardedSalt) {
+    (SenderBytes senderBytes, RedeployProtectionFlag redeployProtectionFlag) = _parseSalt(salt);
+
+    if (senderBytes == SenderBytes.MsgSender && redeployProtectionFlag == RedeployProtectionFlag.True) {
+        // 权限保护 + 跨链重新部署保护
+        guardedSalt = keccak256(abi.encode(msg.sender, block.chainid, salt));
+    } else if (senderBytes == SenderBytes.MsgSender && redeployProtectionFlag == RedeployProtectionFlag.False) {
+        // 仅权限保护
+        guardedSalt = _efficientHash(bytes32(uint256(uint160(msg.sender))), salt);
+    } else if (senderBytes == SenderBytes.ZeroAddress && redeployProtectionFlag == RedeployProtectionFlag.True) {
+        // 仅跨链重新部署保护
+        guardedSalt = _efficientHash(bytes32(block.chainid), salt);
+    } else {
+        // 普通情况：非伪随机 salt 则哈希，防止保护机制被绕过
+        guardedSalt = (salt != _generateSalt()) ? keccak256(abi.encode(salt)) : salt;
+    }
+}</code></pre>
+  </section>
+
+  <!-- 9. 总结 -->
+  <section id="summary">
+    <h2><span class="num">9</span>总结</h2>
+    <div class="card">
+      <p>CreateX 是目前 EVM 生态中最完善的通用合约部署工厂，其设计亮点可归纳为：</p>
+      <table>
+        <thead>
+          <tr><th>设计亮点</th><th>实现方式</th><th>解决的痛点</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>统一部署入口</td><td>多链同一规范地址部署</td><td>生态碎片化、重复造轮子</td></tr>
+          <tr><td>三种部署模式</td><td>CREATE / CREATE2 / CREATE3 全覆盖</td><td>不同场景的地址确定性需求</td></tr>
+          <tr><td>CREATE3 模式</td><td>代理中转，地址与 initCode 解耦</td><td>跨链同地址部署（构造参数不同时）</td></tr>
+          <tr><td>原子化部署+初始化</td><td>AndInit 系列函数 + Values 结构体</td><td>多笔交易的 frontrun 风险</td></tr>
+          <tr><td>Salt 结构化编码</td><td>前20字节地址 + 第21字节标志 + 11字节熵</td><td>权限部署保护 + 跨链重新部署保护</td></tr>
+          <tr><td>地址预计算</td><td>computeCreateAddress / computeCreate2Address / computeCreate3Address</td><td>手动计算地址易出错</td></tr>
+          <tr><td>EIP-1167 代理克隆</td><td>deployCreateClone / deployCreate2Clone</td><td>低成本批量部署相同 implementation 的代理实例</td></tr>
+          <tr><td>伪随机 Salt</td><td>_generateSalt 基于区块属性</td><td>开发者无需自行管理 salt</td></tr>
+        </tbody>
+      </table>
+      <p style="margin-top:16px;">对于需要确定性地址、跨链部署、工厂化实例部署或 EIP-1167 clone 的 DeFi / 基础设施项目，CreateX 是常用的通用部署工厂之一。Safe 生态存在通过 CreateX 部署 Safe 的实践，但这不意味着 CreateX 取代了 SafeProxyFactory；具体项目仍应根据部署方案选择合适的工厂。</p>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <p>CreateX 合约地址：<code>0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed</code></p>
+  <p>源码仓库：<a href="https://github.com/pcaversaccio/createx" target="_blank">github.com/pcaversaccio/createx</a> | 作者：pcaversaccio | 协议：AGPL-3.0-only</p>
+  <p>报告生成时间：2026-08-27</p>
+</footer>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#1c2128',
+      primaryTextColor: '#e6edf3',
+      primaryBorderColor: '#30363d',
+      lineColor: '#8b949e',
+      secondaryColor: '#161b22',
+      tertiaryColor: '#0d1117',
+      fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
+      fontSize: '14px'
+    },
+    flowchart: { htmlLabels: true, curve: 'basis' },
+    sequence: { actorMargin: 60, messageMargin: 40 }
+  });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EIP-7702 深入解析报告 · authorizationList 与委托持久性</title>
+<style>
+  :root{
+    --text:#1A1B1C;
+    --text-2:#6B7280;
+    --bg:#F4F3EE;
+    --card:#FFFFFF;
+    --border:#E4E3DD;
+    --accent:#3E8FB8;
+    --accent-soft:#A3D5E8;
+    --red:#EA6668;
+    --red-soft:#FDECEC;
+    --green:#2E8B57;
+    --green-soft:#EAF7F0;
+    --yellow:#B8860B;
+    --yellow-soft:#FDF6E3;
+    --blue-soft:#EAF4FB;
+    --code-bg:#23272E;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    font-family:'Roboto','PingFang SC','Microsoft YaHei','Segoe UI',Arial,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    line-height:1.7;
+    font-size:15px;
+    padding:0 0 60px;
+  }
+  .wrap{max-width:960px;margin:0 auto;padding:0 20px;}
+
+  /* Hero */
+  .hero{
+    background:linear-gradient(135deg,#A3D5E8 0%,#7FB8D8 55%,#8BC8EA 100%);
+    padding:48px 20px 40px;
+    margin-bottom:36px;
+  }
+  .hero .wrap{max-width:960px;}
+  .hero .tag{
+    display:inline-block;background:rgba(255,255,255,.92);color:#1A5E86;
+    font-size:12.5px;font-weight:600;letter-spacing:1px;
+    padding:4px 12px;border-radius:20px;margin-bottom:14px;
+  }
+  .hero h1{font-size:30px;font-weight:700;color:#0F3B54;line-height:1.3;margin-bottom:10px;}
+  .hero p.sub{font-size:15px;color:#1A5575;max-width:720px;}
+  .hero .meta{margin-top:18px;font-size:12.5px;color:#1A5575;}
+
+  /* Section */
+  section{margin:0 0 40px;}
+  h2{
+    font-size:22px;font-weight:700;color:var(--text);
+    padding-bottom:10px;border-bottom:3px solid var(--accent-soft);
+    margin-bottom:20px;
+  }
+  h2 .no{
+    display:inline-block;background:var(--accent);color:#fff;
+    font-size:14px;width:28px;height:28px;line-height:28px;text-align:center;
+    border-radius:8px;margin-right:10px;vertical-align:2px;
+  }
+  h3{font-size:17px;font-weight:600;margin:26px 0 12px;color:#16303F;}
+  p{margin:10px 0;}
+  .lead{font-size:15.5px;}
+  ul,ol{margin:10px 0 10px 22px;}
+  li{margin:6px 0;}
+  strong{color:#16303F;}
+  code{
+    font-family:'SFMono-Regular',Consolas,'Courier New',monospace;
+    background:#EFF2F5;color:#C7254E;border-radius:4px;padding:1px 6px;font-size:13.5px;
+  }
+  .muted{color:var(--text-2);font-size:13px;}
+
+  /* Cards & callouts */
+  .callout{border-radius:12px;padding:14px 18px;margin:16px 0;font-size:14.5px;}
+  .callout .t{font-weight:700;font-size:14px;margin-bottom:6px;display:flex;align-items:center;gap:8px;}
+  .danger{background:var(--red-soft);border:1px solid #F3C1C2;}
+  .danger .t{color:#B03032;}
+  .ok{background:var(--green-soft);border:1px solid #BFE3D0;}
+  .ok .t{color:#1F6E43;}
+  .warn{background:var(--yellow-soft);border:1px solid #EAD9A8;}
+  .warn .t{color:#8a6d0b;}
+  .info{background:var(--blue-soft);border:1px solid #BEDCEE;}
+  .info .t{color:#1A5E86;}
+
+  /* Grid */
+  .grid2{display:flex;flex-wrap:wrap;gap:16px;}
+  .grid2 > div{flex:1 1 300px;min-width:0;}
+
+  /* Flow diagram */
+  .flow{display:flex;flex-direction:column;gap:0;margin:20px 0;align-items:stretch;}
+  .fnode{
+    background:var(--card);border:1px solid var(--border);border-radius:12px;
+    padding:14px 18px;position:relative;
+  }
+  .fnode .step{
+    display:inline-block;font-size:12px;font-weight:700;color:#fff;
+    background:var(--accent);border-radius:6px;padding:1px 8px;margin-bottom:6px;
+  }
+  .fnode .step.alt{background:var(--yellow);}
+  .fnode .step.warn2{background:var(--red);}
+  .fnode h4{font-size:14.5px;margin:2px 0 4px;}
+  .fnode p{font-size:13.5px;color:#333;margin:2px 0;}
+  .arrow{align-self:center;text-align:center;color:var(--accent);font-size:20px;line-height:1;padding:4px 0;}
+  .branchrow{display:flex;flex-wrap:wrap;gap:12px;margin-top:0;}
+  .branchrow > .bcol{flex:1 1 260px;min-width:0;}
+
+  /* Table */
+  table{width:100%;border-collapse:collapse;margin:16px 0;background:var(--card);font-size:14px;}
+  th,td{border:1px solid var(--border);padding:10px 12px;text-align:left;vertical-align:top;}
+  th{background:#F0F3F6;font-weight:600;color:#16303F;}
+  tr:nth-child(even) td{background:#FAFAF8;}
+  .okrow td:first-child{background:var(--green-soft);font-weight:600;}
+  .badrow td:first-child{background:var(--red-soft);font-weight:600;}
+
+  /* Code */
+  pre{
+    background:var(--code-bg);color:#E6EDF3;border-radius:12px;
+    padding:16px 18px;overflow-x:auto;margin:14px 0;font-size:13px;line-height:1.65;
+    font-family:'SFMono-Regular',Consolas,'Courier New',monospace;
+  }
+  pre .c{color:#7D8899;}
+  pre .k{color:#79C0FF;}
+  pre .s{color:#A5D6FF;}
+  pre .v{color:#D2A8FF;}
+
+  /* Key points */
+  .pitlist{counter-reset:pit;margin:16px 0;}
+  .pit{
+    background:var(--card);border:1px solid var(--border);border-left:5px solid var(--red);
+    border-radius:10px;padding:14px 16px;margin:12px 0;position:relative;
+  }
+  .pit .q{font-weight:700;color:#B03032;font-size:14.5px;margin-bottom:4px;}
+  .pit .a{font-size:14px;color:#333;}
+  .pit .a b{color:#16303F;}
+  .pit.bad{background:var(--red-soft);border-color:#F3C1C2;border-left-color:var(--red);}
+
+  .mnemonic{
+    background:linear-gradient(135deg,#EAF4FB,#EAF7F0);
+    border:1px solid #BFDCEB;border-radius:14px;padding:18px 22px;font-size:15px;
+    margin-top:20px;
+  }
+  .mnemonic b{color:#1A5E86;}
+
+  .toc{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 22px;margin:0 0 36px;}
+  .toc a{color:var(--accent);text-decoration:none;}
+  .toc a:hover{text-decoration:underline;}
+  .toc ol{margin:6px 0 0 20px;}
+
+  .footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--border);color:var(--text-2);font-size:12.5px;}
+
+  /* memory chips */
+  .chiprow{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0;}
+  .chip{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;}
+  .chip b{color:#1A5E86;}
+
+  @media(max-width:480px){
+    body{font-size:14px;}
+    .hero h1{font-size:23px;}
+    h2{font-size:19px;}
+    pre{font-size:12px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="wrap">
+    <span class="tag">EIP-7702 · TYPE-4 (0x04) 交易</span>
+    <h1>authorizationList 与委托持久性<br>深度解析报告</h1>
+    <p class="sub">EOA 能否拿到字节码？authorizationList 多个元素怎么执行？委托到底是不是只在本笔交易生效？——三个问题一次讲透，重点标注所有最容易理解错误的地方。</p>
+    <div class="meta">技术报告 · 适用 viem / ethers v6 · 内容基于 EIP-7702 最终定稿规范（Pectra 硬分叉已激活）</div>
+  </div>
+</div>
+
+<div class="wrap">
+
+<div class="toc">
+  <strong>目录</strong>
+  <ol>
+    <li><a href="#s1">核心问题回顾：EOA 的 getBytecode 为什么一直是空</a></li>
+    <li><a href="#s2">Type-4 交易的完整执行流程</a></li>
+    <li><a href="#s3">authorizationList 多元素行为（两条铁律）</a></li>
+    <li><a href="#s4">最大误区：委托到底是「当前交易」还是「链上持久」</a></li>
+    <li><a href="#s5">getBytecode 四种返回值对照</a></li>
+    <li><a href="#s6">易错点清单（务必逐条核对）</a></li>
+    <li><a href="#s7">代码实操示例</a></li>
+    <li><a href="#s8">快速记忆</a></li>
+  </ol>
+</div>
+
+<!-- ============ S1 ============ -->
+<section id="s1">
+  <h2><span class="no">1</span>核心问题回顾：EOA 的 getBytecode 为什么一直是空</h2>
+  <p class="lead">一个由 <code>privateKeyToAccount</code> 生成的普通 EOA（外部拥有账户）在未启用 EIP-7702 时没有可执行合约代码，因此 <code>publicClient.getBytecode({ address: alice.address })</code> 通常返回 <code>null</code>。一旦该 EOA 被 EIP-7702 委托，账户的 code 不再为空，而是一个 23 字节的委托指示器 <code>0xef0100‖delegateAddr</code>。</p>
+  <div class="grid2">
+    <div class="callout info">
+      <div class="t">🧾 EOA 账户</div>
+      由私钥控制：传统 EOA 不执行合约代码，也没有应用层可用的合约 storage；账户状态仍包含 balance、nonce、codeHash、storageRoot 等协议字段。<br>
+      <code>getBytecode</code> → <code><b>null</b></code>
+    </div>
+    <div class="callout info">
+      <div class="t">📦 合约账户</div>
+      地址下保存部署时的 bytecode。<br>
+      <code>getBytecode</code> → <code><b>0x6080...</b></code>（十六进制字节码）
+    </div>
+  </div>
+  <div class="callout warn">
+    <div class="t">⚠️ 最容易踩的第一个坑</div>
+    不要把 <code>getBytecode()</code> 的返回值简单等同于「EOA / 合约」二分判断。<code>null</code> 表示 RPC/viem 视角下没有代码，<code>0x</code> 表示空代码；而 EIP-7702 委托账户返回的是 <code>0xef0100‖delegateAddr</code>。另外，Cancun 之后 <code>SELFDESTRUCT</code> 通常不会清除既有合约代码，因此“<code>0x</code> = 被 SELFDESTRUCT 销毁的合约”这一旧说法并不准确。
+  </div>
+  <div class="callout info">
+    <div class="t">💻 cast code 命令实际输出示例（Sepolia）</div>
+    <div style="background:#1e1e1e;color:#d4d4d4;border-radius:6px;padding:12px;font-family:'Menlo','Monaco',monospace;font-size:13px;overflow-x:auto;">
+      <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <span style="width:12px;height:12px;border-radius:50%;background:#ff5f57;"></span>
+        <span style="width:12px;height:12px;border-radius:50%;background:#ffbd2e;"></span>
+        <span style="width:12px;height:12px;border-radius:50%;background:#28ca42;"></span>
+      </div>
+  <pre style="margin:0;padding:0;background:transparent;color:inherit;"><code style="background:transparent;color:inherit;">(base) ➜  documents git:(main) ✗ cast code 0xCfEAe9d951107B18c3495247D8249AD005175707 --rpc-url https://eth-sepolia-testnet.api.pocket.network
+  0xef010063c0c19a282a1b52b07dd5a65b58948a07dae32b
+  (base) ➜  documents git:(main) ✗ cast code 0x519a5992573e6f94f93db6dBba22922758dFDd07 --rpc-url https://eth-sepolia-testnet.api.pocket.network
+  0x</code></pre>
+    </div>
+    <p style="margin:0.5rem 0 0 0;font-size:0.9em;">第一条：EIP‑7702 委托 EOA，返回 0xef0100 开头委托字节码；第二条：普通未委托 EOA，返回 <code>0x</code></p>
+  </div>
+</section>
+
+<!-- ============ S2 ============ -->
+<section id="s2">
+  <h2><span class="no">2</span>Type-4 交易的完整执行流程</h2>
+  <p>EIP-7702 引入 Type-4（<code>0x04</code>）set-code transaction，使 EOA 可以把一个已部署合约指定为自己的<strong>委托实现（implementation）</strong>。它是协议层的 EOA code delegation 机制，可用于批处理、赞助交易等，但不应简单称为“账户抽象的 EVM 原生实现”；它与 ERC-4337 是不同层次的机制。关键在：<strong>authorizationList 的处理发生在交易主逻辑（calldata）之前，属于协议预处理阶段</strong>。</p>
+
+  <div class="flow">
+    <div class="fnode">
+      <span class="step">STEP 1</span>
+      <h4>交易进块，发送方（bob）nonce 自增、预扣 gas</h4>
+      <p>交易本身由 <code>bobWalletClient</code> 签名发送，gas 由 bob 承担（做 relayer / 代付）。</p>
+    </div>
+    <div class="arrow">▼</div>
+    <div class="fnode">
+      <span class="step">STEP 2 · 协议预处理阶段</span>
+      <h4>顺序遍历整个 authorizationList，逐条 applyAuthorization</h4>
+      <p>对每一条：ecrecover 恢复签名者 → 校验 <code>chainId</code> 与 <code>authorization-nonce</code> → 合法则把 <code>0xef0100 || delegateAddr</code> 写入该 EOA 的 code 槽，并使其 authorization-nonce +1。</p>
+    </div>
+    <div class="arrow">▼</div>
+    <div class="branchrow">
+      <div class="bcol fnode" style="border-left:5px solid var(--green);">
+        <span class="step" style="background:var(--green);">合法</span>
+        <h4>委托生效</h4>
+        <p>该 EOA 账户 code 被<strong>持久写入</strong>为委托指示器；在没有再次授权改变/清除之前，它会跨交易、跨区块保持。</p>
+      </div>
+      <div class="bcol fnode" style="border-left:5px solid var(--yellow);">
+        <span class="step alt">非法</span>
+        <h4>仅跳过本条</h4>
+        <p>签名错误 / nonce 不匹配 / chainId 不符 → <strong>跳过这一条，不回滚整笔交易</strong>，继续处理下一条。</p>
+      </div>
+    </div>
+    <div class="arrow">▼</div>
+    <div class="fnode" style="border-left:5px solid var(--red);">
+      <span class="step warn2">STEP 3 · 关键</span>
+      <h4>全部授权处理完毕，才执行交易 calldata（如 alice.execute(calls)）</h4>
+      <p><strong>即使后面的 execute(calls) revert，前面已成功处理的委托指示器也不会回滚！</strong>委托状态会持久保留，与本次 calldata 的执行成败无关；但它并非不可修改，后续可以再次委托到其他地址或显式清除。</p>
+    </div>
+  </div>
+
+  <div class="callout danger">
+    <div class="t">💣 致命坑（代码层面直接踩）</div>
+    业务逻辑失败（交易 status = 0）≠ 撤销 7702 委托。<br>
+    你写的 <code>writeContract({... authorizationList:[auth]})</code> 即使 <code>execute</code> revert，alice 的委托也<strong>已经留在链上</strong>。若不处理，alice 会一直处于可被调用的委托状态。
+  </div>
+</section>
+
+<!-- ============ S3 ============ -->
+<section id="s3">
+  <h2><span class="no">3</span>authorizationList 多元素行为（两条铁律）</h2>
+  <p class="lead">这是你问的核心问题。authorizationList 里放多个元素，<strong>不是叠加、不是批量给一个账户委托多个实现</strong>，规则非常明确：</p>
+
+  <table>
+    <tr><th style="width:30%;">场景</th><th>执行结果</th><th style="width:26%;">示例</th></tr>
+    <tr>
+      <td class="okrow">同一 authority 签名多条</td>
+      <td>按顺序逐条处理，<strong>最后一条有效授权生效</strong>，前面的有效授权会被后续有效授权覆盖。<br>每条有效授权都会使该 authority 的 authorization nonce +1；如果 nonce 不匹配，该条失败并跳过。</td>
+      <td><code>[authA, authB]</code>（都是 alice 签）→ 仅 authB 生效</td>
+    </tr>
+    <tr>
+      <td class="okrow">不同 EOA 签名多条</td>
+      <td>全部<strong>独立生效</strong>，互不干扰。一笔交易同时完成多个账户的 set-code，gas 由交易发送方承担。</td>
+      <td><code>[authA(Alice), authB(Charlie)]</code> → alice、charlie 同时完成委托</td>
+    </tr>
+    <tr>
+      <td class="badrow">单条校验失败</td>
+      <td>仅跳过失败的那一条，<strong>不影响整笔交易和其他条目</strong>，不会 revert。</td>
+      <td>—</td>
+    </tr>
+  </table>
+
+  <h3>3.1 同账户多条 → 取最后（常见误用）</h3>
+  <div class="callout danger">
+    <div class="t">❌ 错误用法</div>
+    <p>同一个 alice 签两条 auth 塞进一个列表：<code>authorizationList: [authX, authY]</code>（假设两条 nonce 连续且都有效）</p>
+    <p>最终 alice 委托到 <b>Y</b>，X 的委托结果被 Y 覆盖；两条有效授权都会消耗一个 authorization nonce。若业务本身需要在同一笔 Type-4 交易里连续修改委托，这种写法有意义，但普通场景下通常没有必要。</p>
+  </div>
+
+  <h3>3.2 不同账户多条 → 全部生效（正确用途）</h3>
+  <div class="flow" style="margin-top:6px;">
+    <div class="fnode">
+      <span class="step">交易字段</span>
+      <h4>authorizationList: [authA, authB]</h4>
+      <p>authA ← 由 alice 私钥签名；authB ← 由 charlie 私钥签名。列表与谁发交易、谁付 gas 无关。</p>
+    </div>
+    <div class="arrow">▼ 协议顺序 apply</div>
+    <div class="branchrow">
+      <div class="bcol fnode"><span class="step" style="background:var(--green);">alice</span><p>code ← 0xef0100‖delegateA，alice 委托生效</p></div>
+      <div class="bcol fnode"><span class="step" style="background:var(--green);">charlie</span><p>code ← 0xef0100‖delegateB，charlie 委托生效</p></div>
+    </div>
+    <div class="arrow">▼ 然后执行</div>
+    <div class="fnode"><p>本交易 calldata：<code>alice.execute(calls)</code> —— 此时 alice 已经是委托账户，调用走代理逻辑。</p></div>
+  </div>
+
+  <div class="callout info">
+    <div class="t">📌 关键认知</div>
+    <code>authorizationList</code> 是<strong>协议层字段</strong>，和合约 ABI 无关。合约本身看不到这个列表——它在 EVM 预处理阶段就被消耗完，执行 calldata 时列表已不存在。
+  </div>
+</section>
+
+<!-- ============ S4 ============ -->
+<section id="s4">
+  <h2><span class="no">4</span>最大误区：委托是「当前交易」还是「链上持久」？</h2>
+  <p class="lead">这是整份报告最重要的一节。<strong>authorizationList 只属于当前这笔 Type-4 交易，但由它成功写入的委托状态会持久存在于链上——两者完全不同。</strong></p>
+
+  <table>
+    <tr><th style="width:34%;">对象</th><th>生命周期</th><th>说明</th></tr>
+    <tr>
+      <td class="okrow"><code>authorizationList</code> 字段本身</td>
+      <td>仅当前这笔 Type-4 交易</td>
+      <td>别的交易（普通交易、别的 Type-4 交易）不带这个 list，就完全不会走这轮处理逻辑。</td>
+    </tr>
+    <tr>
+      <td class="badrow">委托状态（EOA 的 code 槽）</td>
+      <td><b>链上持久，跨交易、跨区块</b></td>
+      <td>一旦写入 <code>0xef0100‖addr</code>，不会自动消失；任何后续交易都不会「顺手撤销」它。</td>
+    </tr>
+  </table>
+
+  <h3>4.1 时间线：为什么「下一笔交易没带 authorizationList」也不会恢复 EOA</h3>
+  <div class="flow">
+    <div class="fnode">
+      <span class="step">交易 A（Type-4）</span>
+      <h4>携带 [aliceAuth]，bob 发送，打包上链</h4>
+      <p>预处理阶段：alice 的 code 被<strong>持久写入</strong> <code>0xef0100‖delegateAddr</code>。然后执行 alice.execute(calls)。即使 execute revert，alice 的 code 修改也不回滚。</p>
+    </div>
+    <div class="arrow">▼ 链上状态</div>
+    <div class="fnode" style="border-left:5px solid var(--red);">
+      <span class="step warn2">中间态</span>
+      <h4>alice 账户 code = 0xef0100...</h4>
+      <p><b>alice 已是委托账户，不是普通 EOA。</b></p>
+    </div>
+    <div class="arrow">▼</div>
+    <div class="fnode">
+      <span class="step">交易 B（任意交易）</span>
+      <h4>任何人不带 authorizationList 发交易</h4>
+      <p>协议完全不会碰 alice 账户——但 <b>alice 链上 code 依旧是 0xef0100...</b>，仍然处于委托模式。任何 CALL/STATICCALL 打到 alice 地址，都会走委托代理逻辑。getBytecode 依旧返回 <code>0xef...</code>，不会变回 null。</p>
+    </div>
+    <div class="arrow">▼</div>
+    <div class="fnode" style="border-left:5px solid var(--green);">
+      <span class="step" style="background:var(--green);">交易 C（Type-4）</span>
+      <h4>显式清零：sign contractAddress = 0x0 的 authorization</h4>
+      <p>必须再提交包含清除授权的 Type-4 交易，将授权中的 <code>address</code> 设为零地址；协议会清除 alice 的委托指示器，恢复为空代码状态。若没有其他代码，<code>getBytecode</code> 回到 <code>null</code>（具体 RPC 返回仍应以客户端行为为准）。</p>
+    </div>
+  </div>
+
+  <div class="callout danger">
+    <div class="t">💥 一句话说清误区</div>
+    「authorizationList 只在当前交易生效」——对，但这只说明<strong>列表的字段</strong>不会被别的交易复用。<strong>绝不能说「委托只在当前交易生效」</strong>：authorizationList 只是写入/修改/清除委托状态的手段，一旦写入，状态持久驻留链上。
+  </div>
+
+  <div class="callout warn">
+    <div class="t">⚠️ 早期的「仅本交易生效」版本</div>
+    早期 EIP-7702 草案曾有过「委托仅当笔交易生效、执行完自动还原」的语义，<strong>最终定稿已删除，全部改为持久状态</strong>。网上旧资料若说「临时委托」务必以最终规范为准。原生 7702 没有「临时模式」，想实现临时效果只能在委托合约内部自己写逻辑清除自己（合约层，非协议原生）。
+  </div>
+</section>
+
+<!-- ============ S5 ============ -->
+<section id="s5">
+  <h2><span class="no">5</span>getBytecode 四种返回值对照</h2>
+  <table>
+    <tr><th style="width:24%;">地址类型</th><th style="width:30%;">getBytecode 返回</th><th>判断方式 / 说明</th></tr>
+    <tr>
+      <td class="okrow">普通 EOA</td>
+      <td><code>null</code></td>
+      <td>无字节码。你 alice 的情况。</td>
+    </tr>
+    <tr>
+      <td>空代码账户</td>
+      <td><code>0x</code></td>
+      <td>当前没有代码。不能简单理解为“曾经被 SELFDESTRUCT 销毁”；Cancun 之后，SELFDESTRUCT 对既有合约代码通常不会再产生清码效果。</td>
+    </tr>
+    <tr>
+      <td class="okrow">存活合约</td>
+      <td><code>0x6080...（非空字节码）</code></td>
+      <td>正常部署的合约。</td>
+    </tr>
+    <tr>
+      <td>EIP-7702 委托账户</td>
+      <td><code>0xef0100‖delegateAddr（40 位十六进制）</code></td>
+      <td>委托已生效的标志；地址部分可解码出委托目标。</td>
+    </tr>
+  </table>
+  <div class="callout info">
+    <div class="t">📌 判断函数</div>
+    <pre>async function isContract(address, publicClient) {
+  const bytecode = await publicClient.getBytecode({ address });
+  // null = 没有代码；0x = 空代码；非空 = 合约代码或 7702 委托指示器
+  return bytecode !== null &amp;&amp; bytecode !== '0x';
+}</pre>
+  </div>
+  <div class="callout warn">
+    <div class="t">⚠️ 需要区分「有代码」与「普通合约」</div>
+    <p><code>bytecode !== null &amp;&amp; bytecode !== '0x'</code> 只能说明账户当前存在非空 code，不能区分普通合约和 EIP-7702 委托账户。若要识别 7702，可检查 <code>bytecode.startsWith('0xef0100')</code>；此时后 20 字节是委托目标地址。</p>
+  </div>
+</section>
+
+<!-- ============ S6 ============ -->
+<section id="s6">
+  <h2><span class="no">6</span>易错点清单（务必逐条核对）</h2>
+  <p class="lead">以下每一条都是实际开发中踩过 / 容易踩的坑，按「误解 → 正确认知」呈现。</p>
+
+  <div class="pitlist">
+    <div class="pit">
+      <div class="q">❌ 误解 1：委托只在带 authorizationList 的那笔交易里生效，交易结束就还原</div>
+      <div class="a"><b>正确：</b>委托状态写入后<strong>链上持久</strong>。不带 authorizationList 的后续交易不会自动还原 EOA；必须显式提交清除授权（zero-address authorization）。</div>
+    </div>
+    <div class="pit">
+      <div class="q">❌ 误解 2：同一账户往一个列表塞多条授权，会叠加多个委托实现</div>
+      <div class="a"><b>正确：</b>同一 authority 的多条授权按顺序处理，最终以<strong>最后一条有效授权</strong>指定的地址为准；每条有效授权都会使该 authority 的 nonce +1。</div>
+    </div>
+    <div class="pit">
+      <div class="q">❌ 误解 3：execute(calls) revert，整笔交易回滚，委托也一起撤销</div>
+      <div class="a"><b>正确：</b>委托写入发生在预处理阶段，<strong>与 calldata 执行成败无关</strong>；业务 revert 不会撤销已写入的委托状态。</div>
+    </div>
+    <div class="pit">
+      <div class="q">❌ 误解 4：authorization 的 nonce 就是普通交易 nonce</div>
+      <div class="a"><b>正确：</b>是 authority 账户自己的 nonce，用于授权签名的重放保护；它与“交易发送方的当前交易 nonce”在语义上需要区分。每成功处理一条授权，authority nonce +1；失败条目不会递增。若 authority 同时就是 Type-4 交易发送方，还要注意发送方交易 nonce 会先递增，因此自执行场景的授权 nonce 需要与交易 nonce 正确配合。</div>
+    </div>
+    <div class="pit">
+      <div class="q">❌ 误解 5：code.length &gt; 0 就是有效合约</div>
+      <div class="a"><b>正确：</b><code>0x</code> 是<strong>空字节码</strong>，其字节长度为 0；不要用 JavaScript 字符串的 <code>'0x'.length</code> 来判断代码长度。并且 Cancun 之后不能把 <code>0x</code> 简单解释为 SELFDESTRUCT 的结果。若要识别 7702 委托，应额外检查 <code>0xef0100</code> 前缀。</div>
+    </div>
+    <div class="pit">
+      <div class="q">❌ 误解 6：EOA 地址可以像合约一样直接 writeContract / simulateContract</div>
+      <div class="a"><b>正确：</b>普通 EOA 无 code，直接调用会失败；必须先完成 7702 委托，且委托目标需实现对应函数。</div>
+    </div>
+    <div class="pit">
+      <div class="q">❌ 误解 7：把 alice 当普通 EOA 转账，会意外绕过委托</div>
+      <div class="a"><b>正确：</b>一旦委托生效，针对 alice 的交易以及 CALL/STATICCALL 等代码执行路径会解析其委托目标并执行目标代码，但执行上下文仍是 alice；同时 <code>EXTCODE*</code> 等代码读取指令不会把委托解析成目标合约代码。发送 ETH 时是否成功，仍取决于委托代码是否正确处理相应的 <code>receive/fallback</code> 路径。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ S7 ============ -->
+<section id="s7">
+  <h2><span class="no">7</span>代码实操示例</h2>
+
+  <h3>7.1 一笔交易给两个不同 EOA 同时做委托，再执行 alice.execute</h3>
+  <pre><span class="c">// authA 由 alice 签，authB 由 charlie 签；交易由 bob 发送并付 gas</span>
+<span class="k">const</span> authA = <span class="k">await</span> client.signAuthorization({ account: alice, contractAddress: delegateA });
+<span class="k">const</span> authB = <span class="k">await</span> client.signAuthorization({ account: charlie, contractAddress: delegateB });
+
+<span class="k">const</span> hash = <span class="k">await</span> bobWalletClient.writeContract({
+  abi: SimpleDelegateAbi,
+  address: alice.address,
+  functionName: <span class="s">'execute'</span>,
+  args: [calls],
+  authorizationList: [authA, authB],   <span class="c">// 不同账户 → 全部生效</span>
+});</pre>
+
+  <h3>7.2 把委托账户恢复成普通 EOA（清零）</h3>
+  <pre><span class="c">// 用 address = 0x0 的授权把 alice 的 code 清空</span>
+<span class="k">const</span> clearAuth = <span class="k">await</span> client.signAuthorization({
+  account: alice,
+  contractAddress: <span class="s">'0x0000000000000000000000000000000000000000'</span>,
+});
+<span class="k">const</span> hash = <span class="k">await</span> bobWalletClient.sendTransaction({
+  to: alice.address,
+  data: <span class="s">'0x'</span>,                    <span class="c">// 空 calldata，只做清零</span>
+  authorizationList: [clearAuth],
+});</pre>
+
+  <h3>7.3 判断委托是否已生效</h3>
+  <pre><span class="k">const</span> code = <span class="k">await</span> publicClient.getBytecode({ address: alice.address });
+<span class="c">// 委托成功 → '0xef0100' 开头；无代码 → null（或 RPC 返回空代码时为 '0x'）</span>
+<span class="k">const</span> delegated = code !== <span class="k">null</span> &amp;&amp; code.startsWith(<span class="s">'0xef0100'</span>);</pre>
+
+  <div class="callout danger">
+    <div class="t">⚠️ 实操提醒</div>
+    若 <code>execute(calls)</code> 业务逻辑会 revert，请先确认你是否<strong>希望委托保留</strong>。若不该保留，需要在业务失败时补一笔清零交易——委托不会因为你业务失败就自动消失。
+  </div>
+</section>
+
+<!-- ============ S8 ============ -->
+<section id="s8">
+  <h2><span class="no">8</span>快速记忆</h2>
+  <div class="mnemonic">
+    一句话记住整个机制：<br><br>
+    <b>authorizationList</b> = 「<b>批量的写委托开关</b>」，一笔交易内顺序处理；<br>
+    <b>同账户多条 → 取最后</b>，<b>不同账户 → 全部生效</b>，单条失败只跳过自己；<br>
+    <b>委托一旦写入就是<strong>持久状态</strong>，业务失败不撤销、后续交易不自动还原；可以再次授权到其他实现，也可以通过零地址授权显式清除。<br><br>
+    <span style="font-size:13px;color:#1A5575;">「列表只活在当前交易，委托状态持久存在」——记住这句就够了。</span>
+  </div>
+
+  <div class="chiprow">
+    <div class="chip">EOA 无 code → <b>null</b></div>
+    <div class="chip">销毁合约 → <b>0x</b></div>
+    <div class="chip">活合约 → <b>0x字节码</b></div>
+    <div class="chip">7702 委托 → <b>0xef0100...</b></div>
+    <div class="chip">委托是 <b>持久状态</b></div>
+    <div class="chip">清零需 <b>显式授权 0x0</b></div>
+  </div>
+</section>
+
+<div class="footer">
+  本报告为技术讲解文档，核心协议语义以 EIP-7702 最终规范为准，并参考 viem 当前 EIP-7702 文档校对示例 API。重点校正了：委托持久性、同 authority 多授权的“最后有效项”、SELFDESTRUCT/Cancun 语义、空代码 0x 与 7702 委托指示器的区分，以及 authorization nonce 的表述。示例代码用于说明机制，请结合实际 viem 版本、合约和网络配置使用。
+</div>
+
+</div>
+</body>
+</html>

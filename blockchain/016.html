@@ -1,0 +1,1728 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EVM 数据区域深度解析 — 从 C++ 程序员视角</title>
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap">
+<style>
+/* ============ 设计 Token ============ */
+:root {
+  --bg: #0d1117;
+  --bg-elev: #161b22;
+  --bg-elev2: #1c2128;
+  --border: #30363d;
+  --border-soft: #21262d;
+  --text: #e6edf3;
+  --text-dim: #8b949e;
+  --text-mute: #6e7681;
+  --accent: #f0b429;
+  --accent-dim: #c69026;
+  --stack: #58a6ff;
+  --memory: #f0883e;
+  --storage: #bc8cff;
+  --calldata: #7ee787;
+  --transient: #39c5cf;
+  --code: #ff7b72;
+  --danger: #f85149;
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', Consolas, monospace;
+  --font-sans: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.7;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 字节网格背景纹理 */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(48,54,61,0.15) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(48,54,61,0.15) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ============ 导航 ============ */
+.nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  background: rgba(13,17,23,0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+}
+.nav-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+}
+.nav-logo {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--accent);
+  letter-spacing: 0.5px;
+}
+.nav-logo span { color: var(--text-dim); font-weight: 400; }
+.nav-links {
+  display: flex;
+  gap: 20px;
+  list-style: none;
+  overflow-x: auto;
+}
+.nav-links a {
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: 13px;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  transition: color 0.2s;
+}
+.nav-links a:hover { color: var(--accent); }
+
+/* ============ 通用容器 ============ */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+  position: relative;
+  z-index: 1;
+}
+
+section {
+  padding: 80px 0;
+  position: relative;
+}
+
+.section-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--accent);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.section-label::before {
+  content: '';
+  width: 24px;
+  height: 1px;
+  background: var(--accent);
+}
+
+h1, h2, h3 { font-weight: 700; line-height: 1.25; }
+
+h2 {
+  font-size: clamp(28px, 4vw, 40px);
+  margin-bottom: 16px;
+  letter-spacing: -0.5px;
+}
+h3 {
+  font-size: 20px;
+  margin-bottom: 12px;
+}
+
+p { color: var(--text-dim); margin-bottom: 16px; }
+p strong { color: var(--text); font-weight: 500; }
+
+/* ============ Hero ============ */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  padding-top: 80px;
+  position: relative;
+  overflow: hidden;
+}
+.hero::after {
+  content: '';
+  position: absolute;
+  top: 20%; right: -10%;
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, rgba(240,180,41,0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+.hero-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--accent);
+  margin-bottom: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.hero-eyebrow .dot {
+  width: 8px; height: 8px;
+  background: var(--accent);
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.hero h1 {
+  font-size: clamp(36px, 6vw, 64px);
+  font-weight: 900;
+  line-height: 1.1;
+  margin-bottom: 24px;
+  letter-spacing: -1px;
+}
+.hero h1 .highlight {
+  color: var(--accent);
+  position: relative;
+}
+.hero-sub {
+  font-size: 18px;
+  color: var(--text-dim);
+  max-width: 640px;
+  margin-bottom: 40px;
+  line-height: 1.8;
+}
+.hero-meta {
+  display: flex;
+  gap: 32px;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-mute);
+}
+.hero-meta span strong {
+  color: var(--text);
+  display: block;
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+
+/* ============ 类比总览卡片 ============ */
+.analogy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 48px;
+}
+.analogy-card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.analogy-card:hover {
+  transform: translateY(-2px);
+}
+.analogy-card .color-bar {
+  position: absolute;
+  top: 0; left: 0;
+  width: 4px; height: 100%;
+}
+.analogy-card .cpp-side {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-mute);
+  margin-bottom: 8px;
+}
+.analogy-card .evm-side {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.analogy-card .desc {
+  font-size: 14px;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+/* ============ 对比图区域 ============ */
+.compare-wrap {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 32px;
+  margin-top: 32px;
+  overflow-x: auto;
+}
+.compare-title {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-mute);
+  margin-bottom: 24px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* ============ 存储区域详情卡 ============ */
+.storage-section {
+  border-top: 1px solid var(--border-soft);
+}
+.storage-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+}
+.storage-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 4px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+.storage-title {
+  font-size: clamp(24px, 3.5vw, 36px);
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+.storage-analogy {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--text-dim);
+}
+.storage-analogy strong { color: var(--accent); }
+
+.storage-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .storage-body { grid-template-columns: 1fr; }
+}
+
+.storage-text p { font-size: 15px; }
+.storage-text ul {
+  list-style: none;
+  margin: 16px 0;
+}
+.storage-text li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 14px;
+  color: var(--text-dim);
+  display: flex;
+  gap: 12px;
+}
+.storage-text li::before {
+  content: '▸';
+  color: var(--accent);
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+}
+.storage-text li strong { color: var(--text); font-weight: 500; }
+
+/* 代码块 */
+.code-block {
+  background: #010409;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 16px 0;
+}
+.code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--bg-elev2);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-mute);
+}
+.code-header .dots { display: flex; gap: 6px; }
+.code-header .dots span {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+}
+.code-header .dots span:nth-child(1) { background: #ff5f56; }
+.code-header .dots span:nth-child(2) { background: #ffbd2e; }
+.code-header .dots span:nth-child(3) { background: #27c93f; }
+.code-block pre {
+  padding: 16px;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text);
+}
+.code-block .kw { color: #ff7b72; }
+.code-block .type { color: #ffa657; }
+.code-block .fn { color: #d2a8ff; }
+.code-block .str { color: #a5d6ff; }
+.code-block .cmt { color: #6e7681; font-style: italic; }
+.code-block .num { color: #79c0ff; }
+.code-block .loc { color: #7ee787; }
+
+/* Gas 标签 */
+.gas-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  background: rgba(240,180,41,0.1);
+  color: var(--accent);
+  border: 1px solid rgba(240,180,41,0.2);
+}
+
+/* ============ SVG 图容器 ============ */
+.viz-box {
+  background: #010409;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 300px;
+}
+.viz-box svg { max-width: 100%; height: auto; }
+
+/* ============ 生命周期时间轴 ============ */
+.lifecycle {
+  margin-top: 40px;
+  position: relative;
+}
+.lifecycle-track {
+  position: relative;
+  height: 60px;
+  background: var(--bg-elev2);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.lifecycle-bar {
+  position: absolute;
+  top: 0; bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 8px;
+}
+.lifecycle-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-mute);
+}
+.lifecycle-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.lifecycle-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 16px;
+  align-items: center;
+}
+.lifecycle-row .label {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+}
+@media (max-width: 600px) {
+  .lifecycle-row { grid-template-columns: 100px 1fr; }
+  .lifecycle-row .label { font-size: 11px; }
+}
+
+/* ============ Gas 对比表 ============ */
+.gas-table-wrap {
+  overflow-x: auto;
+  margin-top: 32px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.gas-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  min-width: 600px;
+}
+.gas-table th {
+  background: var(--bg-elev2);
+  padding: 14px 16px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.gas-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--text-dim);
+}
+.gas-table tr:last-child td { border-bottom: none; }
+.gas-table tr:hover td { background: rgba(240,180,41,0.03); }
+.gas-table .op { color: var(--text); font-weight: 500; }
+.gas-table .gas-val { color: var(--accent); font-weight: 700; }
+.gas-table .gas-note { font-size: 11px; color: var(--text-mute); }
+
+/* Gas 柱状图 */
+.gas-chart {
+  margin-top: 32px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 24px;
+}
+.gas-chart-title {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-mute);
+  margin-bottom: 20px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.gas-bar-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 80px;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.gas-bar-row .name {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text);
+  text-align: right;
+}
+.gas-bar-track {
+  height: 24px;
+  background: var(--bg-elev2);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+.gas-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  padding-left: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: #000;
+  font-weight: 700;
+  transition: width 1s ease;
+}
+.gas-bar-row .val {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 700;
+}
+@media (max-width: 600px) {
+  .gas-bar-row { grid-template-columns: 80px 1fr 60px; }
+}
+
+/* ============ 陷阱卡 ============ */
+.trap-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  margin-top: 32px;
+}
+.trap-card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--danger);
+  border-radius: 0 8px 8px 0;
+  padding: 20px;
+}
+.trap-card h4 {
+  font-size: 15px;
+  margin-bottom: 8px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.trap-card h4::before {
+  content: '!';
+  width: 20px; height: 20px;
+  background: var(--danger);
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.trap-card p { font-size: 13px; margin: 0; }
+
+/* ============ Footer ============ */
+.footer {
+  border-top: 1px solid var(--border);
+  padding: 40px 0;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-mute);
+}
+
+/* ============ 滚动动画 ============ */
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.6s, transform 0.6s;
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 内存dump样式 */
+.mem-dump {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.8;
+  background: #010409;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  overflow-x: auto;
+}
+.mem-dump .addr { color: var(--text-mute); }
+.mem-dump .hex { color: var(--text-dim); }
+.mem-dump .ascii { color: var(--calldata); }
+.mem-dump .hl { background: rgba(240,180,41,0.2); color: var(--accent); padding: 1px 2px; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ============ 导航 ============ -->
+<nav class="nav">
+  <div class="nav-inner">
+    <div class="nav-logo">EVM<span>::storage</span></div>
+    <ul class="nav-links">
+      <li><a href="#overview">总览</a></li>
+      <li><a href="#stack">Stack</a></li>
+      <li><a href="#memory">Memory</a></li>
+      <li><a href="#storage">Storage</a></li>
+      <li><a href="#calldata">Calldata</a></li>
+      <li><a href="#transient">Transient</a></li>
+      <li><a href="#lifecycle">生命周期</a></li>
+      <li><a href="#gas">Gas</a></li>
+      <li><a href="#traps">陷阱</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ============ Hero ============ -->
+<section class="hero" id="top">
+  <div class="container">
+    <div class="hero-eyebrow"><span class="dot"></span> EVM Internals · 从 C++ 到 EVM</div>
+    <h1>理解 EVM 的<span class="highlight">五类核心数据区</span><br>像理解 C++ 内存一样</h1>
+    <p class="hero-sub">
+      你已经知道 C++ 程序如何加载到内存、PC 如何移动、函数栈如何入栈退栈、如何在堆上 new 空间。
+      EVM 作为一台栈式虚拟机，有着惊人相似但又截然不同的存储模型。这份报告用你熟悉的 C++ 概念做锚点，
+      逐层拆解 Stack、Memory、Storage、Calldata、Transient Storage 的本质，并单独说明合约 Code。
+    </p>
+    <div class="hero-meta">
+      <span><strong>5</strong>类核心数据区</span>
+      <span><strong>256</strong>bit 字长</span>
+      <span><strong>1024</strong>栈深度限制</span>
+      <span><strong>2²⁵⁶</strong>Storage Slot</span>
+    </div>
+
+    <!-- 类比总览 -->
+    <div class="analogy-grid reveal">
+      <div class="analogy-card">
+        <div class="color-bar" style="background:var(--stack)"></div>
+        <div class="cpp-side">C++ · CPU 寄存器 / 操作数栈</div>
+        <div class="evm-side" style="color:var(--stack)">EVM Stack</div>
+        <div class="desc">所有运算的操作台，PUSH/POP/DUP/SWAP，深度上限 1024，每个元素 32 字节。</div>
+      </div>
+      <div class="analogy-card">
+        <div class="color-bar" style="background:var(--memory)"></div>
+        <div class="cpp-side">C++ · 堆内存 (new / malloc)</div>
+        <div class="evm-side" style="color:var(--memory)">Memory</div>
+        <div class="desc">调用帧级临时字节数组，按 32 字节字扩展；当前调用帧结束后丢弃。</div>
+      </div>
+      <div class="analogy-card">
+        <div class="color-bar" style="background:var(--storage)"></div>
+        <div class="cpp-side">C++ · 全局变量 / 静态存储区</div>
+        <div class="evm-side" style="color:var(--storage)">Storage</div>
+        <div class="desc">合约级持久化键值存储，具有 2²⁵⁶ 个逻辑 slot；成功执行后的状态变化跨交易保留。</div>
+      </div>
+      <div class="analogy-card">
+        <div class="color-bar" style="background:var(--calldata)"></div>
+        <div class="cpp-side">C++ · 函数参数 (只读输入)</div>
+        <div class="evm-side" style="color:var(--calldata)">Calldata</div>
+        <div class="desc">调用数据区，只读，包含函数选择器 + ABI 编码参数，零字节免费、非零字节收费。</div>
+      </div>
+      <div class="analogy-card">
+        <div class="color-bar" style="background:var(--transient)"></div>
+        <div class="cpp-side">C++ · thread_local / 请求级缓存</div>
+        <div class="evm-side" style="color:var(--transient)">Transient Storage</div>
+        <div class="desc">EIP-1153 引入，交易内按合约隔离并跨调用帧共享，交易结束清零。</div>
+      </div>
+      <div class="analogy-card">
+        <div class="color-bar" style="background:var(--code)"></div>
+        <div class="cpp-side">C++ · 代码段 (.text)</div>
+        <div class="evm-side" style="color:var(--code)">Code</div>
+        <div class="desc">合约运行时代码，只读并作为当前地址的代码执行；CODECOPY 仅用于复制代码字节到 Memory。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 执行模型对比 ============ -->
+<section id="overview">
+  <div class="container">
+    <div class="section-label">01 · 执行模型对比</div>
+    <h2>C++ 进程 vs EVM 执行环境</h2>
+    <p>
+      C++ 进程通常可抽象为<strong>代码段、数据段/BSS、堆、栈</strong>等区域，并由操作系统提供独立的虚拟地址空间。
+      EVM 没有操作系统进程和虚拟地址空间；它更准确地应理解为<strong>确定性的状态转换环境</strong>。
+      对一笔交易而言，可以把执行过程理解为：给定区块链状态、交易和执行环境 → 经过 EVM 执行 → 得到新的状态以及执行结果/日志等。
+      每个 EVM 调用帧都有自己的 Stack、Memory 和 Calldata；Transient Storage 按合约在整笔交易范围内共享，Storage 则跨交易持久化。
+    </p>
+
+    <div class="compare-wrap reveal">
+      <div class="compare-title">内存布局对照 · C++ Process Memory Layout ↔ EVM Execution Context</div>
+      <svg viewBox="0 0 900 420" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:900px;">
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <path d="M0,0 L8,3 L0,6" fill="#f0b429"/>
+          </marker>
+        </defs>
+
+        <!-- C++ 侧 -->
+        <text x="180" y="24" text-anchor="middle" fill="#8b949e" font-family="JetBrains Mono" font-size="12" font-weight="700">C++ 进程地址空间</text>
+
+        <!-- 高地址 -->
+        <text x="20" y="50" fill="#6e7681" font-family="JetBrains Mono" font-size="10">高地址</text>
+        <!-- 栈 -->
+        <rect x="60" y="55" width="240" height="50" fill="rgba(88,166,255,0.15)" stroke="#58a6ff" stroke-width="1" rx="4"/>
+        <text x="180" y="85" text-anchor="middle" fill="#58a6ff" font-family="JetBrains Mono" font-size="13" font-weight="700">Stack (函数调用栈)</text>
+        <text x="180" y="100" text-anchor="middle" fill="#8b949e" font-family="JetBrains Mono" font-size="10">局部变量 · 返回地址 · 帧指针</text>
+        <text x="310" y="85" fill="#6e7681" font-family="JetBrains Mono" font-size="10" text-anchor="end">↓ 增长</text>
+
+        <!-- 堆 -->
+        <rect x="60" y="115" width="240" height="70" fill="rgba(240,136,62,0.15)" stroke="#f0883e" stroke-width="1" rx="4"/>
+        <text x="180" y="145" text-anchor="middle" fill="#f0883e" font-family="JetBrains Mono" font-size="13" font-weight="700">Heap (堆)</text>
+        <text x="180" y="162" text-anchor="middle" fill="#8b949e" font-family="JetBrains Mono" font-size="10">new / malloc 动态分配</text>
+        <text x="180" y="176" text-anchor="middle" fill="#8b949e" font-family="JetBrains Mono" font-size="10">需手动 free 或智能指针管理</text>
+        <text x="310" y="150" fill="#6e7681" font-family="JetBrains Mono" font-size="10" text-anchor="end">↑ 增长</text>
+
+        <!-- BSS -->
+        <rect x="60" y="195" width="240" height="40" fill="rgba(188,140,255,0.1)" stroke="#bc8cff" stroke-width="1" stroke-dasharray="4,2" rx="4"/>
+        <text x="180" y="220" text-anchor="middle" fill="#bc8cff" font-family="JetBrains Mono" font-size="12">BSS (未初始化全局)</text>
+
+        <!-- 数据段 -->
+        <rect x="60" y="245" width="240" height="40" fill="rgba(188,140,255,0.15)" stroke="#bc8cff" stroke-width="1" rx="4"/>
+        <text x="180" y="270" text-anchor="middle" fill="#bc8cff" font-family="JetBrains Mono" font-size="12" font-weight="700">Data (已初始化全局/静态)</text>
+
+        <!-- 代码段 -->
+        <rect x="60" y="295" width="240" height="40" fill="rgba(255,123,114,0.15)" stroke="#ff7b72" stroke-width="1" rx="4"/>
+        <text x="180" y="320" text-anchor="middle" fill="#ff7b72" font-family="JetBrains Mono" font-size="12" font-weight="700">Text (.text 代码段)</text>
+
+        <text x="20" y="350" fill="#6e7681" font-family="JetBrains Mono" font-size="10">低地址</text>
+
+        <!-- 中间箭头 -->
+        <line x1="340" y1="210" x2="420" y2="210" stroke="#f0b429" stroke-width="2" marker-end="url(#arrow)"/>
+        <text x="380" y="200" text-anchor="middle" fill="#f0b429" font-family="JetBrains Mono" font-size="11" font-weight="700">类比映射</text>
+
+        <!-- EVM 侧 -->
+        <text x="680" y="24" text-anchor="middle" fill="#8b949e" font-family="JetBrains Mono" font-size="12" font-weight="700">EVM 执行上下文</text>
+
+        <!-- Stack -->
+        <rect x="480" y="55" width="240" height="50" fill="rgba(88,166,255,0.15)" stroke="#58a6ff" stroke-width="1" rx="4"/>
+        <text x="600" y="80" text-anchor="middle" fill="#58a6ff" font-family="JetBrains Mono" font-size="13" font-weight="700">Stack (操作数栈)</text>
+        <text x="600" y="97" text-anchor="middle" fill="#8b949e" font-family="JetBrains Mono" font-size="10">1024 深度 · 32B/元素 · 运算操作台</text>
+
+        <!-- Memory -->
+        <rect x="480" y="115" width="240" height="50" fill="rgba(240,136,62,0.15)" stroke="#f0883e" stroke-width="1" rx="4"/>
+        <text x="600" y="140" text-anchor="middle" fill="#f0883e" font-family="JetBrains Mono" font-size="13" font-weight="700">Memory (字节数组)</text>
+        <text x="600" y="157" text-anchor="middle" fill="#8b949e" font-family="JetBrains Mono" font-size="10">交易级临时 · 按字扩展 · 可读写</text>
+
+        <!-- Calldata -->
+        <rect x="480" y="175" width="240" height="40" fill="rgba(126,231,135,0.15)" stroke="#7ee787" stroke-width="1" rx="4"/>
+        <text x="600" y="200" text-anchor="middle" fill="#7ee787" font-family="JetBrains Mono" font-size="12" font-weight="700">Calldata (只读调用数据)</text>
+
+        <!-- Transient -->
+        <rect x="480" y="225" width="240" height="40" fill="rgba(57,197,207,0.15)" stroke="#39c5cf" stroke-width="1" rx="4"/>
+        <text x="600" y="250" text-anchor="middle" fill="#39c5cf" font-family="JetBrains Mono" font-size="12" font-weight="700">Transient Storage (交易级)</text>
+
+        <!-- Storage -->
+        <rect x="480" y="275" width="240" height="50" fill="rgba(188,140,255,0.15)" stroke="#bc8cff" stroke-width="1" rx="4"/>
+        <text x="600" y="300" text-anchor="middle" fill="#bc8cff" font-family="JetBrains Mono" font-size="13" font-weight="700">Storage (持久化状态)</text>
+        <text x="600" y="317" text-anchor="middle" fill="#8b949e" font-family="JetBrains Mono" font-size="10">合约级 · 2²⁵⁶ slot · 写入状态树</text>
+
+        <!-- Code -->
+        <rect x="480" y="335" width="240" height="35" fill="rgba(255,123,114,0.15)" stroke="#ff7b72" stroke-width="1" rx="4"/>
+        <text x="600" y="358" text-anchor="middle" fill="#ff7b72" font-family="JetBrains Mono" font-size="12" font-weight="700">Code (合约字节码)</text>
+
+        <!-- 生命周期提示 -->
+        <line x1="470" y1="265" x2="730" y2="265" stroke="#f0b429" stroke-width="1" stroke-dasharray="6,4"/>
+        <text x="740" y="268" fill="#f0b429" font-family="JetBrains Mono" font-size="9">Transient：交易结束清零</text>
+        <text x="740" y="290" fill="#f0b429" font-family="JetBrains Mono" font-size="9">Storage：成功提交后跨交易保留</text>
+      </svg>
+    </div>
+
+    <div class="code-block" style="margin-top:32px;">
+      <div class="code-header">
+        <div class="dots"><span></span><span></span><span></span></div>
+        <span>核心差异 · C++ vs EVM</span>
+      </div>
+      <pre><span class="cmt">// C++: 有操作系统管理的虚拟地址空间，进程长期运行</span>
+<span class="cmt">// EVM: 无 OS 进程模型；交易执行从当前状态与环境出发，产生确定性的状态变更与执行结果</span>
+
+<span class="cmt">// C++ 函数调用时:</span>
+<span class="type">void</span> <span class="fn">foo</span>(<span class="type">int</span> a, <span class="type">int</span> b) {  <span class="cmt">// 参数压栈 → 栈帧创建 → 局部变量在栈上</span>
+    <span class="type">int</span>* p = <span class="kw">new</span> <span class="type">int</span>[10];  <span class="cmt">// 堆分配，需手动 delete</span>
+}  <span class="cmt">// 栈帧销毁，堆内存泄漏风险</span>
+
+<span class="cmt">// EVM 合约调用时:</span>
+<span class="cmt">// 1. Calldata 载入 (函数选择器 + 参数, 只读)</span>
+<span class="cmt">// 2. Stack 初始为空, 指令 PUSH 操作数</span>
+<span class="cmt">// 3. Memory 初始为空, MSTORE 按需扩展</span>
+<span class="cmt">// 4. Storage 读取当前状态；Transient 按合约在同一交易的相关调用帧之间共享</span>
+<span class="cmt">// 5. 调用帧结束时 Stack/Memory/Calldata 丢弃；交易成功后 Storage 修改提交，Transient 在交易结束清零</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ============ Stack ============ -->
+<section id="stack" class="storage-section">
+  <div class="container">
+    <div class="storage-header">
+      <span class="storage-badge" style="background:rgba(88,166,255,0.15);color:var(--stack);border:1px solid rgba(88,166,255,0.3)">02 · STACK</span>
+      <div>
+        <div class="storage-title" style="color:var(--stack)">EVM Stack — 操作数栈</div>
+        <div class="storage-analogy">类比 C++: <strong>CPU 寄存器集合 + 表达式求值栈</strong>（不是函数调用栈）</div>
+      </div>
+    </div>
+
+    <div class="storage-body">
+      <div class="storage-text">
+        <p>
+          EVM 是一台<strong>栈式虚拟机</strong>——所有运算都在栈上完成。你可以把它想象成一个只能从顶端操作的"盘子堆"：
+          指令从栈顶弹出操作数、计算、再把结果压回栈顶。这和 x86 的寄存器模型不同，EVM 没有通用寄存器，
+          栈就是它的"运算工作台"。
+        </p>
+        <p>
+          <strong>关键区别</strong>：C++ 的函数调用栈存储的是局部变量、返回地址、帧指针；
+          EVM 的栈<strong>主要承载操作数和临时值</strong>；标量局部变量通常也由编译器放在 Stack，而动态数组、struct 等引用类型可位于 Memory/Storage。调用返回地址由调用帧与 EVM 控制流机制管理，而不是作为普通局部变量放在栈帧中。
+        </p>
+        <ul>
+          <li><strong>字长</strong>：每个元素 256 bit (32 字节)，EVM 原生字长</li>
+          <li><strong>深度上限</strong>：1024 个元素，超出触发 Stack Overflow 异常</li>
+          <li><strong>核心指令</strong>：PUSH1~PUSH32 (压栈)、POP (弹栈)、DUP1~DUP16 (复制第 N 个)、SWAP1~SWAP16 (交换栈顶与第 N 个)</li>
+          <li><strong>算术指令</strong>：ADD、SUB、MUL、DIV 等均从栈顶弹 2 个、压 1 个结果</li>
+          <li><strong>Gas</strong>：PUSH 3 gas、POP 2 gas、DUP/SWAP 3 gas；这些是 opcode 基础费用</li>
+        </ul>
+
+        <div class="code-block">
+          <div class="code-header">
+            <div class="dots"><span></span><span></span><span></span></div>
+            <span>Solidity · 栈上的简单运算</span>
+          </div>
+          <pre><span class="kw">function</span> <span class="fn">addExample</span>() <span class="kw">pure</span> <span class="kw">returns</span> (<span class="type">uint</span>) {
+    <span class="type">uint</span> a = <span class="num">10</span>;   <span class="cmt">// PUSH1 0x0a → 栈: [10]</span>
+    <span class="type">uint</span> b = <span class="num">20</span>;   <span class="cmt">// PUSH1 0x14 → 栈: [10, 20]</span>
+    <span class="kw">return</span> a + b;     <span class="cmt">// ADD → 弹出 20,10 → 压入 30 → 栈: [30]</span>
+}</pre>
+        </div>
+      </div>
+
+      <div>
+        <div class="viz-box">
+          <svg viewBox="0 0 360 380" xmlns="http://www.w3.org/2000/svg">
+            <text x="180" y="20" text-anchor="middle" fill="#8b949e" font-family="JetBrains Mono" font-size="11">执行 PUSH1 0x0a; PUSH1 0x14; ADD</text>
+
+            <!-- 栈框 -->
+            <rect x="100" y="40" width="160" height="300" fill="#0d1117" stroke="#30363d" stroke-width="1" rx="4"/>
+
+            <!-- 栈底标记 -->
+            <text x="90" y="335" text-anchor="end" fill="#6e7681" font-family="JetBrains Mono" font-size="10">栈底</text>
+            <line x1="100" y1="325" x2="260" y2="325" stroke="#30363d" stroke-width="1" stroke-dasharray="4,2"/>
+
+            <!-- 空槽 -->
+            <rect x="110" y="280" width="140" height="36" fill="rgba(48,54,61,0.3)" stroke="#21262d" stroke-width="1" rx="2"/>
+            <text x="180" y="303" text-anchor="middle" fill="#30363d" font-family="JetBrains Mono" font-size="11">(empty)</text>
+
+            <rect x="110" y="240" width="140" height="36" fill="rgba(48,54,61,0.3)" stroke="#21262d" stroke-width="1" rx="2"/>
+            <text x="180" y="263" text-anchor="middle" fill="#30363d" font-family="JetBrains Mono" font-size="11">(empty)</text>
+
+            <!-- 结果 30 -->
+            <rect x="110" y="200" width="140" height="36" fill="rgba(88,166,255,0.2)" stroke="#58a6ff" stroke-width="1.5" rx="2"/>
+            <text x="180" y="223" text-anchor="middle" fill="#58a6ff" font-family="JetBrains Mono" font-size="13" font-weight="700">0x1e (30)</text>
+
+            <!-- 栈顶箭头 -->
+            <text x="280" y="223" fill="#f0b429" font-family="JetBrains Mono" font-size="11" font-weight="700">← SP</text>
+            <text x="280" y="238" fill="#6e7681" font-family="JetBrains Mono" font-size="9">(栈顶)</text>
+
+            <!-- 步骤说明 -->
+            <text x="20" y="60" fill="#7ee787" font-family="JetBrains Mono" font-size="10">① PUSH1 0x0a</text>
+            <text x="20" y="76" fill="#8b949e" font-family="JetBrains Mono" font-size="9">栈: [10]</text>
+
+            <text x="20" y="100" fill="#7ee787" font-family="JetBrains Mono" font-size="10">② PUSH1 0x14</text>
+            <text x="20" y="116" fill="#8b949e" font-family="JetBrains Mono" font-size="9">栈: [10, 20]</text>
+
+            <text x="20" y="140" fill="#f0b429" font-family="JetBrains Mono" font-size="10">③ ADD</text>
+            <text x="20" y="156" fill="#8b949e" font-family="JetBrains Mono" font-size="9">弹出 20, 10</text>
+            <text x="20" y="170" fill="#8b949e" font-family="JetBrains Mono" font-size="9">压入 30</text>
+
+            <!-- 深度指示 -->
+            <text x="180" y="365" text-anchor="middle" fill="#6e7681" font-family="JetBrains Mono" font-size="10">当前深度: 1 / 1024</text>
+          </svg>
+        </div>
+        <p style="font-size:12px;color:var(--text-mute);margin-top:12px;text-align:center;">
+          EVM 栈操作示意：所有算术/逻辑指令都是"弹 N 个、压 M 个"的栈操作
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ Memory ============ -->
+<section id="memory" class="storage-section">
+  <div class="container">
+    <div class="storage-header">
+      <span class="storage-badge" style="background:rgba(240,136,62,0.15);color:var(--memory);border:1px solid rgba(240,136,62,0.3)">03 · MEMORY</span>
+      <div>
+        <div class="storage-title" style="color:var(--memory)">Memory — 调用帧临时字节数组</div>
+        <div class="storage-analogy">类比 C++: <strong>堆内存 (new / malloc)</strong>，但交易结束自动"释放"</div>
+      </div>
+    </div>
+
+    <div class="storage-body">
+      <div class="storage-text">
+        <p>
+          EVM Memory 是一个<strong>字节可寻址的线性字节数组</strong>。访问尚未扩展的区域时，内存会按 32 字节字对齐扩展，
+          新扩展区域按 EVM 语义视为零。它和 C++ 堆有一点相似：可动态扩展、执行后丢弃；但更准确地说，
+          Memory 属于<strong>当前 EVM 调用帧</strong>，每个 CALL/CREATE 等调用帧都有独立 Memory，帧结束后即丢弃。
+        </p>
+        <p>
+          Memory 的大小按 <strong>32 字节（一个 word）</strong>向上取整计费。当某条指令访问超出当前内存大小的区域时，
+          EVM 会扩展 Memory，并支付一次<strong>增量内存扩展成本</strong>。内存总成本函数包含线性项和二次项，
+          因此扩展到非常大的内存范围会越来越昂贵。
+        </p>
+        <ul>
+          <li><strong>寻址</strong>：字节级寻址，偏移量 256 bit（实际可用受 Gas 限制）</li>
+          <li><strong>扩展粒度</strong>：按 32 字节 word 向上取整；实际扩展长度由被访问的最高字节决定</li>
+          <li><strong>核心指令</strong>：MLOAD (从内存读 32B 到栈)、MSTORE (写 32B)、MSTORE8 (写 1B)</li>
+          <li><strong>生命周期</strong>：单笔交易内有效，交易结束清零</li>
+          <li><strong>典型用途</strong>：动态数组、ABI 编解码缓冲区、返回数据准备区及其他临时数据；标量局部变量通常由编译器放在 Stack，而不是 Memory</li>
+        </ul>
+
+        <div class="code-block">
+          <div class="code-header">
+            <div class="dots"><span></span><span></span><span></span></div>
+            <span>Solidity · memory 关键字</span>
+          </div>
+          <pre><span class="kw">function</span> <span class="fn">processArray</span>(<span class="type">uint</span>[] <span class="loc">calldata</span> input)
+    <span class="kw">pure</span> <span class="kw">returns</span> (<span class="type">uint</span>[] <span class="loc">memory</span>)
+{
+    <span class="cmt">// 在 memory 中分配数组 (类似 new uint[](size))</span>
+    <span class="type">uint</span>[] <span class="loc">memory</span> result = <span class="kw">new</span> <span class="type">uint</span>[](input.length);
+
+    <span class="kw">for</span> (<span class="type">uint</span> i = <span class="num">0</span>; i &lt; input.length; i++) {
+        result[i] = input[i] * <span class="num">2</span>;
+    }
+    <span class="kw">return</span> result;  <span class="cmt">// 返回值会经过 ABI 编码；跨外部调用时由 returndata 机制传递</span>
+}</pre>
+        </div>
+      </div>
+
+      <div>
+        <div class="viz-box">
+          <svg viewBox="0 0 380 340" xmlns="http://www.w3.org/2000/svg">
+            <text x="190" y="20" text-anchor="middle" fill="#8b949e" font-family="JetBrains Mono" font-size="11">Memory 布局 · 字节数组（EVM 按 32B word 计费）</text>
+
+            <!-- 地址标尺 -->
+            <line x1="60" y1="50" x2="340" y2="50" stroke="#30363d" stroke-width="1"/>
+            <text x="60" y="44" fill="#6e7681" font-family="JetBrains Mono" font-size="9">0x00</text>
+            <text x="140" y="44" fill="#6e7681" font-family="JetBrains Mono" font-size="9">0x20</text>
+            <text x="220" y="44" fill="#6e7681" font-family="JetBrains Mono" font-size="9">0x40</text>
+            <text x="300" y="44" fill="#6e7681" font-family="JetBrains Mono" font-size="9">0x60</text>
+
+            <!-- 字槽 0: 0x00-0x1f -->
+            <rect x="60" y="55" width="80" height="50" fill="rgba(240,136,62,0.2)" stroke="#f0883e" stroke-width="1" rx="2"/>
+            <text x="100" y="80" text-anchor="middle" fill="#f0883e" font-family="JetBrains Mono" font-size="10" font-weight="700">free ptr</text>
+            <text x="100" y="95" text-anchor="middle" fill="#8b949e" font-family="JetBrains Mono" font-size="9">0x80 (默认)</text>
+
+            <!-- 字槽 1: 0x20-0x3f -->
+            <rect x="140" y="55" width="80" height="50" fill="rgba(240,136,62,0.1)" stroke="#30363d" stroke-width="1" rx="2"/>
+            <text x="180" y="85" text-anchor="middle" fill="#6e7681" font-family="JetBrains Mono" font-size="9">零值槽</text>
+
+            <!-- 字槽 2: 0x40-0x5f -->
+            <rect x="220" y="55" width="80" height="50" fill="rgba(240,136,62,0.1)" stroke="#30363d" stroke-width="1" rx="2"/>
+            <text x="260" y="85" text-anchor="middle" fill="#6e7681" font-family="JetBrains Mono" font-size="9">零值槽</text>
+
+            <!-- 箭头指向 free ptr -->
+            <line x1="100" y1="115" x2="100" y2="130" stroke="#f0b429" stroke-width="1.5" marker-end="url(#arrow2)"/>
+            <defs><marker id="arrow2" markerWidth="6" markerHeight="5" refX="6" refY="2.5" orient="auto"><path d="M0,0 L6,2.5 L0,5" fill="#f0b429"/></marker></defs>
+
+            <!-- 已分配区域 -->
+            <text x="190" y="150" text-anchor="middle" fill="#f0b429" font-family="JetBrains Mono" font-size="10" font-weight="700">↓ 从 0x80 开始是可用自由内存</text>
+
+            <!-- 自由内存区 -->
+            <rect x="60" y="165" width="280" height="40" fill="rgba(240,136,62,0.08)" stroke="#f0883e" stroke-width="1" stroke-dasharray="4,2" rx="2"/>
+            <text x="200" y="190" text-anchor="middle" fill="#f0883e" font-family="JetBrains Mono" font-size="11">自由内存 (Solidity 分配的数组/结构体)</text>
+
+            <!-- 扩展示意 -->
+            <text x="190" y="230" text-anchor="middle" fill="#8b949e" font-family="JetBrains Mono" font-size="10">访问未触及的字 → 自动扩展 + 收取扩展 Gas</text>
+
+            <!-- Gas 公式 -->
+            <rect x="60" y="250" width="280" height="70" fill="#010409" stroke="#30363d" stroke-width="1" rx="4"/>
+            <text x="190" y="272" text-anchor="middle" fill="#f0b429" font-family="JetBrains Mono" font-size="11" font-weight="700">内存扩展 Gas 公式</text>
+            <text x="190" y="295" text-anchor="middle" fill="#e6edf3" font-family="JetBrains Mono" font-size="12">C_mem(a) = 3 × a + floor(a² / 512)</text>
+            <text x="190" y="312" text-anchor="middle" fill="#6e7681" font-family="JetBrains Mono" font-size="9">a = 扩展后的总 word 数；一次扩展的成本 = C_mem(new) - C_mem(old)，通常 new = ceil((offset + size) / 32)</text>
+          </svg>
+        </div>
+        <p style="font-size:12px;color:var(--text-mute);margin-top:12px;text-align:center;">
+          Solidity 约定：0x00~0x3f 为临时槽，0x40 存 free memory pointer，0x60 为零值槽，实际分配从 0x80 开始
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ Storage ============ -->
+<section id="storage" class="storage-section">
+  <div class="container">
+    <div class="storage-header">
+      <span class="storage-badge" style="background:rgba(188,140,255,0.15);color:var(--storage);border:1px solid rgba(188,140,255,0.3)">04 · STORAGE</span>
+      <div>
+        <div class="storage-title" style="color:var(--storage)">Storage — 持久化状态</div>
+        <div class="storage-analogy">类比 C++: <strong>全局变量 / 静态存储区</strong>，但每个合约独立、永久写入区块链</div>
+      </div>
+    </div>
+
+    <div class="storage-body">
+      <div class="storage-text">
+        <p>
+          Storage 是 EVM 中用于<strong>持久化合约状态</strong>的核心键值空间。每个合约拥有独立的 2²⁵⁶ 个逻辑 slot，
+          每个 slot 宽 32 字节。它可以类比 C++ 的全局/静态数据，但并不等同于进程内存：
+          状态修改只有在交易成功时才会提交到链上状态；SSTORE 的实际 Gas 还取决于槽位冷热状态以及 original/current/new value。
+        </p>
+        <p>
+          <strong>Slot 布局规则</strong>：状态变量按声明顺序从 slot 0 开始连续分配；
+          小于 32 字节的变量会被打包进同一个 slot；mapping 和动态数组不占用连续 slot，
+          而是通过哈希计算定位到"随机"位置。
+        </p>
+        <ul>
+          <li><strong>容量</strong>：2²⁵⁶ 个 slot，每个 32 字节（理论上无限大）</li>
+          <li><strong>核心指令</strong>：SLOAD (读 slot)、SSTORE (写 slot)</li>
+          <li><strong>Gas (读)</strong>：冷访问 2100 gas，热访问 100 gas (EIP-2929)</li>
+          <li><strong>Gas (写)</strong>：常见基础值为零→非零 20,000、非零→非零 5,000；冷槽还可能增加 2,100 的访问成本。非零→零的 SSTORE 清零退款为 4,800，且退款受 EIP-3529 的上限约束</li>
+          <li><strong>生命周期</strong>：成功执行后的状态跨交易保留，通常直到后续状态修改；EIP-6780 后，普通已有合约的 SELFDESTRUCT 不再删除其 code/storage，仅在“创建该合约的同一交易内”才保留删除语义</li>
+        </ul>
+
+        <div class="code-block">
+          <div class="code-header">
+            <div class="dots"><span></span><span></span><span></span></div>
+            <span>Solidity · Storage 变量与 Slot 分配</span>
+          </div>
+          <pre><span class="kw">contract</span> <span class="type">StorageDemo</span> {
+    <span class="type">uint256</span> <span class="kw">public</span> count;     <span class="cmt">// slot 0</span>
+    <span class="type">address</span> <span class="kw">public</span> owner;     <span class="cmt">// slot 1</span>
+    <span class="type">uint128</span> a;                <span class="cmt">// slot 2 (低 16 字节)</span>
+    <span class="type">uint128</span> b;                <span class="cmt">// slot 2 (高 16 字节, 打包!)</span>
+    <span class="type">mapping</span>(<span class="type">address</span>=><span class="type">uint</span>) balances; <span class="cmt">// slot 3 (仅占位)</span>
+    <span class="type">uint</span>[] <span class="kw">public</span> arr;       <span class="cmt">// slot 4 (存长度)</span>
+
+    <span class="cmt">// mapping(uint => V) 的值槽：keccak256(abi.encode(key, slot))</span>
+    <span class="cmt">// uint256[] 的数据区从 keccak256(slot) 开始；元素位置还需遵循元素打包规则</span>
+}</pre>
+        </div>
+      </div>
+
+      <div>
+        <div class="viz-box">
+          <svg viewBox="0 0 380 360" xmlns="http://www.w3.org/2000/svg">
+            <text x="190" y="20" text-anchor="middle" fill="#8b949e" font-family="JetBrains Mono" font-size="11">Storage Slot 布局 · 2²⁵⁶ 稀疏数组</text>
+
+            <!-- 连续 slot 区 -->
+            <rect x="40" y="45" width="140" height="36" fill="rgba(188,140,255,0.2)" stroke="#bc8cff" stroke-width="1" rx="2"/>
+            <text x="110" y="68" text-anchor="middle" fill="#bc8cff" font-family="JetBrains Mono" font-size="11" font-weight="700">slot 0: count</text>
+
+            <rect x="40" y="87" width="140" height="36" fill="rgba(188,140,255,0.15)" stroke="#bc8cff" stroke-width="1" rx="2"/>
+            <text x="110" y="110" text-anchor="middle" fill="#bc8cff" font-family="JetBrains Mono" font-size="11">slot 1: owner</text>
+
+            <rect x="40" y="129" width="140" height="36" fill="rgba(188,140,255,0.15)" stroke="#bc8cff" stroke-width="1" rx="2"/>
+            <text x="110" y="148" text-anchor="middle" fill="#bc8cff" font-family="JetBrains Mono" font-size="10">slot 2: a (低16B)</text>
+            <text x="110" y="160" text-anchor="middle" fill="#8b949e" font-family="JetBrains Mono" font-size="9">+ b (高16B) 打包</text>
+
+            <rect x="40" y="171" width="140" height="36" fill="rgba(188,140,255,0.1)" stroke="#30363d" stroke-width="1" rx="2"/>
+            <text x="110" y="194" text-anchor="middle" fill="#8b949e" font-family="JetBrains Mono" font-size="10">slot 3: mapping 占位</text>
+
+            <rect x="40" y="213" width="140" height="36" fill="rgba(188,140,255,0.1)" stroke="#30363d" stroke-width="1" rx="2"/>
+            <text x="110" y="236" text-anchor="middle" fill="#8b949e" font-family="JetBrains Mono" font-size="10">slot 4: arr.length</text>
+
+            <!-- 省略号 -->
+            <text x="110" y="268" text-anchor="middle" fill="#30363d" font-family="JetBrains Mono" font-size="16">⋮</text>
+
+            <!-- 哈希定位区 -->
+            <text x="250" y="60" fill="#f0b429" font-family="JetBrains Mono" font-size="10" font-weight="700">哈希散列区</text>
+
+            <!-- mapping 值 -->
+            <rect x="220" y="75" width="130" height="30" fill="rgba(188,140,255,0.25)" stroke="#bc8cff" stroke-width="1.5" rx="2"/>
+            <text x="285" y="94" text-anchor="middle" fill="#bc8cff" font-family="JetBrains Mono" font-size="9">keccak(addr . 3)</text>
+
+            <rect x="220" y="115" width="130" height="30" fill="rgba(188,140,255,0.2)" stroke="#bc8cff" stroke-width="1" rx="2"/>
+            <text x="285" y="134" text-anchor="middle" fill="#bc8cff" font-family="JetBrains Mono" font-size="9">keccak(addr2 . 3)</text>
+
+            <!-- 数组元素 -->
+            <rect x="220" y="165" width="130" height="30" fill="rgba(188,140,255,0.2)" stroke="#bc8cff" stroke-width="1" rx="2"/>
+            <text x="285" y="184" text-anchor="middle" fill="#bc8cff" font-family="JetBrains Mono" font-size="9">keccak(4) + 0</text>
+
+            <rect x="220" y="205" width="130" height="30" fill="rgba(188,140,255,0.15)" stroke="#30363d" stroke-width="1" rx="2"/>
+            <text x="285" y="224" text-anchor="middle" fill="#8b949e" font-family="JetBrains Mono" font-size="9">keccak(4) + 1</text>
+
+            <!-- 箭头 -->
+            <path d="M180 189 Q200 189 218 90" stroke="#f0b429" stroke-width="1" fill="none" stroke-dasharray="3,2"/>
+            <text x="195" y="150" fill="#f0b429" font-family="JetBrains Mono" font-size="8">哈希</text>
+
+            <path d="M180 231 Q200 231 218 180" stroke="#f0b429" stroke-width="1" fill="none" stroke-dasharray="3,2"/>
+
+            <!-- 底部说明 -->
+            <rect x="40" y="290" width="310" height="55" fill="#010409" stroke="#30363d" stroke-width="1" rx="4"/>
+            <text x="195" y="310" text-anchor="middle" fill="#f0b429" font-family="JetBrains Mono" font-size="10" font-weight="700">稀疏存储：未使用的 slot 默认为 0，不占空间</text>
+            <text x="195" y="328" text-anchor="middle" fill="#8b949e" font-family="JetBrains Mono" font-size="9">写入状态树 → 全网节点共识 → 永久不可篡改(除非覆盖)</text>
+          </svg>
+        </div>
+        <p style="font-size:12px;color:var(--text-mute);margin-top:12px;text-align:center;">
+          普通定长状态变量按布局规则连续分配；mapping/动态数组使用 keccak256 派生数据位置。动态数组元素还需考虑元素是否可以在一个 slot 内打包
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ Calldata ============ -->
+<section id="calldata" class="storage-section">
+  <div class="container">
+    <div class="storage-header">
+      <span class="storage-badge" style="background:rgba(126,231,135,0.15);color:var(--calldata);border:1px solid rgba(126,231,135,0.3)">05 · CALLDATA</span>
+      <div>
+        <div class="storage-title" style="color:var(--calldata)">Calldata — 只读调用数据</div>
+        <div class="storage-analogy">类比 C++: <strong>函数参数列表</strong>（调用方传入，函数内只读）</div>
+      </div>
+    </div>
+
+    <div class="storage-body">
+      <div class="storage-text">
+        <p>
+          当你调用一个合约函数时，交易的 <code>data</code> 字段就是 Calldata。它包含
+          <strong>4 字节函数选择器</strong> + <strong>ABI 编码的参数</strong>，完全只读，不可修改。
+          这就像 C++ 函数的 const 引用参数——调用方准备好了数据，函数只能读不能写。
+        </p>
+        <p>
+          对于<strong>交易输入数据</strong>，EIP-2028 规定零字节 4 gas、非零字节 16 gas；这是交易的 intrinsic data cost。
+          读取 calldata 本身还会涉及 CALLDATALOAD/COPY 等 opcode 成本，而不是简单按 4/16 gas 再收费一次。
+          这就是为什么优化合约时人们会尽量用零字节——比如 address(0) 比随机地址便宜。
+        </p>
+        <ul>
+          <li><strong>可变性</strong>：只读，无法在合约中修改 calldata</li>
+          <li><strong>结构</strong>：前 4 字节 = 函数选择器 (keccak256 签名前 4 字节)，后续 = ABI 编码参数</li>
+          <li><strong>核心指令</strong>：CALLDATALOAD (读 32B)、CALLDATASIZE、CALLDATACOPY (复制到 memory)</li>
+          <li><strong>交易数据费</strong>：顶层交易 input data 的零字节 4 gas/byte，非零字节 16 gas/byte（EIP-2028）</li>
+          <li><strong>最佳实践</strong>：外部函数的数组参数用 calldata 而非 memory，省一次拷贝</li>
+        </ul>
+
+        <div class="code-block">
+          <div class="code-header">
+            <div class="dots"><span></span><span></span><span></span></div>
+            <span>Solidity · calldata vs memory 参数</span>
+          </div>
+          <pre><span class="cmt">// 推荐: calldata 直接引用, 不复制</span>
+<span class="kw">function</span> <span class="fn">sum</span>(<span class="type">uint</span>[] <span class="loc">calldata</span> arr) <span class="kw">external</span> <span class="kw">pure</span> <span class="kw">returns</span> (<span class="type">uint</span>) {
+    <span class="type">uint</span> s = <span class="num">0</span>;
+    <span class="kw">for</span> (<span class="type">uint</span> i; i &lt; arr.length; i++) s += arr[i];
+    <span class="kw">return</span> s;
+}
+
+<span class="cmt">// 不推荐: memory 会把 calldata 完整复制一份到 memory</span>
+<span class="kw">function</span> <span class="fn">sumBad</span>(<span class="type">uint</span>[] <span class="loc">memory</span> arr) <span class="kw">external</span> <span class="kw">pure</span> <span class="kw">returns</span> (<span class="type">uint</span> s) {
+    <span class="cmt">// calldata → memory 会发生一次数据复制</span>
+    <span class="kw">for</span> (<span class="type">uint</span> i; i &lt; arr.length; i++) s += arr[i];
+}</pre>
+        </div>
+      </div>
+
+      <div>
+        <div class="viz-box">
+          <svg viewBox="0 0 380 320" xmlns="http://www.w3.org/2000/svg">
+            <text x="190" y="20" text-anchor="middle" fill="#8b949e" font-family="JetBrains Mono" font-size="11">Calldata ABI 编码 · transfer(address,uint256)</text>
+
+            <!-- 函数选择器 -->
+            <rect x="30" y="50" width="80" height="50" fill="rgba(126,231,135,0.25)" stroke="#7ee787" stroke-width="1.5" rx="2"/>
+            <text x="70" y="72" text-anchor="middle" fill="#7ee787" font-family="JetBrains Mono" font-size="10" font-weight="700">selector</text>
+            <text x="70" y="88" text-anchor="middle" fill="#e6edf3" font-family="JetBrains Mono" font-size="9">0xa9059cbb</text>
+            <text x="70" y="112" text-anchor="middle" fill="#6e7681" font-family="JetBrains Mono" font-size="8">4 bytes</text>
+
+            <!-- 参数1: address -->
+            <rect x="120" y="50" width="120" height="50" fill="rgba(126,231,135,0.12)" stroke="#7ee787" stroke-width="1" rx="2"/>
+            <text x="180" y="72" text-anchor="middle" fill="#7ee787" font-family="JetBrains Mono" font-size="10">param 1: address</text>
+            <text x="180" y="88" text-anchor="middle" fill="#e6edf3" font-family="JetBrains Mono" font-size="8">0x0000...deadbeef</text>
+            <text x="180" y="112" text-anchor="middle" fill="#6e7681" font-family="JetBrains Mono" font-size="8">32 bytes (左补零)</text>
+
+            <!-- 参数2: uint -->
+            <rect x="250" y="50" width="110" height="50" fill="rgba(126,231,135,0.12)" stroke="#7ee787" stroke-width="1" rx="2"/>
+            <text x="305" y="72" text-anchor="middle" fill="#7ee787" font-family="JetBrains Mono" font-size="10">param 2: uint256</text>
+            <text x="305" y="88" text-anchor="middle" fill="#e6edf3" font-family="JetBrains Mono" font-size="8">0x0000...03e8</text>
+            <text x="305" y="112" text-anchor="middle" fill="#6e7681" font-family="JetBrains Mono" font-size="8">32 bytes</text>
+
+            <!-- 字节计数 -->
+            <text x="30" y="130" fill="#6e7681" font-family="JetBrains Mono" font-size="9">offset: 0x00</text>
+            <text x="120" y="130" fill="#6e7681" font-family="JetBrains Mono" font-size="9">0x04</text>
+            <text x="250" y="130" fill="#6e7681" font-family="JetBrains Mono" font-size="9">0x24</text>
+
+            <!-- 内存dump展示 -->
+            <text x="30" y="165" fill="#8b949e" font-family="JetBrains Mono" font-size="10" font-weight="700">原始字节 (hex):</text>
+            <rect x="30" y="175" width="330" height="100" fill="#010409" stroke="#30363d" stroke-width="1" rx="4"/>
+            <text x="42" y="198" fill="#7ee787" font-family="JetBrains Mono" font-size="10">a9059cbb</text>
+            <text x="42" y="218" fill="#e6edf3" font-family="JetBrains Mono" font-size="10">00000000000000000000000000000000</text>
+            <text x="42" y="234" fill="#e6edf3" font-family="JetBrains Mono" font-size="10">000000000000000000000000deadbeef</text>
+            <text x="42" y="254" fill="#e6edf3" font-family="JetBrains Mono" font-size="10">00000000000000000000000000000000</text>
+            <text x="42" y="270" fill="#e6edf3" font-family="JetBrains Mono" font-size="10">000000000000000000000000000003e8</text>
+
+            <!-- Gas 标注 -->
+            <text x="200" y="198" fill="#f0b429" font-family="JetBrains Mono" font-size="9">← selector 的 4 个非零字节：4 × 16 = 64 gas</text>
+            <text x="200" y="234" fill="#f0b429" font-family="JetBrains Mono" font-size="9">← 零字节 × 4 gas (便宜)</text>
+          </svg>
+        </div>
+        <p style="font-size:12px;color:var(--text-mute);margin-top:12px;text-align:center;">
+          函数选择器 = keccak256("transfer(address,uint256)") 的前 4 字节 = 0xa9059cbb
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ Transient ============ -->
+<section id="transient" class="storage-section">
+  <div class="container">
+    <div class="storage-header">
+      <span class="storage-badge" style="background:rgba(57,197,207,0.15);color:var(--transient);border:1px solid rgba(57,197,207,0.3)">06 · TRANSIENT</span>
+      <div>
+        <div class="storage-title" style="color:var(--transient)">Transient Storage — 瞬时存储</div>
+        <div class="storage-analogy">类比 C++: <strong>thread_local 变量 / 请求级缓存</strong>（同一交易内同一合约的调用帧可共享，交易结束清零）</div>
+      </div>
+    </div>
+
+    <div class="storage-body">
+      <div class="storage-text">
+        <p>
+          Transient Storage 由 <strong>EIP-1153</strong> 引入，并随 Ethereum 的 Cancun/Deneb 升级启用。
+          它的语义是：<strong>同一笔交易内持久化，交易结束后自动清零</strong>。
+          但它不是“所有合约共享的一张临时表”：每个合约拥有独立的 transient storage，只有属于同一合约的相关调用帧才能共享该合约的 transient state。
+        </p>
+        <p>
+          在 Transient 出现之前，如果你想在一笔交易的多次内部调用间共享数据（如重入锁），
+          只能用 Storage（贵）或把数据通过参数传来传去（麻烦）。Transient 提供了廉价的交易级共享存储。
+        </p>
+        <ul>
+          <li><strong>引入</strong>：EIP-1153，随 2024 年 3 月的 Cancun/Deneb 升级启用</li>
+          <li><strong>核心指令</strong>：TLOAD (读)、TSTORE (写)，操作码与 SLOAD/SSTORE 同构</li>
+          <li><strong>Gas</strong>：TLOAD 100 gas，TSTORE 100 gas（比 Storage 冷读便宜 21 倍）</li>
+          <li><strong>生命周期</strong>：交易开始时为空；同一合约的调用帧在交易内共享；交易结束清零</li>
+          <li><strong>典型用途</strong>：重入锁、交易内缓存、权限标记、批量操作的中间状态</li>
+          <li><strong>不持久化</strong>：不会写入持久状态树；调用帧回滚会回滚该帧及其嵌套调用对 transient state 的修改</li>
+        </ul>
+
+        <div class="code-block">
+          <div class="code-header">
+            <div class="dots"><span></span><span></span><span></span></div>
+            <span>Solidity 0.8.24+ / EVM Cancun+ · transient 关键字 (重入锁)</span>
+          </div>
+          <pre><span class="kw">contract</span> <span class="type">ReentrancyGuard</span> {
+    <span class="cmt">// 交易级变量, 交易结束自动归零</span>
+    <span class="type">uint256</span> <span class="kw">private</span> <span class="loc">transient</span> _status;
+
+    <span class="kw">modifier</span> <span class="fn">nonReentrant</span>() {
+        <span class="kw">require</span>(_status == <span class="num">0</span>, <span class="str">"Reentrancy"</span>);
+        _status = <span class="num">1</span>;   <span class="cmt">// TSTORE, 100 gas</span>
+        _;
+        _status = <span class="num">0</span>;   <span class="cmt">// 必须在本次调用结束时解锁，保证同一交易内可再次组合调用</span>
+    }
+}</pre>
+        </div>
+      </div>
+
+      <div>
+        <div class="viz-box">
+          <svg viewBox="0 0 380 340" xmlns="http://www.w3.org/2000/svg">
+            <text x="190" y="20" text-anchor="middle" fill="#8b949e" font-family="JetBrains Mono" font-size="11">Transient 生命周期 · 同一合约交易内共享</text>
+
+            <!-- 时间轴 -->
+            <line x1="40" y1="170" x2="340" y2="170" stroke="#30363d" stroke-width="2"/>
+            <circle cx="40" cy="170" r="5" fill="#39c5cf"/>
+            <circle cx="340" cy="170" r="5" fill="#39c5cf"/>
+
+            <text x="40" y="195" text-anchor="middle" fill="#39c5cf" font-family="JetBrains Mono" font-size="10" font-weight="700">交易开始</text>
+            <text x="40" y="210" text-anchor="middle" fill="#6e7681" font-family="JetBrains Mono" font-size="9">Transient = ∅</text>
+
+            <text x="340" y="195" text-anchor="middle" fill="#39c5cf" font-family="JetBrains Mono" font-size="10" font-weight="700">交易结束</text>
+            <text x="340" y="210" text-anchor="middle" fill="#6e7681" font-family="JetBrains Mono" font-size="9">Transient 清零</text>
+
+            <!-- 内部调用 -->
+            <rect x="80" y="60" width="70" height="40" fill="rgba(57,197,207,0.15)" stroke="#39c5cf" stroke-width="1" rx="4"/>
+            <text x="115" y="78" text-anchor="middle" fill="#39c5cf" font-family="JetBrains Mono" font-size="9">外部调用</text>
+            <text x="115" y="92" text-anchor="middle" fill="#8b949e" font-family="JetBrains Mono" font-size="8">TSTORE(k,v)</text>
+
+            <rect x="160" y="60" width="70" height="40" fill="rgba(57,197,207,0.15)" stroke="#39c5cf" stroke-width="1" rx="4"/>
+            <text x="195" y="78" text-anchor="middle" fill="#39c5cf" font-family="JetBrains Mono" font-size="9">内部调用1</text>
+            <text x="195" y="92" text-anchor="middle" fill="#8b949e" font-family="JetBrains Mono" font-size="8">TLOAD(k) → v</text>
+
+            <rect x="240" y="60" width="70" height="40" fill="rgba(57,197,207,0.15)" stroke="#39c5cf" stroke-width="1" rx="4"/>
+            <text x="275" y="78" text-anchor="middle" fill="#39c5cf" font-family="JetBrains Mono" font-size="9">内部调用2</text>
+            <text x="275" y="92" text-anchor="middle" fill="#8b949e" font-family="JetBrains Mono" font-size="8">TLOAD(k) → v</text>
+
+            <!-- 共享区域 -->
+            <rect x="80" y="120" width="230" height="30" fill="rgba(57,197,207,0.08)" stroke="#39c5cf" stroke-width="1" stroke-dasharray="4,2" rx="4"/>
+            <text x="195" y="140" text-anchor="middle" fill="#39c5cf" font-family="JetBrains Mono" font-size="10">同一合约的调用帧共享其 Transient 空间</text>
+
+            <!-- 对比 Storage -->
+            <text x="40" y="250" fill="#8b949e" font-family="JetBrains Mono" font-size="10" font-weight="700">与 Storage 对比:</text>
+
+            <rect x="40" y="265" width="150" height="55" fill="rgba(188,140,255,0.1)" stroke="#bc8cff" stroke-width="1" rx="4"/>
+            <text x="115" y="285" text-anchor="middle" fill="#bc8cff" font-family="JetBrains Mono" font-size="10" font-weight="700">Storage SSTORE</text>
+            <text x="115" y="302" text-anchor="middle" fill="#f0b429" font-family="JetBrains Mono" font-size="12" font-weight="700">~20,000 gas</text>
+            <text x="115" y="315" text-anchor="middle" fill="#6e7681" font-family="JetBrains Mono" font-size="8">持久化到状态树</text>
+
+            <rect x="200" y="265" width="150" height="55" fill="rgba(57,197,207,0.1)" stroke="#39c5cf" stroke-width="1" rx="4"/>
+            <text x="275" y="285" text-anchor="middle" fill="#39c5cf" font-family="JetBrains Mono" font-size="10" font-weight="700">Transient TSTORE</text>
+            <text x="275" y="302" text-anchor="middle" fill="#f0b429" font-family="JetBrains Mono" font-size="12" font-weight="700">100 gas</text>
+            <text x="275" y="315" text-anchor="middle" fill="#6e7681" font-family="JetBrains Mono" font-size="8">交易结束清零</text>
+          </svg>
+        </div>
+        <p style="font-size:12px;color:var(--text-mute);margin-top:12px;text-align:center;">
+          TSTORE 的基础费用为 100 gas；相较 20,000 gas 的 SSTORE“零→非零”基础费用约为 1/200，但两者并非所有场景都如此
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 生命周期 ============ -->
+<section id="lifecycle">
+  <div class="container">
+    <div class="section-label">07 · 生命周期对比</div>
+    <h2>谁在什么时候消失？</h2>
+    <p>
+      理解这些数据区域最关键的一点是<strong>生命周期</strong>。C++ 里你要关心栈变量何时出作用域、堆内存何时 delete；
+      EVM 里你要关心每笔交易结束时哪些数据还在。下面的时间轴把核心数据区域放在同一条交易生命周期线上对比。
+    </p>
+
+    <div class="lifecycle reveal">
+      <div class="lifecycle-rows">
+        <!-- Stack -->
+        <div class="lifecycle-row">
+          <div class="label" style="color:var(--stack)">Stack</div>
+          <div class="lifecycle-track">
+            <div class="lifecycle-bar" style="left:0%;width:100%;background:var(--stack);opacity:0.7;">每个调用帧独立 · 调用返回后父帧继续执行</div>
+          </div>
+        </div>
+        <!-- Memory -->
+        <div class="lifecycle-row">
+          <div class="label" style="color:var(--memory)">Memory</div>
+          <div class="lifecycle-track">
+            <div class="lifecycle-bar" style="left:0%;width:100%;background:var(--memory);opacity:0.7;">每个调用帧独立 · 调用返回后该帧 Memory 丢弃</div>
+          </div>
+        </div>
+        <!-- Calldata -->
+        <div class="lifecycle-row">
+          <div class="label" style="color:var(--calldata)">Calldata</div>
+          <div class="lifecycle-track">
+            <div class="lifecycle-bar" style="left:0%;width:100%;background:var(--calldata);opacity:0.7;">当前调用的输入 · 子调用有各自的 calldata</div>
+          </div>
+        </div>
+        <!-- Transient -->
+        <div class="lifecycle-row">
+          <div class="label" style="color:var(--transient)">Transient</div>
+          <div class="lifecycle-track">
+            <div class="lifecycle-bar" style="left:0%;width:100%;background:var(--transient);opacity:0.7;">整笔交易 · 同一合约调用共享 · 交易结束清零</div>
+          </div>
+        </div>
+        <!-- Storage -->
+        <div class="lifecycle-row">
+          <div class="label" style="color:var(--storage)">Storage</div>
+          <div class="lifecycle-track">
+            <div class="lifecycle-bar" style="left:0%;width:100%;background:var(--storage);opacity:0.7;">成功提交后跨交易保留 · 后续状态修改可改变或清零</div>
+          </div>
+        </div>
+        <!-- Code -->
+        <div class="lifecycle-row">
+          <div class="label" style="color:var(--code)">Code</div>
+          <div class="lifecycle-track">
+            <div class="lifecycle-bar" style="left:0%;width:100%;background:var(--code);opacity:0.7;">部署后作为地址代码执行 · 通常不可变；DELEGATECALL 只是让当前帧执行目标代码</div>
+          </div>
+        </div>
+      </div>
+      <div class="lifecycle-labels">
+        <span>交易开始</span>
+        <span>执行中 (多次内部调用)</span>
+        <span>交易结束</span>
+      </div>
+    </div>
+
+    <div style="margin-top:40px;">
+      <h3 style="color:var(--accent);margin-bottom:16px;">Solidity 数据位置关键字速查</h3>
+      <div class="gas-table-wrap">
+        <table class="gas-table">
+          <thead>
+            <tr>
+              <th>关键字</th>
+              <th>存储区域</th>
+              <th>可变性</th>
+              <th>生命周期</th>
+              <th>适用场景</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="op" style="color:var(--storage)">storage</td>
+              <td>Storage (状态树)</td>
+              <td>读写</td>
+              <td>永久</td>
+              <td>合约状态变量</td>
+            </tr>
+            <tr>
+              <td class="op" style="color:var(--memory)">memory</td>
+              <td>Memory (字节数组)</td>
+              <td>读写</td>
+              <td>当前调用帧</td>
+              <td>局部变量、返回值、可变参数</td>
+            </tr>
+            <tr>
+              <td class="op" style="color:var(--calldata)">calldata</td>
+              <td>Calldata (调用数据)</td>
+              <td>只读</td>
+              <td>当前调用</td>
+              <td>external 函数的数组/结构体参数；也可作为只读输入避免拷贝</td>
+            </tr>
+            <tr>
+              <td class="op" style="color:var(--transient)">transient</td>
+              <td>Transient Storage</td>
+              <td>读写</td>
+              <td>整笔交易</td>
+              <td>重入锁、交易内缓存 (0.8.24+)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ Gas ============ -->
+<section id="gas">
+  <div class="container">
+    <div class="section-label">08 · Gas 成本对比</div>
+    <h2>读写一次要花多少钱？</h2>
+    <p>
+      在 EVM 里，每一次存储访问都有明确的 Gas 标价。理解 Gas 成本是写出高效合约的关键。
+      下面是各存储区域核心操作的 Gas 对比（注意：Storage 写操作有复杂的退款机制，这里给的是典型值）。
+    </p>
+
+    <div class="gas-chart reveal">
+      <div class="gas-chart-title">单次 opcode / 操作基础 Gas 对比（并非所有场景的完整最终成本）</div>
+
+      <div class="gas-bar-row">
+        <div class="name" style="color:var(--stack)">PUSH</div>
+        <div class="gas-bar-track"><div class="gas-bar-fill" style="width:3%;background:var(--stack);">3</div></div>
+        <div class="val">3</div>
+      </div>
+      <div class="gas-bar-row">
+        <div class="name" style="color:var(--stack)">POP</div>
+        <div class="gas-bar-track"><div class="gas-bar-fill" style="width:2%;background:var(--stack);">2</div></div>
+        <div class="val">2</div>
+      </div>
+      <div class="gas-bar-row">
+        <div class="name" style="color:var(--memory)">MLOAD</div>
+        <div class="gas-bar-track"><div class="gas-bar-fill" style="width:3%;background:var(--memory);">3</div></div>
+        <div class="val">3</div>
+      </div>
+      <div class="gas-bar-row">
+        <div class="name" style="color:var(--memory)">MSTORE</div>
+        <div class="gas-bar-track"><div class="gas-bar-fill" style="width:3%;background:var(--memory);">3</div></div>
+        <div class="val">3</div>
+      </div>
+      <div class="gas-bar-row">
+        <div class="name" style="color:var(--calldata)">CALLDATALOAD</div>
+        <div class="gas-bar-track"><div class="gas-bar-fill" style="width:3%;background:var(--calldata);">3</div></div>
+        <div class="val">3</div>
+      </div>
+      <div class="gas-bar-row">
+        <div class="name" style="color:var(--transient)">TLOAD</div>
+        <div class="gas-bar-track"><div class="gas-bar-fill" style="width:5%;background:var(--transient);">100</div></div>
+        <div class="val">100</div>
+      </div>
+      <div class="gas-bar-row">
+        <div class="name" style="color:var(--transient)">TSTORE</div>
+        <div class="gas-bar-track"><div class="gas-bar-fill" style="width:5%;background:var(--transient);">100</div></div>
+        <div class="val">100</div>
+      </div>
+      <div class="gas-bar-row">
+        <div class="name" style="color:var(--storage)">SLOAD (热)</div>
+        <div class="gas-bar-track"><div class="gas-bar-fill" style="width:5%;background:var(--storage);">100</div></div>
+        <div class="val">100</div>
+      </div>
+      <div class="gas-bar-row">
+        <div class="name" style="color:var(--storage)">SLOAD (冷)</div>
+        <div class="gas-bar-track"><div class="gas-bar-fill" style="width:11%;background:var(--storage);">2100</div></div>
+        <div class="val">2,100</div>
+      </div>
+      <div class="gas-bar-row">
+        <div class="name" style="color:var(--storage)">SSTORE (常见改值)</div>
+        <div class="gas-bar-track"><div class="gas-bar-fill" style="width:25%;background:var(--storage);">5000*</div></div>
+        <div class="val">5,000*</div>
+      </div>
+      <div class="gas-bar-row">
+        <div class="name" style="color:var(--storage)">SSTORE (零→非零)</div>
+        <div class="gas-bar-track"><div class="gas-bar-fill" style="width:100%;background:var(--storage);">20000*</div></div>
+        <div class="val">20,000*</div>
+      </div>
+    </div>
+
+    <div class="gas-table-wrap" style="margin-top:32px;">
+      <table class="gas-table">
+        <thead>
+          <tr>
+            <th>操作</th>
+            <th>Opcode</th>
+            <th>Gas</th>
+            <th>说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="op">压栈</td><td>PUSH1~32</td><td class="gas-val">3</td><td>将立即数压入栈顶</td></tr>
+          <tr><td class="op">弹栈</td><td>POP</td><td class="gas-val">2</td><td>弹出栈顶元素</td></tr>
+          <tr><td class="op">内存读</td><td>MLOAD</td><td class="gas-val">3 + 扩展</td><td>从 memory 读 32 字节到栈</td></tr>
+          <tr><td class="op">内存写</td><td>MSTORE</td><td class="gas-val">3 + 扩展</td><td>向 memory 写 32 字节</td></tr>
+          <tr><td class="op">调用数据读</td><td>CALLDATALOAD</td><td class="gas-val">3</td><td>从 calldata 读 32 字节</td></tr>
+          <tr><td class="op">瞬时读</td><td>TLOAD</td><td class="gas-val">100</td><td>EIP-1153, 交易级存储读</td></tr>
+          <tr><td class="op">瞬时写</td><td>TSTORE</td><td class="gas-val">100</td><td>EIP-1153, 交易级存储写</td></tr>
+          <tr><td class="op">状态读(热)</td><td>SLOAD</td><td class="gas-val">100</td><td>本交易已访问过的 slot</td></tr>
+          <tr><td class="op">状态读(冷)</td><td>SLOAD</td><td class="gas-val">2,100</td><td>首次访问的 slot (EIP-2929)</td></tr>
+          <tr><td class="op">状态写(改值)</td><td>SSTORE</td><td class="gas-val">5,000*</td><td>常见非零→非零基础值；冷槽可能再计访问成本</td></tr>
+          <tr><td class="op">状态写(新建)</td><td>SSTORE</td><td class="gas-val">20,000*</td><td>零→非零基础值；冷槽可能再计访问成本</td></tr>
+          <tr><td class="op">状态写(清零)</td><td>SSTORE</td><td class="gas-val">5,000*</td><td>非零→零；退款 4,800 gas，且受退款上限约束</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="code-block" style="margin-top:32px;">
+      <div class="code-header">
+        <div class="dots"><span></span><span></span><span></span></div>
+        <span>Gas 优化核心原则</span>
+      </div>
+      <pre><span class="cmt">// 1. 能用 calldata 就不用 memory (省拷贝)</span>
+<span class="cmt">// 2. 能在 Stack / Memory 中完成的计算，尽量不要反复访问 Storage</span>
+<span class="cmt">// 3. 需要同一合约内跨调用帧共享时，可考虑 transient（需注意交易级生命周期）</span>
+<span class="cmt">// 4. 打包小变量到同一个 slot (uint128+uint128 = 1 次 SSTORE)</span>
+<span class="cmt">// 5. 循环内缓存 storage 变量到 memory, 循环结束写回一次</span>
+
+<span class="cmt">// 反面教材: 循环内每次都 SLOAD + SSTORE</span>
+<span class="kw">for</span> (<span class="type">uint</span> i = <span class="num">0</span>; i &lt; n; i++) {
+    count = count + <span class="num">1</span>;  <span class="cmt">// 每次都访问 Storage! 贵!</span>
+}
+
+<span class="cmt">// 正确做法: 用局部标量变量累加，最后写回一次（通常由编译器放在 Stack）</span>
+<span class="type">uint</span> _count = count;  <span class="cmt">// 1 次 SLOAD；标量局部变量通常由编译器放在 Stack</span>
+<span class="kw">for</span> (<span class="type">uint</span> i = <span class="num">0</span>; i &lt; n; i++) {
+    _count = _count + <span class="num">1</span>;  <span class="cmt">// 主要是 Stack 上的局部计算</span>
+}
+count = _count;  <span class="cmt">// 1 次 SSTORE</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 常见陷阱 ============ -->
+<section id="traps">
+  <div class="container">
+    <div class="section-label">09 · 常见陷阱</div>
+    <h2>C++ 程序员最容易踩的坑</h2>
+    <p>从 C++ 转到 Solidity，有几个思维定式会让你写出昂贵甚至有安全漏洞的代码。</p>
+
+    <div class="trap-grid reveal">
+      <div class="trap-card">
+        <h4>Storage 指针 vs Memory 拷贝</h4>
+        <p>C++ 里引用和指针很直观，但 Solidity 中 <code>storage</code> 类型的局部变量是<strong>指向状态的引用</strong>，修改它直接写 Storage；<code>memory</code> 是独立拷贝。声明时漏写 <code>memory</code> 可能意外修改状态。</p>
+      </div>
+      <div class="trap-card">
+        <h4>没有 free，也没有 GC</h4>
+        <p>C++ 里你要关心堆资源生命周期；EVM Memory 则随调用帧结束丢弃。反过来：<strong>Storage 状态不会因为交易结束自动释放</strong>。删除值可以产生有限退款，但逻辑上的 slot 仍可再次写入；而且零值槽通常不会以一个显式条目存在于状态 Trie 中。</p>
+      </div>
+      <div class="trap-card">
+        <h4>Memory 不是无限的</h4>
+        <p>C++ 堆有几个 GB，EVM Memory 受 Gas 限制。扩展成本是二次方的，分配 MB 级内存会耗尽 Gas。大数组处理要分批或用 Calldata 直接读。</p>
+      </div>
+      <div class="trap-card">
+        <h4>Calldata 不是数组</h4>
+        <p>虽然 <code>calldata</code> 数组看起来和 <code>memory</code> 数组用法一样，但它<strong>不可修改</strong>。尝试 <code>arr[0] = x</code> 会编译失败。需要修改时先拷贝到 memory。</p>
+      </div>
+      <div class="trap-card">
+        <h4>Proxy Storage Layout 冲突</h4>
+        <p>代理合约通过 <code>DELEGATECALL</code> 让实现代码在代理合约的 Storage 上运行。若实现代码与代理的状态布局不兼容，可能发生<strong>Storage Layout 冲突</strong>并覆盖错误槽位，进而造成严重安全问题。现代代理通常使用 EIP-1967、ERC-7201 等约定降低此类风险。</p>
+      </div>
+      <div class="trap-card">
+        <h4>Transient 不跨交易</h4>
+        <p>Transient 看起来像"便宜的 Storage"，但它<strong>交易结束就清零</strong>。不能用来存用户余额、授权状态等需要持久化的数据。它只适合重入锁、一次性标记等交易级场景。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 总结 ============ -->
+<section id="summary">
+  <div class="container">
+    <div class="section-label">10 · 总结</div>
+    <h2>一图记住 EVM 存储</h2>
+    <p>
+      把 EVM 想象成一个<strong>确定性的状态转换环境</strong>：执行从当前区块链状态、交易和执行环境出发，
+      在调用帧自己的 Stack / Memory / Calldata 上工作，同时按合约访问 Storage 和 Transient Storage。
+      交易成功后，持久状态修改才会提交；Stack、Memory、Calldata 随各自调用帧结束而丢弃，Transient Storage 在交易结束清零。
+    </p>
+
+    <div class="compare-wrap reveal">
+      <div class="compare-title">EVM 存储决策树 · 我该用哪个？</div>
+      <svg viewBox="0 0 800 340" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:800px;">
+        <!-- 根节点 -->
+        <rect x="320" y="20" width="160" height="44" rx="8" fill="rgba(240,180,41,0.15)" stroke="#f0b429" stroke-width="1.5"/>
+        <text x="400" y="47" text-anchor="middle" fill="#f0b429" font-family="JetBrains Mono" font-size="13" font-weight="700">需要存储数据？</text>
+
+        <!-- 左分支: 不需要持久 -->
+        <line x1="340" y1="64" x2="180" y2="100" stroke="#30363d" stroke-width="1.5"/>
+        <text x="240" y="80" fill="#8b949e" font-family="JetBrains Mono" font-size="10">否 (临时)</text>
+
+        <rect x="80" y="100" width="200" height="40" rx="6" fill="rgba(88,166,255,0.12)" stroke="#58a6ff" stroke-width="1"/>
+        <text x="180" y="125" text-anchor="middle" fill="#58a6ff" font-family="JetBrains Mono" font-size="12" font-weight="700">运算操作数 → Stack</text>
+
+        <line x1="180" y1="140" x2="180" y2="170" stroke="#30363d" stroke-width="1.5"/>
+        <rect x="80" y="170" width="200" height="40" rx="6" fill="rgba(240,136,62,0.12)" stroke="#f0883e" stroke-width="1"/>
+        <text x="180" y="195" text-anchor="middle" fill="#f0883e" font-family="JetBrains Mono" font-size="12" font-weight="700">局部变量/缓冲区 → Memory</text>
+
+        <line x1="180" y1="210" x2="180" y2="240" stroke="#30363d" stroke-width="1.5"/>
+        <rect x="80" y="240" width="200" height="40" rx="6" fill="rgba(126,231,135,0.12)" stroke="#7ee787" stroke-width="1"/>
+        <text x="180" y="265" text-anchor="middle" fill="#7ee787" font-family="JetBrains Mono" font-size="12" font-weight="700">函数输入参数 → Calldata</text>
+
+        <!-- 右分支: 需要持久 -->
+        <line x1="460" y1="64" x2="620" y2="100" stroke="#30363d" stroke-width="1.5"/>
+        <text x="560" y="80" fill="#8b949e" font-family="JetBrains Mono" font-size="10">是</text>
+
+        <rect x="520" y="100" width="200" height="40" rx="6" fill="rgba(240,180,41,0.1)" stroke="#f0b429" stroke-width="1"/>
+        <text x="620" y="125" text-anchor="middle" fill="#f0b429" font-family="JetBrains Mono" font-size="12" font-weight="700">需要跨交易保留？</text>
+
+        <line x1="560" y1="140" x2="500" y2="170" stroke="#30363d" stroke-width="1.5"/>
+        <text x="510" y="158" fill="#8b949e" font-family="JetBrains Mono" font-size="10">否</text>
+        <rect x="400" y="170" width="180" height="40" rx="6" fill="rgba(57,197,207,0.12)" stroke="#39c5cf" stroke-width="1"/>
+        <text x="490" y="195" text-anchor="middle" fill="#39c5cf" font-family="JetBrains Mono" font-size="12" font-weight="700">交易内共享 → Transient</text>
+
+        <line x1="680" y1="140" x2="700" y2="170" stroke="#30363d" stroke-width="1.5"/>
+        <text x="695" y="158" fill="#8b949e" font-family="JetBrains Mono" font-size="10">是</text>
+        <rect x="610" y="170" width="170" height="40" rx="6" fill="rgba(188,140,255,0.15)" stroke="#bc8cff" stroke-width="1.5"/>
+        <text x="695" y="195" text-anchor="middle" fill="#bc8cff" font-family="JetBrains Mono" font-size="12" font-weight="700">合约状态 → Storage</text>
+
+        <!-- 底部: Code -->
+        <rect x="300" y="270" width="200" height="40" rx="6" fill="rgba(255,123,114,0.12)" stroke="#ff7b72" stroke-width="1"/>
+        <text x="400" y="295" text-anchor="middle" fill="#ff7b72" font-family="JetBrains Mono" font-size="12" font-weight="700">合约字节码 → Code (只读, 部署时确定)</text>
+      </svg>
+    </div>
+
+    <div style="margin-top:48px;padding:32px;background:var(--bg-elev);border:1px solid var(--border);border-radius:12px;">
+      <h3 style="color:var(--accent);margin-bottom:16px;">核心记忆口诀</h3>
+      <div style="font-family:var(--font-mono);font-size:15px;line-height:2.2;color:var(--text);">
+        <p style="margin:0;"><span style="color:var(--stack)">Stack</span> = 运算工作台，弹弹压压，3 gas</p>
+        <p style="margin:0;"><span style="color:var(--memory)">Memory</span> = 调用帧便签纸，写完即丢，3 gas + 内存扩展费</p>
+        <p style="margin:0;"><span style="color:var(--storage)">Storage</span> = 持久化状态，昂贵；SSTORE 成本取决于状态变化和槽位冷热</p>
+        <p style="margin:0;"><span style="color:var(--calldata)">Calldata</span> = 只读信封，调用方给的，零字节便宜</p>
+        <p style="margin:0;"><span style="color:var(--transient)">Transient</span> = 同一合约交易内白板，帧间可共享，100 gas</p>
+        <p style="margin:0;"><span style="color:var(--code)">Code</span> = 合约本身，只读，部署定终身</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ Footer ============ -->
+<footer class="footer">
+  <div class="container">
+    <p style="margin:0;">EVM Storage Internals · 从 C++ 程序员视角理解以太坊虚拟机</p>
+    <p style="margin:8px 0 0 0;font-size:11px;">参考: Ethereum Yellow Paper · EIP-1153 · EIP-2028 · EIP-2929 · EIP-3529 · EIP-6780 · Solidity Documentation</p>
+  </div>
+</footer>
+
+<script>
+// 滚动揭示动画
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+// Gas 柱状图动画
+const gasObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const fills = entry.target.querySelectorAll('.gas-bar-fill');
+      fills.forEach(fill => {
+        const w = fill.style.width;
+        fill.style.width = '0%';
+        setTimeout(() => { fill.style.width = w; }, 100);
+      });
+      gasObserver.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.3 });
+
+document.querySelectorAll('.gas-chart').forEach(el => gasObserver.observe(el));
+</script>
+
+</body>
+</html>
