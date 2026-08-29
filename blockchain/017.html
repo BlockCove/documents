@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Merkle Tree 构建与证明完全指南</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --accent: #58a6ff;
+    --accent2: #3fb950;
+    --warn: #d29922;
+    --danger: #f85149;
+    --code-bg: #0d1117;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 0;
+  }
+  .container { max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+  header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 32px;
+    margin-bottom: 40px;
+  }
+  h1 {
+    font-size: 2.2em;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 12px;
+  }
+  .subtitle { color: var(--text-dim); font-size: 1.05em; }
+  h2 {
+    font-size: 1.6em;
+    margin: 48px 0 20px;
+    padding-left: 14px;
+    border-left: 4px solid var(--accent);
+    color: var(--text);
+  }
+  h3 {
+    font-size: 1.25em;
+    margin: 32px 0 14px;
+    color: var(--accent);
+  }
+  h4 {
+    font-size: 1.05em;
+    margin: 20px 0 10px;
+    color: var(--accent2);
+  }
+  p { margin-bottom: 14px; }
+  ul, ol { margin: 10px 0 16px 24px; }
+  li { margin-bottom: 6px; }
+  code {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-family: "SF Mono", "Fira Code", Consolas, monospace;
+    font-size: 0.9em;
+    color: var(--warn);
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+    overflow-x: auto;
+    margin: 16px 0;
+    font-size: 0.88em;
+    line-height: 1.6;
+  }
+  pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--text);
+    font-size: 1em;
+  }
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    border-radius: 6px;
+    padding: 16px 20px;
+    margin: 18px 0;
+  }
+  .callout.warn { border-left-color: var(--warn); }
+  .callout.success { border-left-color: var(--accent2); }
+  .callout.danger { border-left-color: var(--danger); }
+  .callout-title {
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--accent);
+  }
+  .callout.warn .callout-title { color: var(--warn); }
+  .callout.success .callout-title { color: var(--accent2); }
+  .callout.danger .callout-title { color: var(--danger); }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 18px 0;
+    font-size: 0.92em;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 10px 14px;
+    text-align: left;
+  }
+  th {
+    background: var(--surface);
+    font-weight: 600;
+    color: var(--accent);
+  }
+  tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+  .mermaid {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    margin: 20px 0;
+    text-align: center;
+    overflow-x: auto;
+  }
+  .step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: var(--accent);
+    color: var(--bg);
+    border-radius: 50%;
+    font-weight: 700;
+    font-size: 0.85em;
+    margin-right: 8px;
+    flex-shrink: 0;
+  }
+  .step { display: flex; align-items: flex-start; margin-bottom: 12px; }
+  .step-content { flex: 1; }
+  .toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 28px;
+    margin-bottom: 40px;
+  }
+  .toc-title { font-weight: 600; margin-bottom: 10px; color: var(--accent); }
+  .toc ol { margin-left: 20px; }
+  .toc a { color: var(--text-dim); text-decoration: none; }
+  .toc a:hover { color: var(--accent); text-decoration: underline; }
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.8em;
+    font-weight: 600;
+    margin-left: 8px;
+  }
+  .badge.perfect { background: rgba(63,185,80,0.15); color: var(--accent2); }
+  .badge.imperfect { background: rgba(210,153,34,0.15); color: var(--warn); }
+  .hash-demo {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin: 14px 0;
+    font-family: "SF Mono", Consolas, monospace;
+    font-size: 0.82em;
+  }
+  .hash-demo .row { display: flex; gap: 10px; margin-bottom: 6px; align-items: center; flex-wrap: wrap; }
+  .hash-demo .label { color: var(--accent); min-width: 80px; }
+  .hash-demo .val { color: var(--warn); word-break: break-all; }
+  .hash-demo .arrow { color: var(--text-dim); }
+  footer {
+    margin-top: 60px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 0.9em;
+    text-align: center;
+  }
+  @media (max-width: 640px) {
+    .container { padding: 20px 14px 60px; }
+    h1 { font-size: 1.6em; }
+    h2 { font-size: 1.3em; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>Merkle Tree 构建与证明完全指南</h1>
+  <p class="subtitle">从 2^n 完美二叉树到非 2^n 叶子集合，逐层拆解不同构建规则与 Merkle Proof 验证机制</p>
+</header>
+
+<div class="toc">
+  <div class="toc-title">目录</div>
+  <ol>
+    <li><a href="#sec1">Merkle Tree 是什么</a></li>
+    <li><a href="#sec2">核心性质与术语</a></li>
+    <li><a href="#sec3">场景一：2^n 个叶子节点（完美二叉树）</a></li>
+    <li><a href="#sec4">场景二：非 2^n 个叶子节点（不平衡树）</a></li>
+    <li><a href="#sec5">Merkle Proof：如何证明一个叶子存在</a></li>
+    <li><a href="#sec6">Proof 验证算法</a></li>
+    <li><a href="#sec7">复杂度分析</a></li>
+    <li><a href="#sec8">完整参考实现（TypeScript）</a></li>
+  </ol>
+</div>
+
+<!-- ==================== 第1节 ==================== -->
+<h2 id="sec1">1. Merkle Tree 是什么</h2>
+<p>
+  Merkle Tree（默克尔树）是一种<strong>哈希二叉树</strong>，由 Ralph Merkle 于 1979 年提出。
+  它将一批数据块（叶子节点）逐层两两哈希，最终汇聚成一个根哈希（Merkle Root）。
+  其核心价值在于：<strong>用一个短小的根哈希代表整批数据，并能以 O(log n) 的代价证明某个数据块属于这批数据</strong>。
+</p>
+
+<div class="callout">
+  <div class="callout-title">典型应用</div>
+  <ul>
+    <li><strong>区块链</strong>：比特币使用 Merkle Tree 汇总区块交易，区块头保存 Merkle Root；以太坊则使用 Merkle-Patricia Trie（MPT）等认证数据结构，其交易根并不是本文这种普通二叉 Merkle Tree。</li>
+    <li><strong>内容寻址 / 数据完整性</strong>：Git、IPFS 等系统广泛使用 Merkle DAG / 哈希链接等结构来验证对象之间的完整性；它们并不都等同于本文的二叉 Merkle Tree。</li>
+    <li><strong>证书透明性</strong>：Certificate Transparency（CT）使用 Merkle Tree（RFC 6962 中定义的 Merkle Hash Tree）记录日志条目，并通过 Merkle Proof 支持包含性证明。</li>
+    <li><strong>零知识证明</strong>：Merkle Tree 是许多 ZK 方案的承诺（commitment）基础。</li>
+  </ul>
+</div>
+
+<!-- ==================== 第2节 ==================== -->
+<h2 id="sec2">2. 核心性质与术语</h2>
+
+<table>
+  <tr><th>术语</th><th>含义</th></tr>
+  <tr><td>Leaf（叶子节点）</td><td>底层数据块的哈希，即 <code>H(data)</code></td></tr>
+  <tr><td>Internal Node（内部节点）</td><td>两个子节点哈希拼接后再哈希：<code>H(left || right)</code></td></tr>
+  <tr><td>Merkle Root（根哈希）</td><td>树顶唯一节点，代表整棵树的指纹</td></tr>
+  <tr><td>Merkle Proof / Audit Path</td><td>从某个叶子到根所<strong>不经过</strong>的兄弟节点哈希序列，用于证明该叶子属于树</td></tr>
+  <tr><td>Domain Separation</td><td>区分叶子哈希与内部节点哈希（如叶子加 <code>0x00</code> 前缀、内部加 <code>0x01</code>），防止第二原像攻击</td></tr>
+</table>
+
+<div class="callout warn">
+  <div class="callout-title">安全提醒：第二原像攻击（Second Preimage Attack）</div>
+  <p>
+    如果叶子哈希与内部节点哈希使用完全相同的算法，攻击者可以把一对 <code>(H(A), H(B))</code> 伪装成一个叶子数据 <code>C</code>，
+    使得 <code>H(C) = H(H(A)||H(B))</code>，从而伪造一个不存在的叶子。
+  </p>
+  <p><strong>防御</strong>：对叶子和内部节点使用不同的哈希前缀（域分离），例如：</p>
+  <ul>
+    <li>叶子：<code>H(0x00 || data)</code></li>
+    <li>内部：<code>H(0x01 || leftHash || rightHash)</code></li>
+  </ul>
+</div>
+
+<!-- ==================== 第3节 ==================== -->
+<h2 id="sec3">3. 场景一：2^n 个叶子节点（完美二叉树）<span class="badge perfect">PERFECT</span></h2>
+
+<p>
+  当叶子数量恰好是 2 的幂（如 2、4、8、16…）时，Merkle Tree 是一棵<strong>完美二叉树</strong>：每一层的节点数都是上一层的一半，最终汇聚到唯一的根。
+</p>
+
+<h3>3.1 构建步骤（以 4 个叶子为例）</h3>
+
+<div class="step"><span class="step-num">1</span><div class="step-content"><strong>计算叶子哈希</strong>：对每个原始数据块分别哈希，得到 4 个叶子节点 <code>L0, L1, L2, L3</code>。</div></div>
+<div class="step"><span class="step-num">2</span><div class="step-content"><strong>第 1 层聚合</strong>：相邻两两配对，<code>N0 = H(L0 || L1)</code>，<code>N1 = H(L2 || L3)</code>，得到 2 个内部节点。</div></div>
+<div class="step"><span class="step-num">3</span><div class="step-content"><strong>第 2 层聚合</strong>：再将这 2 个节点配对，<code>Root = H(N0 || N1)</code>，得到 Merkle Root。</div></div>
+<div class="step"><span class="step-num">4</span><div class="step-content"><strong>终止</strong>：当某层只剩 1 个节点时，该节点即为根，构建结束。</div></div>
+
+<h3>3.2 4 叶子 Merkle Tree 结构图</h3>
+
+<div class="mermaid">
+graph TD
+    Root["Root = H(N0 ‖ N1)"]
+    N0["N0 = H(L0 ‖ L1)"]
+    N1["N1 = H(L2 ‖ L3)"]
+    L0["L0 = H(D0)"]
+    L1["L1 = H(D1)"]
+    L2["L2 = H(D2)"]
+    L3["L3 = H(D3)"]
+    D0["数据块 D0"]:::data
+    D1["数据块 D1"]:::data
+    D2["数据块 D2"]:::data
+    D3["数据块 D3"]:::data
+
+    Root --> N0
+    Root --> N1
+    N0 --> L0
+    N0 --> L1
+    N1 --> L2
+    N1 --> L3
+    L0 --> D0
+    L1 --> D1
+    L2 --> D2
+    L3 --> D3
+
+    classDef root fill:#1a3a5c,stroke:#58a6ff,color:#e6edf3,font-weight:bold
+    classDef internal fill:#1c2a1c,stroke:#3fb950,color:#e6edf3
+    classDef leaf fill:#2a221a,stroke:#d29922,color:#e6edf3
+    classDef data fill:#333,stroke:#666,color:#aaa,stroke-dasharray: 4 2
+    class Root root
+    class N0,N1 internal
+    class L0,L1,L2,L3 leaf
+</div>
+
+<h3>3.3 8 叶子 Merkle Tree（三层结构）</h3>
+
+<div class="mermaid">
+graph TD
+    Root["Root<br/>H(A ‖ B)"]
+    A["A = H(N0 ‖ N1)"]
+    B["B = H(N2 ‖ N3)"]
+    N0["N0 = H(L0 ‖ L1)"]
+    N1["N1 = H(L2 ‖ L3)"]
+    N2["N2 = H(L4 ‖ L5)"]
+    N3["N3 = H(L6 ‖ L7)"]
+    L0["L0"]:::leaf
+    L1["L1"]:::leaf
+    L2["L2"]:::leaf
+    L3["L3"]:::leaf
+    L4["L4"]:::leaf
+    L5["L5"]:::leaf
+    L6["L6"]:::leaf
+    L7["L7"]:::leaf
+
+    Root --> A & B
+    A --> N0 & N1
+    B --> N2 & N3
+    N0 --> L0 & L1
+    N1 --> L2 & L3
+    N2 --> L4 & L5
+    N3 --> L6 & L7
+
+    classDef root fill:#1a3a5c,stroke:#58a6ff,color:#e6edf3,font-weight:bold
+    classDef internal fill:#1c2a1c,stroke:#3fb950,color:#e6edf3
+    classDef leaf fill:#2a221a,stroke:#d29922,color:#e6edf3
+    class Root root
+    class A,B,N0,N1,N2,N3 internal
+</div>
+
+<div class="callout success">
+  <div class="callout-title">完美树的规律</div>
+  <ul>
+    <li>叶子数 = 2^n，则树高 = n（从叶子到根经过 n 次哈希）。</li>
+    <li>当叶子数为 2^n 时，总节点数 = 2^(n+1) - 1；这个公式不适用于奇数复制等非完美树场景。</li>
+    <li>每一层节点数恰好是上一层的 1/2，无需奇数节点处理。</li>
+  </ul>
+</div>
+
+<!-- ==================== 第4节 ==================== -->
+<h2 id="sec4">4. 场景二：非 2^n 个叶子节点（不平衡树）<span class="badge imperfect">IMPERFECT</span></h2>
+
+<p>
+  实际场景中，叶子数量往往不是 2 的幂（例如比特币区块中有 1237 笔交易）。
+  此时无法直接两两配对到根，需要采用特定策略处理"落单"的节点。业界主要有三种方案：
+</p>
+
+<table>
+  <tr><th>策略</th><th>做法</th><th>采用者</th><th>特点</th></tr>
+  <tr>
+    <td><strong>① 复制最后节点</strong><br/>（Odd Duplication）</td>
+    <td>某层节点数为奇数时，将最后一个节点复制一份与自己配对</td>
+    <td>比特币（Bitcoin-style）</td>
+    <td>实现简单；但“复制”会让某些叶子的证明路径包含自配对。注意：复制后未必形成数学意义上的“完美二叉树”，只是每层都通过复制补齐为偶数。</td>
+  </tr>
+  <tr>
+    <td><strong>② 不平衡树 / 直接提升</strong><br/>（Promote Odd Node）</td>
+    <td>奇数节点不复制，直接进入下一层，后续再参与配对</td>
+    <td>一种通用构建方式；具体系统必须以其协议规范为准</td>
+    <td>不会因为奇数节点而复制哈希，但 Proof 编码必须能够表达不同层级的结构</td>
+  </tr>
+  <tr>
+    <td><strong>③ 固定容量 / 零值填充</strong><br/>（Zero Padding）</td>
+    <td>按照协议约定的空节点值，把未使用位置填充到固定容量</td>
+    <td>部分固定深度 Merkle Tree / Sparse Merkle Tree 等方案</td>
+    <td>深度和空节点值通常由协议预先规定；空节点并不等于普通业务数据，编码规则必须明确</td>
+  </tr>
+</table>
+
+<h3>4.1 策略①：复制最后节点（比特币方案）—— 以 5 个叶子为例</h3>
+
+<p>5 个叶子 <code>L0~L4</code>，构建过程：</p>
+
+<div class="step"><span class="step-num">1</span><div class="step-content">第 1 层：5 个节点为奇数，前 4 个两两配对得 <code>N0=H(L0‖L1)</code>、<code>N1=H(L2‖L3)</code>，最后一个 <code>L4</code> <strong>复制自己</strong> 得 <code>N2=H(L4‖L4)</code>。本层共 3 个节点。</div></div>
+<div class="step"><span class="step-num">2</span><div class="step-content">第 2 层：3 个节点仍为奇数，前 2 个配对得 <code>M0=H(N0‖N1)</code>，最后一个 <code>N2</code> 复制自己得 <code>M1=H(N2‖N2)</code>。本层共 2 个节点。</div></div>
+<div class="step"><span class="step-num">3</span><div class="step-content">第 3 层：2 个节点配对得 <code>Root=H(M0‖M1)</code>。构建结束。</div></div>
+
+<div class="mermaid">
+graph TD
+    Root["Root = H(M0 ‖ M1)"]
+    M0["M0 = H(N0 ‖ N1)"]
+    M1["M1 = H(N2 ‖ N2) ⚠️复制"]
+    N0["N0 = H(L0 ‖ L1)"]
+    N1["N1 = H(L2 ‖ L3)"]
+    N2["N2 = H(L4 ‖ L4) ⚠️复制"]
+    L0["L0"]:::leaf
+    L1["L1"]:::leaf
+    L2["L2"]:::leaf
+    L3["L3"]:::leaf
+    L4["L4 ⚠️落单"]:::leafOdd
+
+    Root --> M0 & M1
+    M0 --> N0 & N1
+    M1 --> N2
+    N2 --> L4
+    N0 --> L0 & L1
+    N1 --> L2 & L3
+
+    classDef root fill:#1a3a5c,stroke:#58a6ff,color:#e6edf3,font-weight:bold
+    classDef internal fill:#1c2a1c,stroke:#3fb950,color:#e6edf3
+    classDef dup fill:#3a1c1c,stroke:#f85149,color:#e6edf3
+    classDef leaf fill:#2a221a,stroke:#d29922,color:#e6edf3
+    classDef leafOdd fill:#3a2a1a,stroke:#ff7b72,color:#e6edf3,font-weight:bold
+    class Root root
+    class M0,N0,N1 internal
+    class M1,N2 dup
+    class L0,L1,L2,L3 leaf
+</div>
+
+<div class="callout warn">
+  <div class="callout-title">复制策略的副作用</div>
+  <p>
+    由于 <code>N2 = H(L4 ‖ L4)</code>，知道 <code>L4</code> 的验证者当然可以计算 <code>N2</code>。
+    这并不是“泄露秘密”，因为 Merkle Tree 的叶子通常本来就不是保密机制；真正需要保证的是哈希函数的抗碰撞性以及树构建规则的一致性。
+    复制策略的主要特点是：
+  </p>
+  <ul>
+    <li>树中存在重复使用的节点值，Proof 中可能出现“自己和自己配对”的步骤。</li>
+    <li>比特币的实现中，<strong>只有当节点数为奇数时才复制最后一个节点</strong>，且复制发生在每一层。</li>
+    <li>对于 2^n + 1 个叶子（如 5、9、17…），最后一个叶子会在每一层都被复制，形成一条"复制链"。</li>
+  </ul>
+</div>
+
+<h3>4.2 策略②：不平衡树 / 直接提升 —— 以 5 个叶子为例</h3>
+
+<p>不复制落单节点，而是将其直接提升到上一层：</p>
+
+<div class="step"><span class="step-num">1</span><div class="step-content">第 1 层：前 4 个配对得 <code>N0=H(L0‖L1)</code>、<code>N1=H(L2‖L3)</code>，<code>L4</code> <strong>直接提升</strong>，本层节点为 <code>[N0, N1, L4]</code>（3 个）。</div></div>
+<div class="step"><span class="step-num">2</span><div class="step-content">第 2 层：前 2 个配对得 <code>M0=H(N0‖N1)</code>，<code>L4</code> 再次直接提升，本层节点为 <code>[M0, L4]</code>（2 个）。</div></div>
+<div class="step"><span class="step-num">3</span><div class="step-content">第 3 层：<code>Root=H(M0 ‖ L4)</code>。注意根的右孩子直接是叶子 <code>L4</code>！</div></div>
+
+<div class="mermaid">
+graph TD
+    Root["Root = H(M0 ‖ L4)"]
+    M0["M0 = H(N0 ‖ N1)"]
+    N0["N0 = H(L0 ‖ L1)"]
+    N1["N1 = H(L2 ‖ L3)"]
+    L0["L0"]:::leaf
+    L1["L1"]:::leaf
+    L2["L2"]:::leaf
+    L3["L3"]:::leaf
+    L4["L4 ⬆️直接提升到根"]:::leafPromote
+
+    Root --> M0 & L4
+    M0 --> N0 & N1
+    N0 --> L0 & L1
+    N1 --> L2 & L3
+
+    classDef root fill:#1a3a5c,stroke:#58a6ff,color:#e6edf3,font-weight:bold
+    classDef internal fill:#1c2a1c,stroke:#3fb950,color:#e6edf3
+    classDef leaf fill:#2a221a,stroke:#d29922,color:#e6edf3
+    classDef leafPromote fill:#1a2a3a,stroke:#58a6ff,color:#e6edf3,font-weight:bold
+    class Root root
+    class M0,N0,N1 internal
+    class L4 leafPromote
+</div>
+
+<div class="callout">
+  <div class="callout-title">两种策略的根哈希不同</div>
+  <p>
+    对于同一批 5 个叶子，复制策略的根是 <code>H(H(H(L0‖L1)‖H(L2‖L3)) ‖ H(H(L4‖L4)‖H(L4‖L4)))</code>，
+    而提升策略的根是 <code>H(H(H(L0‖L1)‖H(L2‖L3)) ‖ L4)</code>。
+    <strong>两者不兼容</strong>，验证 Proof 时必须知道树采用了哪种策略。
+  </p>
+</div>
+
+<h3>4.3 策略③：零值填充 —— 以 5 个叶子为例</h3>
+
+<p>补 3 个零值叶子（<code>ZERO = H(0x00)</code> 或约定常量），凑成 8 个，然后按完美树构建：</p>
+
+<div class="mermaid">
+graph TD
+    Root["Root"]
+    A["A"]
+    B["B"]
+    N0["N0"]
+    N1["N1"]
+    N2["N2 = H(L4 ‖ Z0)"]
+    N3["N3 = H(Z1 ‖ Z2)"]
+    L0["L0"]:::leaf
+    L1["L1"]:::leaf
+    L2["L2"]:::leaf
+    L3["L3"]:::leaf
+    L4["L4"]:::leaf
+    Z0["ZERO"]:::zero
+    Z1["ZERO"]:::zero
+    Z2["ZERO"]:::zero
+
+    Root --> A & B
+    A --> N0 & N1
+    B --> N2 & N3
+    N0 --> L0 & L1
+    N1 --> L2 & L3
+    N2 --> L4 & Z0
+    N3 --> Z1 & Z2
+
+    classDef root fill:#1a3a5c,stroke:#58a6ff,color:#e6edf3,font-weight:bold
+    classDef internal fill:#1c2a1c,stroke:#3fb950,color:#e6edf3
+    classDef leaf fill:#2a221a,stroke:#d29922,color:#e6edf3
+    classDef zero fill:#222,stroke:#555,color:#888,stroke-dasharray: 4 2
+    class Root root
+    class A,B,N0,N1,N2,N3 internal
+</div>
+
+<div class="callout warn">
+  <div class="callout-title">零值填充的注意事项</div>
+  <ul>
+    <li>零值叶子必须是<strong>公开约定的常量</strong>，不能是真实数据，否则攻击者可以插入零值数据伪造叶子。</li>
+    <li>适合预先知道最大深度的场景（如 ZK Rollup 中固定深度为 32 的状态树）。</li>
+    <li>空间浪费：5 个叶子要占 8 个位置，且零值子树可以预计算（"零树"优化）。</li>
+  </ul>
+</div>
+
+<h3>4.4 2^n + 1 个叶子的特殊形态</h3>
+<p>
+  当叶子数恰好为 2^n + 1（如 3、5、9、17…）时，在<strong>本文采用的“每层奇数则复制最后节点”规则</strong>下，
+  最后一个叶子会经历多次自复制，形成一条“复制链”。这是理解该构建规则的典型例子。
+  <strong>注意：这不是所有 Merkle Tree 的通用规律，也不应泛化为所有区块链实现。</strong>
+</p>
+<p>以 3 个叶子为例（2^1 + 1）：</p>
+<ul>
+  <li>第 1 层：<code>N0 = H(L0‖L1)</code>，<code>N1 = H(L2‖L2)</code>（复制 L2）</li>
+  <li>根：<code>Root = H(N0 ‖ N1)</code></li>
+</ul>
+
+<!-- ==================== 第5节 ==================== -->
+<h2 id="sec5">5. Merkle Proof：如何证明一个叶子存在</h2>
+
+<p>
+  Merkle Proof（也叫 Audit Path / Inclusion Proof）回答的问题是：
+  <strong>"我手上有一个数据块 D 和一个根哈希 Root，如何在不下载整棵树的情况下，证明 D 对应的叶子在这棵树里？"</strong>
+</p>
+
+<h3>5.1 Proof 的构成</h3>
+<p>
+  证明者需要提供从目标叶子到根路径上，<strong>每一层的兄弟节点哈希</strong>。
+  验证者拿着目标叶子哈希，逐层与兄弟节点哈希配对计算，最终得到根哈希，与已知 Root 比较即可。
+</p>
+
+<div class="callout success">
+  <div class="callout-title">核心直觉</div>
+  <p>
+    要计算根，你需要路径上每一层的"另一个孩子"。这些兄弟节点的哈希就是 Proof 的全部内容。
+    Proof 的长度 = 树高 = O(log n)，与叶子总数无关。
+  </p>
+</div>
+
+<h3>5.2 示例：证明 4 叶子树中的 L1 存在</h3>
+
+<p>目标叶子 <code>L1</code>，已知根 <code>Root</code>。Proof 需要提供：</p>
+<ul>
+  <li>第 1 层兄弟：<code>L0</code>（L1 的左兄弟）</li>
+  <li>第 2 层兄弟：<code>N1</code>（N0 的右兄弟，N0 = H(L0‖L1)）</li>
+</ul>
+
+<p>验证过程：</p>
+<div class="hash-demo">
+  <div class="row"><span class="label">步骤1</span><span class="val">计算 N0 = H(L0 ‖ L1)</span><span class="arrow">← L0 来自 Proof，L1 是目标</span></div>
+  <div class="row"><span class="label">步骤2</span><span class="val">计算 Root' = H(N0 ‖ N1)</span><span class="arrow">← N1 来自 Proof</span></div>
+  <div class="row"><span class="label">步骤3</span><span class="val">比较 Root' === Root ?</span><span class="arrow">← 相等则证明成立</span></div>
+</div>
+
+<div class="mermaid">
+graph TD
+    Root["Root = H(N0 ‖ N1)"]
+    N0["N0 = H(L0 ‖ L1)"]
+    N1["N1 = H(L2 ‖ L3)"]:::proof
+    L0["L0"]:::proof
+    L1["L1 🎯目标"]:::target
+    L2["L2"]:::hidden
+    L3["L3"]:::hidden
+
+    Root --> N0 & N1
+    N0 --> L0 & L1
+    N1 --> L2 & L3
+
+    classDef root fill:#1a3a5c,stroke:#58a6ff,color:#e6edf3,font-weight:bold
+    classDef internal fill:#1c2a1c,stroke:#3fb950,color:#e6edf3
+    classDef target fill:#3a1a3a,stroke:#ff7b72,color:#fff,font-weight:bold,stroke-width:3px
+    classDef proof fill:#1a3a3a,stroke:#58a6ff,color:#e6edf3,stroke-width:2px
+    classDef hidden fill:#222,stroke:#444,color:#666
+    class Root root
+    class N0,N1 internal
+</div>
+
+<p style="color: var(--text-dim); font-size: 0.9em;">
+  图中：🎯红色 = 目标叶子，蓝色 = Proof 中提供的兄弟节点哈希，灰色 = 验证者不需要知道的节点。
+</p>
+
+<h3>5.3 非 2^n 树中的 Proof（复制策略）</h3>
+
+<p>
+  在复制策略的不平衡树中，Proof 可能包含"自己和自己配对"的步骤。
+  以 5 叶子树中证明 <code>L4</code> 存在为例：
+</p>
+
+<ul>
+  <li>第 1 层：<code>N2 = H(L4 ‖ L4)</code>，兄弟是 <code>L4</code> 自己（Proof 中提供 L4，或标记为"复制"）</li>
+  <li>第 2 层：<code>M1 = H(N2 ‖ N2)</code>，兄弟是 <code>N2</code> 自己</li>
+  <li>第 3 层：<code>Root = H(M0 ‖ M1)</code>，兄弟是 <code>M0</code></li>
+</ul>
+
+<div class="mermaid">
+graph TD
+    Root["Root = H(M0 ‖ M1)"]
+    M0["M0 📦Proof兄弟<br/>H(N0 ‖ N1)"]:::proof
+    M1["M1 = H(N2 ‖ N2)<br/>🔁自配对"]
+    N0["N0 = H(L0 ‖ L1)"]:::hidden
+    N1["N1 = H(L2 ‖ L3)"]:::hidden
+    N2["N2 = H(L4 ‖ L4)<br/>🔁自配对"]
+    L0["L0"]:::hidden
+    L1["L1"]:::hidden
+    L2["L2"]:::hidden
+    L3["L3"]:::hidden
+    L4["L4 🎯目标<br/>🔁第1层自配对"]:::target
+
+    Root --> M0 & M1
+    M1 --> N2
+    N2 --> L4
+    M0 --> N0 & N1
+    N0 --> L0 & L1
+    N1 --> L2 & L3
+
+    classDef root fill:#1a3a5c,stroke:#58a6ff,color:#e6edf3,font-weight:bold
+    classDef internal fill:#1c2a1c,stroke:#3fb950,color:#e6edf3
+    classDef target fill:#3a1a3a,stroke:#ff7b72,color:#fff,font-weight:bold,stroke-width:3px
+    classDef proof fill:#1a3a3a,stroke:#58a6ff,color:#e6edf3,stroke-width:2px
+    classDef hidden fill:#222,stroke:#444,color:#666
+    class Root root
+    class M1,N2 internal
+</div>
+
+<p style="color: var(--text-dim); font-size: 0.9em;">
+  图中：🎯红色 = 目标叶子 L4，蓝色 = Proof 中提供的兄弟节点（M0），🔁 = 自配对环节（兄弟即自身，Proof 中可省略或标记为复制），灰色 = 验证者不需要知道的节点。
+</p>
+
+<div class="callout">
+  <div class="callout-title">Proof 的编码方式</div>
+  <p>实际实现中，Proof 通常编码为一个哈希数组 + 一个位置标记（左/右），例如：</p>
+  <pre><code>interface MerkleProof {
+  siblingHashes: Hash[];   // 从叶子到根的兄弟节点哈希
+  positions: boolean[];     // true=兄弟在右边, false=兄弟在左边
+}</code></pre>
+  <p>或者用更紧凑的方式：在每个兄弟哈希前加 1 字节标记（0x00=左，0x01=右）。</p>
+</div>
+
+<!-- ==================== 第6节 ==================== -->
+<h2 id="sec6">6. Proof 验证算法</h2>
+
+<h3>6.1 验证流程伪代码</h3>
+
+<pre><code>function verify(leafHash: Hash, proof: MerkleProof, root: Hash): boolean {
+  let current = leafHash;
+  for (let i = 0; i < proof.siblingHashes.length; i++) {
+    const sibling = proof.siblingHashes[i];
+    const siblingIsRight = proof.positions[i];
+    if (siblingIsRight) {
+      current = hash(concat(current, sibling));  // 自己在左，兄弟在右
+    } else {
+      current = hash(concat(sibling, current));  // 兄弟在左，自己在右
+    }
+  }
+  return current === root;
+}</code></pre>
+
+<h3>6.2 验证流程图</h3>
+
+<div class="mermaid">
+flowchart TD
+    Start(["开始验证"]) --> Init["current = leafHash<br/>i = 0"]
+    Init --> Check{"i < proof.length ?"}
+    Check -->|否| Compare["current === root ?"]
+    Check -->|是| GetSib["取 sibling = proof[i]<br/>取 position = proof.positions[i]"]
+    GetSib --> PosCheck{"sibling 在右边?"}
+    PosCheck -->|是| HashRight["current = H(current ‖ sibling)"]
+    PosCheck -->|否| HashLeft["current = H(sibling ‖ current)"]
+    HashRight --> Inc["i++"]
+    HashLeft --> Inc
+    Inc --> Check
+    Compare -->|是| Valid(["✅ 证明有效"])
+    Compare -->|否| Invalid(["❌ 证明无效"])
+
+    classDef startend fill:#1a3a5c,stroke:#58a6ff,color:#e6edf3,font-weight:bold
+    classDef process fill:#1c2a1c,stroke:#3fb950,color:#e6edf3
+    classDef decision fill:#3a2a1a,stroke:#d29922,color:#e6edf3
+    classDef valid fill:#1a3a1a,stroke:#3fb950,color:#fff,font-weight:bold
+    classDef invalid fill:#3a1a1a,stroke:#f85149,color:#fff,font-weight:bold
+    class Start,Valid,Invalid startend
+    class Init,GetSib,HashRight,HashLeft,Inc process
+    class Check,PosCheck,Compare decision
+</div>
+
+<!-- ==================== 第7节 ==================== -->
+<h2 id="sec7">7. 复杂度分析</h2>
+
+<table>
+  <tr><th>操作</th><th>时间复杂度</th><th>空间复杂度</th><th>说明</th></tr>
+  <tr><td>构建 Merkle Tree</td><td>O(n)</td><td>O(n)</td><td>n 个叶子，总共约 2n 个节点，每个节点计算 1 次哈希</td></tr>
+  <tr><td>生成 Merkle Proof</td><td>O(log n)</td><td>O(log n)</td><td>从叶子到根经过 log n 层，每层取 1 个兄弟哈希</td></tr>
+  <tr><td>验证 Merkle Proof</td><td>O(log n)</td><td>O(1)</td><td>逐层哈希 log n 次，只需常数额外空间</td></tr>
+  <tr><td>更新单个叶子</td><td>O(log n)</td><td>O(log n)</td><td>只需重新计算从该叶子到根路径上的节点</td></tr>
+  <tr><td>比较两棵树的承诺值</td><td>O(1)</td><td>O(1)</td><td>在采用相同构建规则、哈希算法和编码规则的前提下，只需比较 Merkle Root；Root 相等并不意味着可绕过哈希碰撞安全性来证明底层数据逐项相同。</td></tr>
+</table>
+
+<div class="callout success">
+  <div class="callout-title">为什么 Merkle Tree 如此强大</div>
+  <p>
+    对比直接下载全部数据进行验证，Merkle Inclusion Proof 只需要目标数据对应的哈希路径信息。
+    对于平衡二叉树，Proof 大小为 O(log n)。例如 n = 1,000,000 时，二进制对数约为 20；
+    如果每个兄弟哈希为 32 字节，则仅哈希部分约为 640 字节，此外还需要位置/方向信息。
+    这也是 Merkle Proof 适合轻量验证的重要原因之一。
+  </p>
+</div>
+
+<!-- ==================== 第8节 ==================== -->
+<h2 id="sec8">8. 完整参考实现（TypeScript）</h2>
+
+<p>以下实现采用<strong>“奇数时复制最后节点”</strong>的 Bitcoin-style 构建规则，包含构建、Proof 生成与验证。
+<strong>注意：由于代码额外采用了叶子/内部节点域分离，因此它不是 Bitcoin Core 的字节级兼容实现；这里只借鉴其奇数节点复制规则。</strong></p>
+
+<pre><code>import { createHash } from "crypto";
+
+type Hash = Buffer;
+
+/** 域分离：叶子哈希加 0x00 前缀，内部节点加 0x01 前缀 */
+function hashLeaf(data: Buffer): Hash {
+  return createHash("sha256").update(Buffer.from([0x00])).update(data).digest();
+}
+
+function hashInternal(left: Hash, right: Hash): Hash {
+  return createHash("sha256")
+    .update(Buffer.from([0x01]))
+    .update(left)
+    .update(right)
+    .digest();
+}
+
+export interface MerkleProof {
+  /** 从叶子层到根层的兄弟节点哈希 */
+  siblingHashes: Hash[];
+  /** 对应兄弟是否在右侧（true=右，false=左） */
+  siblingOnRight: boolean[];
+}
+
+export class MerkleTree {
+  private leaves: Hash[] = [];
+  private layers: Hash[][] = []; // layers[0] = 叶子层，layers[last] = [root]
+
+  constructor(dataBlocks: Buffer[]) {
+    if (dataBlocks.length === 0) throw new Error("Cannot build tree with zero leaves");
+    this.leaves = dataBlocks.map(hashLeaf);
+    this.build();
+  }
+
+  /** 构建树：逐层两两配对，奇数时复制最后一个节点 */
+  private build(): void {
+    this.layers = [this.leaves];
+    let current = this.leaves;
+    while (current.length > 1) {
+      const next: Hash[] = [];
+      for (let i = 0; i < current.length; i += 2) {
+        const left = current[i];
+        const right = i + 1 < current.length ? current[i + 1] : left; // 奇数时复制自己
+        next.push(hashInternal(left, right));
+      }
+      this.layers.push(next);
+      current = next;
+    }
+  }
+
+  getRoot(): Hash {
+    return this.layers[this.layers.length - 1][0];
+  }
+
+  /** 为指定索引的叶子生成 Merkle Proof */
+  getProof(index: number): MerkleProof {
+    if (index &lt; 0 || index >= this.leaves.length) {
+      throw new Error(`Leaf index ${index} out of range`);
+    }
+    const siblingHashes: Hash[] = [];
+    const siblingOnRight: boolean[] = [];
+    let idx = index;
+    for (let layer = 0; layer &lt; this.layers.length - 1; layer++) {
+      const currentLayer = this.layers[layer];
+      const isRight = idx % 2 === 1;
+      const siblingIdx = isRight ? idx - 1 : idx + 1;
+      // 处理最后一个落单节点：其兄弟是自己（复制）
+      const sibling = siblingIdx &lt; currentLayer.length ? currentLayer[siblingIdx] : currentLayer[idx];
+      siblingHashes.push(sibling);
+      siblingOnRight.push(!isRight); // 如果自己在左(isRight=false)，兄弟在右
+      idx = Math.floor(idx / 2);
+    }
+    return { siblingHashes, siblingOnRight };
+  }
+
+  /** 验证某个数据块的 Proof */
+  static verify(data: Buffer, proof: MerkleProof, root: Hash): boolean {
+    let current = hashLeaf(data);
+    for (let i = 0; i &lt; proof.siblingHashes.length; i++) {
+      const sibling = proof.siblingHashes[i];
+      current = proof.siblingOnRight[i]
+        ? hashInternal(current, sibling)
+        : hashInternal(sibling, current);
+    }
+    return current.equals(root);
+  }
+}
+
+// ========== 使用示例 ==========
+const blocks = ["a", "b", "c", "d", "e"].map((s) => Buffer.from(s));
+const tree = new MerkleTree(blocks);
+const root = tree.getRoot();
+const proof = tree.getProof(4); // 证明 "e" 存在
+const isValid = MerkleTree.verify(Buffer.from("e"), proof, root);
+console.log("Root:", root.toString("hex"));
+console.log("Proof valid:", isValid); // true</code></pre>
+
+<div style="font-family: 'Menlo', 'Monaco', 'Courier New', monospace; background:#1e1e1e; color:#d4d4d4; padding:16px; border-radius:6px; font-size:14px; line-height:1.5;">
+  <div><span style="color:#4ec9b0;">(base)</span> ➜&nbsp;<span style="color:#9cdcfe;">test</span> git:(<span style="color:#569cd6;">main</span>) <span style="color:#4ec9b0;">✗</span> npx tsx main.ts</div>
+  <div>Root: <span style="color:#ce9178;">605c72ca9351dd39f38678f4c1326df06d8fb1a58272792acaf70e8c191fb823</span></div>
+  <div>Proof valid: <span style="color:#4ec9b0;">true</span></div>
+</div>
+
+<div class="callout">
+  <div class="callout-title">实现要点总结</div>
+  <ol>
+    <li><strong>域分离</strong>：叶子和内部节点使用不同前缀，避免不同节点类型之间的编码歧义并增强结构安全性。</li>
+    <li><strong>复制策略</strong>：每层遇到奇数节点时，最后一个节点与自己配对。</li>
+    <li><strong>Proof 生成</strong>：从目标叶子索引出发，逐层找兄弟节点，记录兄弟哈希和左右位置。</li>
+    <li><strong>Proof 验证</strong>：静态方法，只需数据、Proof、根哈希三者，无需整棵树。</li>
+    <li><strong>落单节点的 Proof</strong>：在本文的复制规则下，目标节点如果是某层最后一个落单节点，其兄弟可按协议规则视为自身；实现时必须让证明生成和验证使用完全相同的规则。</li>
+  </ol>
+</div>
+
+<footer>
+  <p>Merkle Tree 构建与证明完全指南 · 基于 SHA-256 与复制最后节点策略 · 可直接用于学习与工程参考</p>
+</footer>
+
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#161b22',
+      primaryTextColor: '#e6edf3',
+      primaryBorderColor: '#30363d',
+      lineColor: '#8b949e',
+      secondaryColor: '#1c2a1c',
+      tertiaryColor: '#0d1117',
+      fontFamily: '-apple-system, "PingFang SC", "Microsoft YaHei", sans-serif',
+      fontSize: '14px'
+    },
+    flowchart: {
+      curve: 'basis',
+      padding: 20,
+      nodeSpacing: 50,
+      rankSpacing: 60
+    }
+  });
+</script>
+</body>
+</html>
