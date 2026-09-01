@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DEX 三明治攻击原理与防范报告</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: #0f1419;
+    color: #e6e6e6;
+    line-height: 1.7;
+    padding: 24px 16px 60px;
+  }
+  .container { max-width: 960px; margin: 0 auto; }
+  header {
+    text-align: center;
+    padding: 40px 20px 32px;
+    border-bottom: 1px solid #2a3340;
+    margin-bottom: 36px;
+  }
+  header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 10px;
+    letter-spacing: 0.5px;
+  }
+  header .subtitle {
+    font-size: 14px;
+    color: #8b98a9;
+  }
+  header .meta {
+    margin-top: 14px;
+    font-size: 12px;
+    color: #5c6b7d;
+  }
+  h2 {
+    font-size: 20px;
+    font-weight: 600;
+    color: #fff;
+    margin: 40px 0 16px;
+    padding-left: 12px;
+    border-left: 4px solid #3b82f6;
+  }
+  h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #d0d7de;
+    margin: 24px 0 12px;
+  }
+  p { margin-bottom: 14px; font-size: 15px; color: #c0c8d4; }
+  .highlight {
+    background: #1a2332;
+    border: 1px solid #2a3a52;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 16px 0;
+  }
+  .highlight.warn {
+    border-left: 4px solid #f59e0b;
+    background: #1f1a12;
+  }
+  .highlight.danger {
+    border-left: 4px solid #ef4444;
+    background: #1f1414;
+  }
+  .highlight.success {
+    border-left: 4px solid #10b981;
+    background: #101f1a;
+  }
+  .highlight strong { color: #fff; }
+  code {
+    background: #1e293b;
+    color: #7dd3fc;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: "SF Mono", "Fira Code", Consolas, monospace;
+  }
+  .formula {
+    text-align: center;
+    font-size: 18px;
+    color: #fbbf24;
+    padding: 14px;
+    background: #1a1f2e;
+    border-radius: 8px;
+    margin: 14px 0;
+    font-family: "Cambria Math", "Times New Roman", serif;
+  }
+  .chart-box {
+    background: #131a24;
+    border: 1px solid #232e3e;
+    border-radius: 10px;
+    padding: 20px;
+    margin: 20px 0;
+    overflow-x: auto;
+  }
+  .chart-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #93c5fd;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .chart-caption {
+    font-size: 12px;
+    color: #6b7a8f;
+    text-align: center;
+    margin-top: 10px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  th, td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid #232e3e;
+  }
+  th {
+    background: #1a2332;
+    color: #93c5fd;
+    font-weight: 600;
+  }
+  td { color: #c0c8d4; }
+  tr:hover td { background: #161e2b; }
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .tag-high { background: #7f1d1d; color: #fca5a5; }
+  .tag-mid { background: #78350f; color: #fcd34d; }
+  .tag-low { background: #14532d; color: #86efac; }
+  ul, ol { margin: 10px 0 14px 24px; }
+  li { margin-bottom: 8px; font-size: 15px; color: #c0c8d4; }
+  li strong { color: #e6e6e6; }
+  .step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: #3b82f6;
+    color: #fff;
+    border-radius: 50%;
+    font-size: 13px;
+    font-weight: 700;
+    margin-right: 8px;
+    flex-shrink: 0;
+  }
+  .step-item {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 12px;
+  }
+  .step-item p { margin-bottom: 0; }
+  footer {
+    margin-top: 50px;
+    padding-top: 24px;
+    border-top: 1px solid #2a3340;
+    text-align: center;
+    font-size: 12px;
+    color: #5c6b7d;
+  }
+  @media (max-width: 640px) {
+    header h1 { font-size: 22px; }
+    h2 { font-size: 18px; }
+    .chart-box { padding: 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>DEX 三明治攻击（Sandwich Attack）</h1>
+  <div class="subtitle">滑点设置过大的风险、攻击原理演算与有效防范手段</div>
+  <div class="meta">知识科普报告 · 基于 AMM 恒定乘积模型 · 示意性数据</div>
+</header>
+
+<!-- ========== 一、滑点 ========== -->
+<h2>一、先搞清楚：什么是滑点？</h2>
+<p>在去中心化交易所（DEX）中，很多流动性池采用<strong>自动做市商（AMM）</strong>机制定价。最经典的模型之一是恒定乘积公式：</p>
+<div class="formula">x × y = k</div>
+<p>其中 <code>x</code> 和 <code>y</code> 分别代表池中两种代币的储备量，<code>k</code> 在理想化的恒定乘积模型中保持不变。实际 Uniswap V3/V4 等集中流动性模型并不是简单地对整个价格区间使用单一的 <code>x × y = k</code>，因此下面的数学例子仅用于解释 AMM 三明治攻击的核心机制。</p>
+
+<div class="highlight">
+  <p><strong>滑点（Slippage）</strong>通常指报价/预期执行价格与最终实际执行价格之间的差异。它和<strong>价格影响（Price Impact）</strong>不是同一个概念：价格影响主要来自你自己的订单改变池子状态；而在等待上链期间，其他交易先执行、市场价格变化等也会导致最终执行价格偏离最初报价。</p>
+  <p>因此，实际成交价格变差，并不等于“全部都是滑点”或“全部都是三明治攻击”；需要区分交易自身的价格影响、市场波动和交易排序造成的额外损失。</p>
+</div>
+
+<p>钱包或 DEX 通常会让你设置<strong>滑点容忍度（Slippage Tolerance）</strong>。在链上，这通常会被转换为最低可接受的输出数量（例如 <code>amountOutMinimum</code>）。如果最终输出低于这个最低值，交易会回滚。具体计算方式因路由器和交易类型而异，因此不能简单理解为所有 DEX 都使用完全相同的“百分比价格阈值”。</p>
+
+<div class="highlight warn">
+  <p><strong>关键认知：</strong>滑点容忍度不是"越大越安全"。它本质上是你给交易留出的"价格容错空间"。这个空间越大，攻击者在你的交易前后做手脚的利润空间就越大。</p>
+</div>
+
+<!-- ========== 二、攻击原理 ========== -->
+<h2>二、三明治攻击是怎么发生的？</h2>
+
+<h3>2.1 攻击者在看什么？</h3>
+<p>在采用<strong>公共交易传播/公共 Mempool</strong>的网络环境中，尚未确认的交易可能被节点和搜索者观察到。以太坊上的搜索者（Searcher）会通过节点、交易流服务等来源寻找潜在的 MEV 机会。需要注意：<strong>并非所有交易都会进入公共 Mempool</strong>；用户也可以通过私有交易流、保护型 RPC 等方式减少公开暴露。</p>
+<p>当搜索者发现一笔潜在可夹击的大额兑换，例如用 100 ETH 买入某个代币，并且交易允许较大的最差成交范围时，就可能评估是否存在可盈利的三明治机会。是否真正执行，还取决于池子深度、费用、Gas、竞争者以及最终可获得的交易排序。</p>
+
+<h3>2.2 三步攻击流程</h3>
+
+<div class="chart-box">
+  <div class="chart-title">图 1 · 三明治攻击时序流程图</div>
+  <svg viewBox="0 0 880 420" width="100%" xmlns="http://www.w3.org/2000/svg" style="min-width:680px;">
+    <defs>
+      <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+        <path d="M0,0 L10,4 L0,8 Z" fill="#6b7a8f"/>
+      </marker>
+      <marker id="arrowRed" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+        <path d="M0,0 L10,4 L0,8 Z" fill="#ef4444"/>
+      </marker>
+      <marker id="arrowGreen" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+        <path d="M0,0 L10,4 L0,8 Z" fill="#10b981"/>
+      </marker>
+      <linearGradient id="victimGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#1e3a5f"/><stop offset="100%" stop-color="#162940"/>
+      </linearGradient>
+      <linearGradient id="attackerGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#5f1e1e"/><stop offset="100%" stop-color="#401616"/>
+      </linearGradient>
+    </defs>
+
+    <!-- 时间轴 -->
+    <line x1="60" y1="380" x2="820" y2="380" stroke="#3a4656" stroke-width="2"/>
+    <text x="440" y="405" text-anchor="middle" fill="#6b7a8f" font-size="12">区块打包顺序（时间从左到右）</text>
+
+    <!-- Mempool 标签 -->
+    <rect x="60" y="20" width="760" height="30" rx="6" fill="#1a2332" stroke="#2a3a52"/>
+    <text x="440" y="40" text-anchor="middle" fill="#8b98a9" font-size="13">公开 Mempool：攻击者扫描到受害者的大额兑换交易（滑点容忍度大）</text>
+
+    <!-- 步骤1：攻击者前置买入 -->
+    <rect x="60" y="80" width="220" height="110" rx="10" fill="url(#attackerGrad)" stroke="#ef4444" stroke-width="1.5"/>
+    <text x="170" y="105" text-anchor="middle" fill="#fca5a5" font-size="13" font-weight="700">① 攻击者 Front-Run</text>
+    <text x="170" y="128" text-anchor="middle" fill="#e6e6e6" font-size="12">提高优先级争取更早执行</text>
+    <text x="170" y="148" text-anchor="middle" fill="#e6e6e6" font-size="12">买入目标代币 TKN</text>
+    <text x="170" y="168" text-anchor="middle" fill="#fbbf24" font-size="12">推高 TKN 价格 ↑</text>
+    <circle cx="170" cy="380" r="5" fill="#ef4444"/>
+    <text x="170" y="370" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="600">Tx A</text>
+
+    <!-- 箭头 1->2 -->
+    <line x1="285" y1="135" x2="335" y2="135" stroke="#6b7a8f" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- 步骤2：受害者交易 -->
+    <rect x="340" y="80" width="200" height="110" rx="10" fill="url(#victimGrad)" stroke="#3b82f6" stroke-width="1.5"/>
+    <text x="440" y="105" text-anchor="middle" fill="#93c5fd" font-size="13" font-weight="700">② 受害者交易执行</text>
+    <text x="440" y="128" text-anchor="middle" fill="#e6e6e6" font-size="12">在被推高的价格上</text>
+    <text x="440" y="148" text-anchor="middle" fill="#e6e6e6" font-size="12">大额买入 TKN</text>
+    <text x="440" y="168" text-anchor="middle" fill="#f87171" font-size="12">成交价格更差，受损</text>
+    <circle cx="440" cy="380" r="5" fill="#3b82f6"/>
+    <text x="440" y="370" text-anchor="middle" fill="#3b82f6" font-size="11" font-weight="600">Tx V（受害者）</text>
+
+    <!-- 箭头 2->3 -->
+    <line x1="545" y1="135" x2="595" y2="135" stroke="#6b7a8f" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- 步骤3：攻击者卖出 -->
+    <rect x="600" y="80" width="220" height="110" rx="10" fill="url(#attackerGrad)" stroke="#10b981" stroke-width="1.5"/>
+    <text x="710" y="105" text-anchor="middle" fill="#86efac" font-size="13" font-weight="700">③ 攻击者 Back-Run</text>
+    <text x="710" y="128" text-anchor="middle" fill="#e6e6e6" font-size="12">紧跟受害者之后打包</text>
+    <text x="710" y="148" text-anchor="middle" fill="#e6e6e6" font-size="12">卖出 TKN 换回 ETH</text>
+    <text x="710" y="168" text-anchor="middle" fill="#86efac" font-size="12">低买高卖，获利 ✓</text>
+    <circle cx="710" cy="380" r="5" fill="#10b981"/>
+    <text x="710" y="370" text-anchor="middle" fill="#10b981" font-size="11" font-weight="600">Tx B</text>
+
+    <!-- 三明治夹注 -->
+    <path d="M100,220 Q440,260 780,220" fill="none" stroke="#f59e0b" stroke-width="2" stroke-dasharray="6,4"/>
+    <text x="440" y="250" text-anchor="middle" fill="#fbbf24" font-size="14" font-weight="700">受害者的交易被两笔攻击交易"夹"在中间 → 三明治</text>
+
+    <!-- Gas 竞争说明 -->
+    <rect x="60" y="290" width="760" height="55" rx="8" fill="#161e2b" stroke="#2a3a52"/>
+    <text x="80" y="312" fill="#93c5fd" font-size="12" font-weight="600">攻击者如何争取顺序？</text>
+    <text x="80" y="332" fill="#a0aec0" font-size="12">攻击者会竞争交易排序权：可能通过更高的优先费用、向构建者提交 bundle / 私有订单流等方式争取 Tx A → Tx V → Tx B 的顺序。顺序并非仅由“Gas Price”决定，也不能保证每次都能精确插入成功。</text>
+  </svg>
+  <div class="chart-caption">图 1 说明：攻击者的两笔交易（前置买入 + 后置卖出）将受害者交易夹在中间，形如三明治。</div>
+</div>
+
+<h3>2.3 为什么滑点设置过大是"帮凶"？</h3>
+<p>三明治攻击要按预期完成，关键条件之一是：<strong>受害者的交易在攻击者制造的不利价格下仍满足最低输出/最大输入等交易约束，而不是回滚。</strong></p>
+<p>例如你最初的报价约为 1 ETH = 1000 TKN，设置 0.5% 的滑点容忍度时，最低可接受输出大致相当于每 ETH 不低于 995 TKN（具体链上校验还取决于路由和报价方式）。如果攻击者把你的可接受成交区间推破这个边界，交易就会回滚，原本的三明治路径通常无法按计划完成。</p>
+<p>但如果你把滑点设置得很宽，例如 5%~10%，攻击者就可能把执行价格明显推向对自己有利、同时仍满足你的最低输出约束的区域。需要注意，攻击者的实际利润并不等于“你允许的滑点百分比 × 交易金额”，还要扣除价格影响、AMM 手续费、Gas/Builder 成本以及竞争成本。</p>
+
+<div class="highlight danger">
+  <p><strong>结论：</strong>滑点容忍度更准确地说是<strong>受害者允许的最差成交边界之一</strong>，不是攻击者“利润上限”的直接等式。边界越宽，攻击者可利用的价格空间通常越大；但最终是否有利润，以及利润多少，还取决于池子曲线、费用、交易规模和排序成本。</p>
+</div>
+
+<!-- ========== 三、数值演算 ========== -->
+<h2>三、数值演算：一笔交易是怎么被"吃掉"的</h2>
+<p>下面用一个<strong>恒定乘积 AMM</strong>的简化例子直观展示价格变化。假设一个 ETH/TKN 池子初始为 100 ETH + 100,000 TKN，因此初始边际价格约为 1 ETH = 1,000 TKN。攻击者先投入 10 ETH，受害者再投入 30 ETH，忽略手续费，并假定两笔交易都按照 <code>x × y = k</code> 执行。这个例子只用于理解机制，不代表 Uniswap V3/V4 的完整价格模型。</p>
+
+<div class="chart-box">
+  <div class="chart-title">图 2 · 三明治攻击前后的价格与持仓变化（示意数据）</div>
+  <svg viewBox="0 0 880 340" width="100%" xmlns="http://www.w3.org/2000/svg" style="min-width:680px;">
+    <defs>
+      <linearGradient id="priceBar" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#3b82f6"/><stop offset="100%" stop-color="#1e40af"/>
+      </linearGradient>
+    </defs>
+
+    <!-- 坐标轴：示意范围 0~1200 TKN/ETH -->
+    <line x1="80" y1="280" x2="830" y2="280" stroke="#3a4656" stroke-width="1.5"/>
+    <line x1="80" y1="40" x2="80" y2="280" stroke="#3a4656" stroke-width="1.5"/>
+    <text x="40" y="160" text-anchor="middle" fill="#8b98a9" font-size="12" transform="rotate(-90,40,160)">TKN / ETH（边际价格）</text>
+
+    <!-- Y轴刻度 -->
+    <text x="72" y="284" text-anchor="end" fill="#6b7a8f" font-size="11">0</text>
+    <text x="72" y="224" text-anchor="end" fill="#6b7a8f" font-size="11">300</text>
+    <text x="72" y="164" text-anchor="end" fill="#6b7a8f" font-size="11">600</text>
+    <text x="72" y="104" text-anchor="end" fill="#6b7a8f" font-size="11">900</text>
+    <text x="72" y="44" text-anchor="end" fill="#6b7a8f" font-size="11">1200</text>
+    <line x1="80" y1="220" x2="830" y2="220" stroke="#1e293b" stroke-width="1" stroke-dasharray="3,3"/>
+    <line x1="80" y1="160" x2="830" y2="160" stroke="#1e293b" stroke-width="1" stroke-dasharray="3,3"/>
+    <line x1="80" y1="100" x2="830" y2="100" stroke="#1e293b" stroke-width="1" stroke-dasharray="3,3"/>
+    <line x1="80" y1="40" x2="830" y2="40" stroke="#1e293b" stroke-width="1" stroke-dasharray="3,3"/>
+
+    <!-- 柱状图：四个阶段的边际价格 -->
+    <rect x="130" y="80" width="80" height="200" rx="4" fill="#3b82f6" opacity="0.7"/>
+    <text x="170" y="68" text-anchor="middle" fill="#93c5fd" font-size="13" font-weight="700">1,000</text>
+    <text x="170" y="300" text-anchor="middle" fill="#8b98a9" font-size="11">初始价格</text>
+    <text x="170" y="316" text-anchor="middle" fill="#6b7a8f" font-size="10">（攻击前）</text>
+
+    <rect x="290" y="115" width="80" height="165" rx="4" fill="#ef4444" opacity="0.8"/>
+    <text x="330" y="103" text-anchor="middle" fill="#fca5a5" font-size="13" font-weight="700">826</text>
+    <text x="330" y="300" text-anchor="middle" fill="#fca5a5" font-size="11">攻击者前置买入后</text>
+    <text x="330" y="316" text-anchor="middle" fill="#6b7a8f" font-size="10">（注入 10 ETH）</text>
+
+    <rect x="450" y="178" width="80" height="102" rx="4" fill="#f59e0b" opacity="0.85"/>
+    <text x="490" y="166" text-anchor="middle" fill="#fcd34d" font-size="13" font-weight="700">510</text>
+    <text x="490" y="300" text-anchor="middle" fill="#fcd34d" font-size="11">受害者买入后</text>
+    <text x="490" y="316" text-anchor="middle" fill="#6b7a8f" font-size="10">（再注入 30 ETH）</text>
+
+    <rect x="610" y="150" width="80" height="130" rx="4" fill="#10b981" opacity="0.8"/>
+    <text x="650" y="138" text-anchor="middle" fill="#86efac" font-size="13" font-weight="700">648</text>
+    <text x="650" y="300" text-anchor="middle" fill="#86efac" font-size="11">攻击者卖出后</text>
+    <text x="650" y="316" text-anchor="middle" fill="#6b7a8f" font-size="10">（价格部分恢复）</text>
+
+    <!-- 利润标注 -->
+    <rect x="730" y="70" width="130" height="125" rx="8" fill="#101f1a" stroke="#10b981" stroke-width="1"/>
+    <text x="795" y="94" text-anchor="middle" fill="#86efac" font-size="12" font-weight="700">攻击者毛利润</text>
+    <text x="795" y="118" text-anchor="middle" fill="#e6e6e6" font-size="11">买入：10 ETH</text>
+    <text x="795" y="136" text-anchor="middle" fill="#e6e6e6" font-size="11">卖回：≈15.81 ETH</text>
+    <text x="795" y="162" text-anchor="middle" fill="#86efac" font-size="14" font-weight="700">≈ +5.81 ETH</text>
+    <text x="795" y="183" text-anchor="middle" fill="#6b7a8f" font-size="10">≈ 58.1%（极简模型）</text>
+
+    <!-- 受害者损失标注 -->
+    <rect x="730" y="210" width="130" height="70" rx="8" fill="#1f1414" stroke="#ef4444" stroke-width="1"/>
+    <text x="795" y="232" text-anchor="middle" fill="#fca5a5" font-size="12" font-weight="700">受害者少拿 TKN</text>
+    <text x="795" y="251" text-anchor="middle" fill="#e6e6e6" font-size="11">23,076.92 → 19,480.52</text>
+    <text x="795" y="270" text-anchor="middle" fill="#fca5a5" font-size="12">≈ 少 15.58%</text>
+  </svg>
+  <div class="chart-caption">图 2 说明：以上为简化演算，忽略手续费与滑点精确计算，仅用于展示价格被逐步推高的趋势。实际攻击中攻击者会精确计算最优买入量以最大化利润。</div>
+</div>
+
+<div class="highlight">
+  <p><strong>演算逻辑简述：</strong></p>
+  <div class="step-item"><span class="step-num">1</span><p>攻击者先用 10 ETH 买入 TKN：池子从 100 ETH + 100,000 TKN 变为 110 ETH + 90,909.09 TKN。此时边际价格约为 <strong>826.45 TKN/ETH</strong>，意味着 TKN 相对 ETH 已变贵。</p></div>
+  <div class="step-item"><span class="step-num">2</span><p>受害者再用 30 ETH 买入 TKN：池子变为 140 ETH + 71,428.57 TKN。受害者实际得到约 <strong>19,480.52 TKN</strong>；若攻击者没有先买入，原本约可得到 23,076.92 TKN，因此少得到约 <strong>15.58%</strong>。</p></div>
+  <div class="step-item"><span class="step-num">3</span><p>攻击者把前置买入的约 9,090.91 TKN 卖回池子，收到约 <strong>15.81 ETH</strong>，因此毛利润约 <strong>5.81 ETH（58.06%）</strong>。这是极度简化、忽略手续费和竞争成本的数学结果，不能理解为真实市场中的典型收益率。</p></div>
+</div>
+
+<div class="highlight warn">
+  <p><strong>注意：</strong>上面的“58.1% 毛利润”是攻击者投入 10 ETH 后，在理想化恒定乘积模型下得到的数学结果。它不能代表真实三明治交易的典型收益率；现实中还要支付 AMM 手续费、Gas/Builder 成本，并面对其他 Searcher 的竞争，而且受害者若触发最低输出限制，交易会直接回滚。</p>
+</div>
+
+<!-- ========== 四、防范手段 ========== -->
+<h2>四、如何防范三明治攻击？</h2>
+<p>防范思路可以归结为三类：<strong>① 缩小攻击利润空间；② 隐藏交易意图；③ 改变交易执行方式。</strong>下面逐一介绍有效手段。</p>
+
+<div class="chart-box">
+  <div class="chart-title">图 3 · 三明治攻击防范手段分类全景图</div>
+  <svg viewBox="0 0 880 460" width="100%" xmlns="http://www.w3.org/2000/svg" style="min-width:680px;">
+    <defs>
+      <marker id="catArrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <path d="M0,0 L8,3 L0,6 Z" fill="#4a5a70"/>
+      </marker>
+    </defs>
+
+    <!-- 中心节点 -->
+    <rect x="340" y="20" width="200" height="50" rx="25" fill="#1e3a5f" stroke="#3b82f6" stroke-width="2"/>
+    <text x="440" y="50" text-anchor="middle" fill="#fff" font-size="15" font-weight="700">防范三明治攻击</text>
+
+    <!-- 三大类 -->
+    <!-- 类别1 -->
+    <line x1="380" y1="70" x2="180" y2="110" stroke="#4a5a70" stroke-width="1.5" marker-end="url(#catArrow)"/>
+    <rect x="60" y="110" width="240" height="40" rx="8" fill="#3b1f1f" stroke="#ef4444" stroke-width="1.5"/>
+    <text x="180" y="135" text-anchor="middle" fill="#fca5a5" font-size="14" font-weight="700">① 缩小利润空间</text>
+
+    <!-- 类别2 -->
+    <line x1="440" y1="70" x2="440" y2="110" stroke="#4a5a70" stroke-width="1.5" marker-end="url(#catArrow)"/>
+    <rect x="320" y="110" width="240" height="40" rx="8" fill="#3b2f1f" stroke="#f59e0b" stroke-width="1.5"/>
+    <text x="440" y="135" text-anchor="middle" fill="#fcd34d" font-size="14" font-weight="700">② 隐藏交易意图</text>
+
+    <!-- 类别3 -->
+    <line x1="500" y1="70" x2="700" y2="110" stroke="#4a5a70" stroke-width="1.5" marker-end="url(#catArrow)"/>
+    <rect x="580" y="110" width="240" height="40" rx="8" fill="#1f3b2f" stroke="#10b981" stroke-width="1.5"/>
+    <text x="700" y="135" text-anchor="middle" fill="#86efac" font-size="14" font-weight="700">③ 改变执行方式</text>
+
+    <!-- 类别1 子项 -->
+    <rect x="60" y="175" width="240" height="55" rx="6" fill="#1a1f2e" stroke="#3a4656"/>
+    <text x="75" y="198" fill="#fca5a5" font-size="12" font-weight="600">设置合理滑点</text>
+    <text x="75" y="218" fill="#a0aec0" font-size="11">常规兑换 0.1%~0.5%；</text>
+    <text x="75" y="232" fill="#a0aec0" font-size="11">不要盲目调到 5%+</text>
+
+    <rect x="60" y="245" width="240" height="55" rx="6" fill="#1a1f2e" stroke="#3a4656"/>
+    <text x="75" y="268" fill="#fca5a5" font-size="12" font-weight="600">选择高流动性池子</text>
+    <text x="75" y="288" fill="#a0aec0" font-size="11">池子越深，同等交易量</text>
+    <text x="75" y="302" fill="#a0aec0" font-size="11">的价格影响越小</text>
+
+    <rect x="60" y="315" width="240" height="55" rx="6" fill="#1a1f2e" stroke="#3a4656"/>
+    <text x="75" y="338" fill="#fca5a5" font-size="12" font-weight="600">拆分大额交易</text>
+    <text x="75" y="358" fill="#a0aec0" font-size="11">把一笔大额拆成多笔</text>
+    <text x="75" y="372" fill="#a0aec0" font-size="11">小额，降低单笔吸引力</text>
+
+    <!-- 类别2 子项 -->
+    <rect x="320" y="175" width="240" height="55" rx="6" fill="#1a1f2e" stroke="#3a4656"/>
+    <text x="335" y="198" fill="#fcd34d" font-size="12" font-weight="600">使用私有交易池</text>
+    <text x="335" y="218" fill="#a0aec0" font-size="11">Flashbots Protect、</text>
+    <text x="335" y="232" fill="#a0aec0" font-size="11">通过私有交易流减少公开暴露</text>
+
+    <rect x="320" y="245" width="240" height="55" rx="6" fill="#1a1f2e" stroke="#3a4656"/>
+    <text x="335" y="268" fill="#fcd34d" font-size="12" font-weight="600">MEV 保护钱包/RPC</text>
+    <text x="335" y="288" fill="#a0aec0" font-size="11">MetaMask 的 "Advanced</text>
+    <text x="335" y="302" fill="#a0aec0" font-size="11">Gas"、特定 MEV-Blocker RPC</text>
+
+    <rect x="320" y="315" width="240" height="55" rx="6" fill="#1a1f2e" stroke="#3a4656"/>
+    <text x="335" y="338" fill="#fcd34d" font-size="12" font-weight="600">链下撮合 / RFQ</text>
+    <text x="335" y="358" fill="#a0aec0" font-size="11">1inch Fusion、CowSwap</text>
+    <text x="335" y="372" fill="#a0aec0" font-size="11">等意图类协议，交易不公开</text>
+
+    <!-- 类别3 子项 -->
+    <rect x="580" y="175" width="240" height="55" rx="6" fill="#1a1f2e" stroke="#3a4656"/>
+    <text x="595" y="198" fill="#86efac" font-size="12" font-weight="600">使用限价单</text>
+    <text x="595" y="218" fill="#a0aec0" font-size="11">指定可接受的最高价格，</text>
+    <text x="595" y="232" fill="#a0aec0" font-size="11">价格不合适就不成交</text>
+
+    <rect x="580" y="245" width="240" height="55" rx="6" fill="#1a1f2e" stroke="#3a4656"/>
+    <text x="595" y="268" fill="#86efac" font-size="12" font-weight="600">抗 MEV DEX / 聚合器</text>
+    <text x="595" y="288" fill="#a0aec0" font-size="11">CowSwap（批量拍卖）、</text>
+    <text x="595" y="302" fill="#a0aec0" font-size="11">Uniswap V4 Hooks 等</text>
+
+    <rect x="580" y="315" width="240" height="55" rx="6" fill="#1a1f2e" stroke="#3a4656"/>
+    <text x="595" y="338" fill="#86efac" font-size="12" font-weight="600">同一区块原子性操作</text>
+    <text x="595" y="358" fill="#a0aec0" font-size="11">Flashbots 捆绑交易，</text>
+    <text x="595" y="372" fill="#a0aec0" font-size="11">确保交易不被单独插入</text>
+
+    <!-- 底部推荐 -->
+    <rect x="60" y="395" width="760" height="50" rx="8" fill="#101f1a" stroke="#10b981" stroke-width="1.5"/>
+    <text x="80" y="418" fill="#86efac" font-size="13" font-weight="700">普通用户最实用的组合：</text>
+    <text x="80" y="438" fill="#c0c8d4" font-size="12">窄而合理的滑点 + 深流动性 + 必要时拆单 + 私有交易流/MEV 保护 + 大额交易优先考虑 CoW Swap、1inch Fusion 等意图执行</text>
+  </svg>
+  <div class="chart-caption">图 3 说明：三类思路并不是互斥选项。最基础的是合理滑点与充足流动性；对高价值交易，更应考虑私有交易流或意图执行，拆单只能作为辅助策略。</div>
+</div>
+
+<h3>4.1 手段一：把滑点设到合理范围</h3>
+<table>
+  <thead>
+    <tr><th>交易场景</th><th>建议滑点</th><th>说明</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>高流动性、波动较低的主流交易对</td><td><span class="tag tag-low">常从 0.1%~0.5% 起评估</span></td><td>先看实际报价、价格波动和流动性，不应机械套用固定值</td></tr>
+    <tr><td>波动较大的主流/中等市值代币</td><td><span class="tag tag-mid">常从 0.5%~1% 起评估</span></td><td>需要在成交成功率与最差价格之间权衡</td></tr>
+    <tr><td>低流动性 / 新上线代币</td><td><span class="tag tag-mid">需按报价单独评估</span></td><td>可能需要更宽范围，但宽滑点同时放大被夹和价格误差风险</td></tr>
+    <tr><td>交易频繁失败时</td><td colspan="2">先查原因（Gas/优先费用、代币限制、路由、流动性或价格波动等），<strong>不要用无脑调大滑点作为默认解决方案</strong></td></tr>
+  </tbody>
+</table>
+
+<h3>4.2 手段二：使用私有交易池 / MEV 保护 RPC</h3>
+<p>公共 Mempool 的可见性是经典三明治的重要信息来源之一。如果交易通过<strong>私有交易流</strong>发送，普通公共 Mempool 搜索者就无法像监听公开交易那样直接获得交易内容；但这并不意味着绝对安全，因为私有交易流本身存在信任、泄露、回退到公共 Mempool、区块重组等风险。</p>
+<ul>
+  <li><strong>Flashbots Protect</strong>：通过 Flashbots 的私有交易流隐藏交易免受公开前置/夹击，并提供“不包含会回滚的交易”的保护机制；具体可用功能取决于当前 Protect 配置。</li>
+  <li><strong>MEV Blocker</strong>：它提供面向 Ethereum 的 MEV 保护型 RPC，例如 <code>https://rpc.mevblocker.io</code>；不同端点在前置保护、backrun、revert protection 和隐私程度上存在差异，不能笼统地说所有端点“完全私有”。</li>
+  <li><strong>钱包/前端集成</strong>：一些钱包和 DeFi 前端会把私有 RPC 或 MEV 保护集成到交易流程中。具体名称和默认行为会随产品版本变化，应以当前钱包文档为准。</li>
+</ul>
+
+<h3>4.3 手段三：使用具有 MEV 防护机制的 DEX / 意图协议</h3>
+<div class="highlight success">
+  <p><strong>CoW Swap（CoW Protocol）</strong>：采用<strong>公平批量拍卖（fair combinatorial batch auctions）</strong>作为价格发现机制，并利用 Coincidence of Wants（CoW）等机制提高撮合效率。用户提交的是订单/意图，由求解者（Solver）竞争提供执行方案。它显著改变了经典公开 AMM 交易的 MEV 暴露方式，但不应表述为“任何情况下都绝对消除 MEV”。</p>
+</div>
+<ul>
+  <li><strong>1inch Fusion</strong>：属于 intent-based swap。用户签署订单后，由 Resolver 竞争执行，使用 Dutch auction 等机制决定成交率。与传统直接调用 AMM Router 的公开交易不同，Fusion 的链上执行由 Resolver 完成，并以 MEV protection 为设计目标。</li>
+  <li><strong>Uniswap V4 Hooks</strong>：v4 已正式上线。Hooks 允许在 <code>beforeSwap</code>、<code>afterSwap</code> 等生命周期节点加入自定义逻辑，可用于动态费用、额外校验、定制曲线等；是否能实现有效的抗 MEV 机制取决于具体 Hook 设计，v4 本身并不自动等于“抗 MEV”。</li>
+  <li><strong>0x / 其他意图与 RFQ 协议</strong>：一些协议通过订单、报价或 Solver/Resolver 竞争来改变交易执行方式。是否具备三明治防护，应查看具体产品和订单类型，而不能仅凭“聚合器”身份判断。</li>
+</ul>
+
+<h3>4.4 手段四：拆分大额交易 + 选高流动性池</h3>
+<div class="step-item"><span class="step-num">A</span><p><strong>拆分交易：</strong>把大额兑换拆成多笔，可以降低单笔价格影响，但<strong>不能简单认为总 MEV 风险一定下降</strong>。如果每笔交易仍公开进入公共 Mempool，攻击者也可能逐笔夹击，而且会增加 Gas、执行时间和价格变化风险。拆分更适合作为执行策略的一部分，而不是单独的 MEV 防护。</p></div>
+<div class="step-item"><span class="step-num">B</span><p><strong>选择高流动性池子：</strong>池子越深，同样规模的订单通常造成更小的价格影响，攻击者也需要更大的资本来推动价格。实际价格影响取决于池子结构、费率、价格区间和路由，不能用固定的“1000 万美元=0.05%”之类数字概括。应优先比较交易报价和实际可用深度。</p></div>
+
+<h3>4.5 手段五：使用限价单而非市价单</h3>
+<p>在传统订单簿语境下，市价单追求立即成交，而限价单设置可接受的价格边界。对链上交易而言，更准确的说法是：<strong>只要订单带有明确的最差成交约束，攻击者就不能把价格无限推向对自己有利的一侧</strong>。这与常见的 <code>amountOutMinimum</code> 等最低输出保护具有相似的风险控制作用。</p>
+<p>限价订单和意图交易由不同协议实现；例如 0x 和 1inch 都提供限价/意图订单相关基础设施。<strong>Uniswap v4 的核心定位是可编程 AMM + Hooks，而不是内置的传统订单簿限价单模块</strong>；可以通过自定义 Hook 或上层协议构建类似功能。</p>
+
+<h3>4.6 各手段效果对比</h3>
+<table>
+  <thead>
+    <tr><th>手段</th><th>防护效果</th><th>易用性</th><th>成本/代价</th><th>适合人群</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>合理设置滑点</td><td><span class="tag tag-mid">中</span></td><td><span class="tag tag-low">极高</span></td><td>无</td><td>所有人（基础操作）</td></tr>
+    <tr><td>私有交易池 / MEV RPC</td><td><span class="tag tag-low">高</span></td><td><span class="tag tag-low">高</span></td><td>可能略高延迟/费用</td><td>所有人</td></tr>
+    <tr><td>CowSwap 等抗 MEV DEX</td><td><span class="tag tag-low">极高</span></td><td><span class="tag tag-mid">中</span></td><td>可能有小额协议费</td><td>中大额交易者</td></tr>
+    <tr><td>拆分大额交易</td><td><span class="tag tag-mid">中</span></td><td><span class="tag tag-mid">中</span></td><td>多笔 Gas 费</td><td>大额交易者</td></tr>
+    <tr><td>选择高流动性池</td><td><span class="tag tag-mid">中</span></td><td><span class="tag tag-low">高</span></td><td>无</td><td>所有人</td></tr>
+    <tr><td>限价单</td><td><span class="tag tag-low">高</span></td><td><span class="tag tag-high">较低</span></td><td>可能无法即时成交</td><td>非紧急交易</td></tr>
+  </tbody>
+</table>
+
+<!-- ========== 五、常见误区 ========== -->
+<h2>五、常见误区提醒</h2>
+<div class="highlight warn">
+  <p><strong>误区 1："滑点设大一点，交易更容易成功。"</strong></p>
+  <p>事实：交易失败的常见原因是 Gas 太低、合约不兼容、池子流动性不足或价格剧烈波动。调大滑点只能解决"价格波动导致回滚"这一种情况，却会让你暴露在更大的被攻击风险中。先排查失败原因，再决定是否调整滑点。</p>
+</div>
+<div class="highlight warn">
+  <p><strong>误区 2："我交易金额小，不会被攻击。"</strong></p>
+  <p>事实：攻击者通常会自动化扫描，但是否值得夹击取决于<strong>可提取价值是否超过全部执行成本和竞争成本</strong>，不能简单用“滑点空间 × 交易金额”计算。小额交易在极宽滑点下也可能成为目标，但实际是否有利可图仍取决于池子深度、费用、Gas 和其他搜索者竞争。</p>
+</div>
+<div class="highlight warn">
+  <p><strong>误区 3："用了聚合器就安全了。"</strong></p>
+  <p>事实：普通聚合器（如早期 1inch、Matcha）只是帮你拆分路由，交易仍然进入公共 Mempool，依然可能被攻击。只有明确支持"私有交易池"或"意图/RFQ 模式"的聚合器才能有效防护。</p>
+</div>
+<div class="highlight warn">
+  <p><strong>误区 4："提高 Gas 费就能避免被夹。"</strong></p>
+  <p>事实：提高 Gas 只能让你的交易更快被打包，但攻击者可以出比你更高的 Gas 抢在你前面，这正是攻击的核心机制。提高 Gas 不仅不能防攻击，反而可能让攻击者更精准地定位你的交易优先级。</p>
+</div>
+
+<!-- ========== 六、总结 ========== -->
+<h2>六、总结</h2>
+<div class="highlight success">
+  <p><strong>一句话核心：</strong>经典三明治攻击利用公开交易流中的信息优势，在受害者交易前后安排两笔交易，让受害者承担更差的执行价格，再从价格恢复中获利。<strong>较宽的滑点/最低输出约束会给攻击者留下更大的可利用价格空间</strong>，但它不是攻击者利润的简单上限，实际利润还取决于池子曲线、费用、交易规模、竞争和排序成本。</p>
+</div>
+<p><strong>普通用户的最佳实践清单：</strong></p>
+<ol>
+  <li>根据交易对流动性、波动率和报价情况设置<strong>尽可能窄的合理滑点</strong>，不要为了提高成功率盲目放宽。</li>
+  <li>优先选择<strong>深度较好的流动性</strong>和可靠的路由，尤其避免在极浅的新池中进行不必要的大额兑换。</li>
+  <li>大额交易可以考虑<strong>分拆或分时执行</strong>，但不要把拆单当成单独的 MEV 防护。</li>
+  <li>在 Ethereum 上，可考虑使用<strong>私有交易流 / MEV 保护 RPC</strong>，例如 Flashbots Protect 或 MEV Blocker；并理解不同端点的隐私与失败保护差异。</li>
+  <li>中大额交易可考虑 <strong>CoW Swap、1inch Fusion</strong> 等意图/批量拍卖型执行方式，减少经典公开 AMM 交易的 MEV 暴露。</li>
+  <li>需要严格价格边界时，使用<strong>限价订单或明确的最低输出约束</strong>，不要只追求“必须成交”。</li>
+</ol>
+
+<h2>七、资料校验说明</h2>
+<div class="highlight">
+  <p>本版重点修正了原稿中的恒定乘积数值演算、Ethereum 交易排序/Gas 表述、Flashbots Protect 与 MEV Blocker 的功能边界、CoW Protocol / 1inch Fusion 的机制描述，以及 Uniswap v4 已上线状态。防护工具会持续迭代，具体功能以对应项目当前官方文档为准。</p>
+  <p><strong>参考资料：</strong>Flashbots Protect 文档、MEV Blocker 文档、CoW Protocol 文档、1inch Fusion 文档、Uniswap v4 Hooks 文档、Ethereum Gas/交易文档。</p>
+</div>
+
+<footer>
+  <p>本报告为知识科普用途。数学演算采用恒定乘积模型并忽略手续费、Gas、竞争和链上实际路由；真实 Uniswap V3/V4 等集中流动性池的计算更复杂，不应将示例收益率当作真实市场收益。</p>
+  <p>DEX 三明治攻击原理与防范报告 · 2026</p>
+</footer>
+
+</div>
+</body>
+</html>

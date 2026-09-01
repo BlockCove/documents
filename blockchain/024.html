@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>挖矿机制全解析：POW · POS · DeFi 挖矿</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#181b22; --border:#2a2e38;
+    --text:#e4e6eb; --muted:#9aa0ac; --accent:#4f8cff;
+    --pow:#f5a623; --pos:#7ed321; --defi:#bd10e0;
+    --risk:#ff6b6b;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;line-height:1.7;font-size:15px}
+  .wrap{max-width:960px;margin:0 auto;padding:40px 24px 80px}
+  header{text-align:center;margin-bottom:48px}
+  header h1{font-size:32px;font-weight:700;letter-spacing:1px;margin-bottom:12px}
+  header p{color:var(--muted);font-size:15px;max-width:640px;margin:0 auto}
+  .badge-row{display:flex;gap:12px;justify-content:center;margin-top:20px;flex-wrap:wrap}
+  .badge{padding:6px 16px;border-radius:20px;font-size:13px;font-weight:600;border:1px solid}
+  .badge.pow{color:var(--pow);border-color:var(--pow)}
+  .badge.pos{color:var(--pos);border-color:var(--pos)}
+  .badge.defi{color:var(--defi);border-color:var(--defi)}
+
+  nav{display:flex;gap:8px;justify-content:center;margin-bottom:48px;flex-wrap:wrap}
+  nav a{color:var(--muted);text-decoration:none;padding:8px 18px;border:1px solid var(--border);border-radius:8px;font-size:14px;transition:.2s}
+  nav a:hover{color:var(--text);border-color:var(--accent)}
+
+  section{margin-bottom:56px}
+  .sec-head{display:flex;align-items:center;gap:14px;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+  .sec-num{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;flex-shrink:0}
+  .sec-head h2{font-size:24px;font-weight:700}
+  .sec-head .sub{color:var(--muted);font-size:13px;margin-top:2px}
+  .pow .sec-num{background:rgba(245,166,35,.15);color:var(--pow)}
+  .pos .sec-num{background:rgba(126,211,33,.15);color:var(--pos)}
+  .defi .sec-num{background:rgba(189,16,224,.15);color:var(--defi)}
+
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:24px;margin-bottom:20px}
+  .card h3{font-size:17px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .card h3::before{content:"";width:4px;height:16px;border-radius:2px;background:var(--accent)}
+  .pow .card h3::before{background:var(--pow)}
+  .pos .card h3::before{background:var(--pos)}
+  .defi .card h3::before{background:var(--defi)}
+
+  p{margin-bottom:12px;color:var(--text)}
+  .muted{color:var(--muted)}
+  ul{padding-left:22px;margin-bottom:12px}
+  li{margin-bottom:6px;color:var(--text)}
+  li strong{color:var(--text)}
+
+  .flow-box{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:24px;overflow-x:auto}
+  .flow-box .title{font-size:14px;color:var(--muted);margin-bottom:16px;text-align:center;letter-spacing:1px}
+  svg{display:block;margin:0 auto;max-width:100%;height:auto}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:640px){.grid2{grid-template-columns:1fr}}
+
+  .tag{display:inline-block;padding:3px 10px;border-radius:6px;font-size:12px;font-weight:600;margin-right:6px;margin-bottom:4px}
+  .tag.pos-tag{background:rgba(126,211,33,.15);color:var(--pos)}
+  .tag.neg-tag{background:rgba(255,107,107,.15);color:var(--risk)}
+  .tag.neu-tag{background:rgba(79,140,255,.15);color:var(--accent)}
+
+  table{width:100%;border-collapse:collapse;font-size:14px;margin-top:8px}
+  th,td{padding:12px 14px;text-align:left;border-bottom:1px solid var(--border)}
+  th{background:rgba(255,255,255,.03);font-weight:600;color:var(--muted);font-size:13px;white-space:nowrap}
+  tr:hover td{background:rgba(255,255,255,.02)}
+  td:first-child{font-weight:600;white-space:nowrap}
+
+  .risk-box{background:rgba(255,107,107,.08);border:1px solid rgba(255,107,107,.3);border-radius:14px;padding:24px}
+  .risk-box h3{color:var(--risk);margin-bottom:12px}
+  .risk-box li{color:var(--text)}
+
+  footer{text-align:center;color:var(--muted);font-size:13px;margin-top:64px;padding-top:24px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>挖矿机制全解析</h1>
+  <p>POW 工作量证明 · POS 权益证明 · DeFi 流动性挖矿 —— 三种"挖矿"的本质区别、参与流程与风险全景</p>
+  <div class="badge-row">
+    <span class="badge pow">POW · 算力竞争</span>
+    <span class="badge pos">POS · 质押权益</span>
+    <span class="badge defi">DeFi · 提供流动性</span>
+  </div>
+</header>
+
+<nav>
+  <a href="#pow">POW 工作量证明</a>
+  <a href="#pos">POS 权益证明</a>
+  <a href="#defi">DeFi 挖矿</a>
+  <a href="#compare">三者对比</a>
+  <a href="#risk">风险提示</a>
+</nav>
+
+<!-- ==================== POW ==================== -->
+<section id="pow" class="pow">
+  <div class="sec-head">
+    <div class="sec-num">01</div>
+    <div>
+      <h2>POW · 工作量证明</h2>
+      <div class="sub">Proof of Work —— 靠算力竞争记账权，消耗电力换取代币</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>核心原理</h3>
+    <p>POW 是比特币等区块链最早采用的共识机制。网络中的节点（矿工）通过<strong>大量计算哈希值</strong>来争夺记账权：谁先算出满足难度条件的随机数（Nonce），谁就能打包区块、获得区块奖励和手续费。</p>
+    <p>本质是<strong>"算力即权力"</strong>——你投入的计算资源越多，挖到区块的概率越大。这是一个"先到先得"的随机竞赛，以比特币为例，长期平均出块时间约 10 分钟，实际相邻区块时间会明显波动。</p>
+  </div>
+
+  <div class="card">
+    <h3>参与玩法与流程</h3>
+    <div class="grid2">
+      <div>
+        <p><strong>个人独立挖矿（Solo Mining）</strong></p>
+        <ul>
+          <li>购买专用矿机（ASIC / GPU）</li>
+          <li>接入区块链网络，下载全节点</li>
+          <li>独立计算哈希，碰运气挖到区块</li>
+          <li>挖到即获得全额区块奖励</li>
+        </ul>
+        <p class="muted" style="font-size:13px">缺点：算力低时概率极小，可能数月无收益</p>
+      </div>
+      <div>
+        <p><strong>矿池联合挖矿（Pool Mining，主流）</strong></p>
+        <ul>
+          <li>加入矿池，贡献自己的算力</li>
+          <li>矿池统一分配计算任务</li>
+          <li>矿池挖到区块后，按照矿池的收益分配方案（如 PPS、PPLNS 等）向矿工结算</li>
+          <li>通常需要支付矿池手续费，具体费率因矿池和结算模式而异</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-box">
+    <div class="title">POW 挖矿完整流程</div>
+    <svg viewBox="0 0 820 340" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrow-pow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#f5a623"/>
+        </marker>
+        <linearGradient id="pow-grad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#f5a623" stop-opacity="0.2"/>
+          <stop offset="100%" stop-color="#f5a623" stop-opacity="0.05"/>
+        </linearGradient>
+      </defs>
+      <!-- 节点 -->
+      <g font-family="sans-serif" font-size="13" fill="#e4e6eb">
+        <!-- 行1 -->
+        <rect x="20" y="30" width="150" height="64" rx="10" fill="url(#pow-grad)" stroke="#f5a623" stroke-width="1.5"/>
+        <text x="95" y="56" text-anchor="middle" font-weight="700" fill="#f5a623">① 准备硬件</text>
+        <text x="95" y="76" text-anchor="middle" font-size="11" fill="#9aa0ac">购买 ASIC/GPU 矿机</text>
+
+        <rect x="220" y="30" width="150" height="64" rx="10" fill="url(#pow-grad)" stroke="#f5a623" stroke-width="1.5"/>
+        <text x="295" y="56" text-anchor="middle" font-weight="700" fill="#f5a623">② 加入矿池</text>
+        <text x="295" y="76" text-anchor="middle" font-size="11" fill="#9aa0ac">注册矿池账号配置矿工</text>
+
+        <rect x="420" y="30" width="150" height="64" rx="10" fill="url(#pow-grad)" stroke="#f5a623" stroke-width="1.5"/>
+        <text x="495" y="56" text-anchor="middle" font-weight="700" fill="#f5a623">③ 开始计算</text>
+        <text x="495" y="76" text-anchor="middle" font-size="11" fill="#9aa0ac">持续哈希运算 争夺 Nonce</text>
+
+        <rect x="620" y="30" width="180" height="64" rx="10" fill="url(#pow-grad)" stroke="#f5a623" stroke-width="1.5"/>
+        <text x="710" y="56" text-anchor="middle" font-weight="700" fill="#f5a623">④ 矿池出块</text>
+        <text x="710" y="76" text-anchor="middle" font-size="11" fill="#9aa0ac">某矿工率先解出难题</text>
+
+        <!-- 箭头行1 -->
+        <line x1="170" y1="62" x2="218" y2="62" stroke="#f5a623" stroke-width="1.5" marker-end="url(#arrow-pow)"/>
+        <line x1="370" y1="62" x2="418" y2="62" stroke="#f5a623" stroke-width="1.5" marker-end="url(#arrow-pow)"/>
+        <line x1="570" y1="62" x2="618" y2="62" stroke="#f5a623" stroke-width="1.5" marker-end="url(#arrow-pow)"/>
+
+        <!-- 行2 -->
+        <rect x="620" y="150" width="180" height="64" rx="10" fill="url(#pow-grad)" stroke="#f5a623" stroke-width="1.5"/>
+        <text x="710" y="176" text-anchor="middle" font-weight="700" fill="#f5a623">⑤ 全网验证</text>
+        <text x="710" y="196" text-anchor="middle" font-size="11" fill="#9aa0ac">其他节点验证区块合法性</text>
+
+        <rect x="420" y="150" width="150" height="64" rx="10" fill="url(#pow-grad)" stroke="#f5a623" stroke-width="1.5"/>
+        <text x="495" y="176" text-anchor="middle" font-weight="700" fill="#f5a623">⑥ 获得奖励</text>
+        <text x="495" y="196" text-anchor="middle" font-size="11" fill="#9aa0ac">区块奖励 + 交易手续费</text>
+
+        <rect x="220" y="150" width="150" height="64" rx="10" fill="url(#pow-grad)" stroke="#f5a623" stroke-width="1.5"/>
+        <text x="295" y="176" text-anchor="middle" font-weight="700" fill="#f5a623">⑦ 按算力分配</text>
+        <text x="295" y="196" text-anchor="middle" font-size="11" fill="#9aa0ac">矿池按贡献比例分发</text>
+
+        <rect x="20" y="150" width="150" height="64" rx="10" fill="url(#pow-grad)" stroke="#f5a623" stroke-width="1.5"/>
+        <text x="95" y="176" text-anchor="middle" font-weight="700" fill="#f5a623">⑧ 持续循环</text>
+        <text x="95" y="196" text-anchor="middle" font-size="11" fill="#9aa0ac">难度自动调整 进入下一轮</text>
+
+        <!-- 箭头行2（反向） -->
+        <line x1="620" y1="182" x2="572" y2="182" stroke="#f5a623" stroke-width="1.5" marker-end="url(#arrow-pow)"/>
+        <line x1="420" y1="182" x2="372" y2="182" stroke="#f5a623" stroke-width="1.5" marker-end="url(#arrow-pow)"/>
+        <line x1="220" y1="182" x2="172" y2="182" stroke="#f5a623" stroke-width="1.5" marker-end="url(#arrow-pow)"/>
+
+        <!-- 转弯箭头 -->
+        <path d="M 710 94 L 710 120 L 710 148" fill="none" stroke="#f5a623" stroke-width="1.5" marker-end="url(#arrow-pow)"/>
+        <path d="M 95 214 L 95 250 L 410 250 L 410 280" fill="none" stroke="#f5a623" stroke-width="1.5" stroke-dasharray="6,4" marker-end="url(#arrow-pow)"/>
+        <text x="410" y="305" text-anchor="middle" font-size="11" fill="#9aa0ac">难度每 2016 区块自动调整，保持出块间隔稳定</text>
+      </g>
+    </svg>
+  </div>
+
+  <div class="card" style="margin-top:20px">
+    <h3>关键特点</h3>
+    <div style="margin-bottom:8px">
+      <span class="tag pos-tag">安全性高</span>
+      <span class="tag pos-tag">去中心化程度高</span>
+      <span class="tag neg-tag">能耗巨大</span>
+      <span class="tag neg-tag">硬件门槛高</span>
+      <span class="tag neg-tag">51% 攻击风险</span>
+      <span class="tag neu-tag">代表：BTC、LTC、DOGE、ETHW</span>
+    </div>
+    <ul>
+      <li><strong>挖矿成本</strong>：矿机采购 + 电费 + 场地 + 散热，电费占运营成本 60%-90%</li>
+      <li><strong>奖励减半</strong>：比特币每 21 万个区块（约 4 年）区块奖励减半，目前为 3.125 BTC/区块</li>
+      <li><strong>难度调整</strong>：全网算力变化时自动调整难度，维持稳定出块间隔</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ==================== POS ==================== -->
+<section id="pos" class="pos">
+  <div class="sec-head">
+    <div class="sec-num">02</div>
+    <div>
+      <h2>POS · 权益证明</h2>
+      <div class="sub">Proof of Stake —— 靠质押代币获得记账权，锁仓换取收益</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>核心原理</h3>
+    <p>POS 不再依赖算力竞争，而是通过<strong>质押权益及协议规定的随机/委员会选举机制</strong>来选择验证者或委员会。很多 PoS 网络中，质押权益会影响被选中的概率，但具体选择规则因链而异，并不能简单概括为“质押时间越长，概率越高”。</p>
+    <p>本质是<strong>"权益即权力"</strong>——你把代币锁在合约里作为"保证金"，网络随机选择验证者出块。对于存在 Slashing 的 PoS 网络，可证明的严重共识违规可能触发<strong>罚没（Slashing）</strong>；普通离线通常表现为少拿奖励或其他轻微惩罚，具体规则因链而异。</p>
+  </div>
+
+  <div class="card">
+    <h3>参与玩法与流程</h3>
+    <div class="grid2">
+      <div>
+        <p><strong>独立运行验证节点（Validator）</strong></p>
+        <ul>
+          <li>满足目标链的验证者准入条件；例如 Ethereum 独立运行验证者需要至少 32 ETH</li>
+          <li>部署验证节点基础设施并保持稳定运行</li>
+          <li>按照目标链协议完成质押/存款操作</li>
+          <li>根据协议参与提议区块、见证/投票或委员会工作，并获得相应奖励</li>
+          <li>严重可证明的共识违规可能触发 Slashing；离线通常表现为奖励减少或轻微罚则，具体依链而定</li>
+        </ul>
+        <p class="muted" style="font-size:13px">门槛高，需技术能力和稳定服务器</p>
+      </div>
+      <div>
+        <p><strong>委托/池化质押（视具体区块链而定）</strong></p>
+        <ul>
+          <li>根据目标链或质押服务的规则，将权益委托给验证者、质押池或其他服务商</li>
+          <li>通常无需自己运行验证节点，但可能存在最低金额、服务费、智能合约或托管风险</li>
+          <li>奖励和参与方式按具体协议/服务规则执行</li>
+          <li>奖励通常会按协议规则结算，并可能扣除验证者或服务商佣金</li>
+          <li>退出/解锁时间因链和服务而异，可能存在退出队列或 Unbonding Period</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-box">
+    <div class="title">POS 质押完整流程</div>
+    <svg viewBox="0 0 820 360" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrow-pos" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#7ed321"/>
+        </marker>
+        <linearGradient id="pos-grad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#7ed321" stop-opacity="0.2"/>
+          <stop offset="100%" stop-color="#7ed321" stop-opacity="0.05"/>
+        </linearGradient>
+      </defs>
+      <g font-family="sans-serif" font-size="13" fill="#e4e6eb">
+        <!-- 行1 -->
+        <rect x="20" y="30" width="160" height="64" rx="10" fill="url(#pos-grad)" stroke="#7ed321" stroke-width="1.5"/>
+        <text x="100" y="56" text-anchor="middle" font-weight="700" fill="#7ed321">① 持有代币</text>
+        <text x="100" y="76" text-anchor="middle" font-size="11" fill="#9aa0ac">钱包中持有目标链原生代币</text>
+
+        <rect x="210" y="30" width="160" height="64" rx="10" fill="url(#pos-grad)" stroke="#7ed321" stroke-width="1.5"/>
+        <text x="290" y="56" text-anchor="middle" font-weight="700" fill="#7ed321">② 选择验证者</text>
+        <text x="290" y="76" text-anchor="middle" font-size="11" fill="#9aa0ac">挑选信誉好、佣金低的节点</text>
+
+        <rect x="400" y="30" width="160" height="64" rx="10" fill="url(#pos-grad)" stroke="#7ed321" stroke-width="1.5"/>
+        <text x="480" y="56" text-anchor="middle" font-weight="700" fill="#7ed321">③ 委托/质押</text>
+        <text x="480" y="76" text-anchor="middle" font-size="11" fill="#9aa0ac">签名交易 将代币锁入质押合约</text>
+
+        <rect x="590" y="30" width="210" height="64" rx="10" fill="url(#pos-grad)" stroke="#7ed321" stroke-width="1.5"/>
+        <text x="695" y="56" text-anchor="middle" font-weight="700" fill="#7ed321">④ 权益生效</text>
+        <text x="695" y="76" text-anchor="middle" font-size="11" fill="#9aa0ac">等待激活期 开始累计质押权重</text>
+
+        <line x1="180" y1="62" x2="208" y2="62" stroke="#7ed321" stroke-width="1.5" marker-end="url(#arrow-pos)"/>
+        <line x1="370" y1="62" x2="398" y2="62" stroke="#7ed321" stroke-width="1.5" marker-end="url(#arrow-pos)"/>
+        <line x1="560" y1="62" x2="588" y2="62" stroke="#7ed321" stroke-width="1.5" marker-end="url(#arrow-pos)"/>
+
+        <!-- 行2 -->
+        <rect x="590" y="140" width="210" height="64" rx="10" fill="url(#pos-grad)" stroke="#7ed321" stroke-width="1.5"/>
+        <text x="695" y="166" text-anchor="middle" font-weight="700" fill="#7ed321">⑤ 选择验证者/委员会</text>
+        <text x="695" y="186" text-anchor="middle" font-size="11" fill="#9aa0ac">按协议的权益与随机机制选择</text>
+
+        <rect x="400" y="140" width="160" height="64" rx="10" fill="url(#pos-grad)" stroke="#7ed321" stroke-width="1.5"/>
+        <text x="480" y="166" text-anchor="middle" font-weight="700" fill="#7ed321">⑥ 出块/签名</text>
+        <text x="480" y="186" text-anchor="middle" font-size="11" fill="#9aa0ac">验证者打包区块并广播</text>
+
+        <rect x="210" y="140" width="160" height="64" rx="10" fill="url(#pos-grad)" stroke="#7ed321" stroke-width="1.5"/>
+        <text x="290" y="166" text-anchor="middle" font-weight="700" fill="#7ed321">⑦ 获得奖励</text>
+        <text x="290" y="186" text-anchor="middle" font-size="11" fill="#9aa0ac">按质押比例分发通胀奖励</text>
+
+        <rect x="20" y="140" width="160" height="64" rx="10" fill="url(#pos-grad)" stroke="#7ed321" stroke-width="1.5"/>
+        <text x="100" y="166" text-anchor="middle" font-weight="700" fill="#7ed321">⑧ 按协议继续质押</text>
+        <text x="100" y="186" text-anchor="middle" font-size="11" fill="#9aa0ac">部分网络支持自动/手动复投</text>
+
+        <line x1="590" y1="172" x2="562" y2="172" stroke="#7ed321" stroke-width="1.5" marker-end="url(#arrow-pos)"/>
+        <line x1="400" y1="172" x2="372" y2="172" stroke="#7ed321" stroke-width="1.5" marker-end="url(#arrow-pos)"/>
+        <line x1="210" y1="172" x2="182" y2="172" stroke="#7ed321" stroke-width="1.5" marker-end="url(#arrow-pos)"/>
+
+        <path d="M 695 94 L 695 118 L 695 138" fill="none" stroke="#7ed321" stroke-width="1.5" marker-end="url(#arrow-pos)"/>
+
+        <!-- 底部：退出流程 -->
+        <rect x="20" y="260" width="180" height="60" rx="10" fill="rgba(255,107,107,0.08)" stroke="#ff6b6b" stroke-width="1.5" stroke-dasharray="5,3"/>
+        <text x="110" y="284" text-anchor="middle" font-weight="700" fill="#ff6b6b">退出：发起解押</text>
+        <text x="110" y="304" text-anchor="middle" font-size="11" fill="#9aa0ac">提交 Unbond 交易</text>
+
+        <rect x="230" y="260" width="180" height="60" rx="10" fill="rgba(255,107,107,0.08)" stroke="#ff6b6b" stroke-width="1.5" stroke-dasharray="5,3"/>
+        <text x="320" y="284" text-anchor="middle" font-weight="700" fill="#ff6b6b">等待解锁期</text>
+        <text x="320" y="304" text-anchor="middle" font-size="11" fill="#9aa0ac">时间因链与退出队列而异，Ethereum 也不是固定 1-7 天</text>
+
+        <rect x="440" y="260" width="180" height="60" rx="10" fill="rgba(255,107,107,0.08)" stroke="#ff6b6b" stroke-width="1.5" stroke-dasharray="5,3"/>
+        <text x="530" y="284" text-anchor="middle" font-weight="700" fill="#ff6b6b">代币退回钱包</text>
+        <text x="530" y="304" text-anchor="middle" font-size="11" fill="#9aa0ac">解锁完成 可自由转账</text>
+
+        <rect x="650" y="260" width="150" height="60" rx="10" fill="rgba(255,107,107,0.08)" stroke="#ff6b6b" stroke-width="1.5" stroke-dasharray="5,3"/>
+        <text x="725" y="284" text-anchor="middle" font-weight="700" fill="#ff6b6b">⚠ Slashing 罚没</text>
+        <text x="725" y="304" text-anchor="middle" font-size="11" fill="#9aa0ac">严重共识违规可能 Slashing；离线通常为惩罚/少领奖励</text>
+
+        <line x1="200" y1="290" x2="228" y2="290" stroke="#ff6b6b" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrow-pos)"/>
+        <line x1="410" y1="290" x2="438" y2="290" stroke="#ff6b6b" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrow-pos)"/>
+      </g>
+    </svg>
+  </div>
+
+  <div class="card" style="margin-top:20px">
+    <h3>关键特点</h3>
+    <div style="margin-bottom:8px">
+      <span class="tag pos-tag">能耗极低</span>
+      <span class="tag pos-tag">无需矿机</span>
+      <span class="tag pos-tag">收益稳定可预期</span>
+      <span class="tag neg-tag">代币锁仓流动性差</span>
+      <span class="tag neg-tag">Slashing 罚没风险</span>
+      <span class="tag neg-tag">富者愈富 中心化倾向</span>
+      <span class="tag neu-tag">代表：ETH、SOL、ADA、DOT、ATOM</span>
+    </div>
+    <ul>
+      <li><strong>年化收益（APR）</strong>：不存在适用于所有 PoS 链的固定范围；收益会随发行率、总质押量、验证者表现、网络手续费/MEV 以及委托佣金等因素变化。Ethereum 的质押收益也是动态变化的</li>
+      <li><strong>流动性质押衍生品（LSD）</strong>：如 Lido 的 stETH、Rocket Pool 的 rETH，质押后获得可交易的衍生品代币，解决锁仓流动性问题</li>
+      <li><strong>委托佣金</strong>：验证者、质押池或服务商的佣金因链、运营商和产品而异，不宜用统一固定区间概括</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ==================== DeFi ==================== -->
+<section id="defi" class="defi">
+  <div class="sec-head">
+    <div class="sec-num">03</div>
+    <div>
+      <h2>DeFi 挖矿 · 流动性挖矿</h2>
+      <div class="sub">Yield Farming / Liquidity Mining —— 为 DeFi 协议提供资金，赚取项目代币奖励</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>核心原理</h3>
+    <p>DeFi 挖矿与 PoW/PoS 的底层共识参与方式不同——它通常是<strong>应用层的激励活动</strong>。用户把资产存入 DEX、借贷协议或其他 DeFi 协议，以提供流动性、借贷资金或参与特定策略，并可能获得交易费、借贷利息、协议激励代币等收益。</p>
+    <p>本质是<strong>“资金与风险承担换取协议收益或激励”</strong>——你可以成为流动性提供者、出借人或策略参与者，收益来源取决于具体协议。</p>
+  </div>
+
+  <div class="card">
+    <h3>两种主流玩法</h3>
+    <div class="grid2">
+      <div>
+        <p><strong>玩法 A：流动性挖矿（LP Mining）</strong></p>
+        <ul>
+          <li>在 DEX（如 Uniswap、PancakeSwap）存入两种代币组成交易对</li>
+          <li>例如：存入 ETH + USDC，成为 ETH-USDC 资金池的流动性提供者</li>
+          <li>获得代表流动性份额的凭证；以 Uniswap V2 为例是可转让的 LP Token，而集中流动性方案（如 Uniswap V3）则是特定仓位凭证，形式并不完全相同</li>
+          <li>如果协议另有激励计划，再把该仓位/凭证存入相应激励合约</li>
+          <li>收益可能来自交易手续费分成，以及额外的流动性挖矿激励</li>
+        </ul>
+        <p class="muted" style="font-size:13px">核心风险：无常损失（Impermanent Loss）</p>
+      </div>
+      <div>
+        <p><strong>玩法 B：单币质押挖矿（Single Staking）</strong></p>
+        <ul>
+          <li>只需存入一种代币，无需配对</li>
+          <li>例如：质押 USDT / 项目原生代币 / 稳定币</li>
+          <li>直接存入质押合约，无需 LP</li>
+          <li>按质押数量和时长获得项目代币奖励</li>
+          <li>部分协议支持"锁仓加速"——锁越久收益倍率越高</li>
+        </ul>
+        <p class="muted" style="font-size:13px">风险结构不同，并不意味着一定更低风险或收益一定更低；仍需评估合约、资产、脱锚和奖励通胀等风险</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-box">
+    <div class="title">DeFi 流动性挖矿完整流程（以 LP 挖矿为例）</div>
+    <svg viewBox="0 0 860 420" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrow-defi" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#bd10e0"/>
+        </marker>
+        <linearGradient id="defi-grad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#bd10e0" stop-opacity="0.2"/>
+          <stop offset="100%" stop-color="#bd10e0" stop-opacity="0.05"/>
+        </linearGradient>
+      </defs>
+      <g font-family="sans-serif" font-size="13" fill="#e4e6eb">
+        <!-- 行1 -->
+        <rect x="20" y="24" width="170" height="60" rx="10" fill="url(#defi-grad)" stroke="#bd10e0" stroke-width="1.5"/>
+        <text x="105" y="48" text-anchor="middle" font-weight="700" fill="#bd10e0">① 准备资产</text>
+        <text x="105" y="68" text-anchor="middle" font-size="11" fill="#9aa0ac">钱包持有两种代币（如 ETH+USDC）</text>
+
+        <rect x="220" y="24" width="170" height="60" rx="10" fill="url(#defi-grad)" stroke="#bd10e0" stroke-width="1.5"/>
+        <text x="305" y="48" text-anchor="middle" font-weight="700" fill="#bd10e0">② 连接钱包</text>
+        <text x="305" y="68" text-anchor="middle" font-size="11" fill="#9aa0ac">MetaMask 等钱包授权 DEX 协议</text>
+
+        <rect x="420" y="24" width="170" height="60" rx="10" fill="url(#defi-grad)" stroke="#bd10e0" stroke-width="1.5"/>
+        <text x="505" y="48" text-anchor="middle" font-weight="700" fill="#bd10e0">③ 添加流动性</text>
+        <text x="505" y="68" text-anchor="middle" font-size="11" fill="#9aa0ac">按比例存入两种代币到资金池</text>
+
+        <rect x="620" y="24" width="220" height="60" rx="10" fill="url(#defi-grad)" stroke="#bd10e0" stroke-width="1.5"/>
+        <text x="730" y="48" text-anchor="middle" font-weight="700" fill="#bd10e0">④ 获得流动性仓位凭证</text>
+        <text x="730" y="68" text-anchor="middle" font-size="11" fill="#9aa0ac">形式因协议而异，如 V2 LP Token 或集中流动性仓位凭证</text>
+
+        <line x1="190" y1="54" x2="218" y2="54" stroke="#bd10e0" stroke-width="1.5" marker-end="url(#arrow-defi)"/>
+        <line x1="390" y1="54" x2="418" y2="54" stroke="#bd10e0" stroke-width="1.5" marker-end="url(#arrow-defi)"/>
+        <line x1="590" y1="54" x2="618" y2="54" stroke="#bd10e0" stroke-width="1.5" marker-end="url(#arrow-defi)"/>
+
+        <!-- 行2 -->
+        <rect x="620" y="120" width="220" height="60" rx="10" fill="url(#defi-grad)" stroke="#bd10e0" stroke-width="1.5"/>
+        <text x="730" y="144" text-anchor="middle" font-weight="700" fill="#bd10e0">⑤ 参与流动性激励</text>
+        <text x="730" y="164" text-anchor="middle" font-size="11" fill="#9aa0ac">若有激励计划，则按协议规则存入/登记仓位</text>
+
+        <rect x="420" y="120" width="170" height="60" rx="10" fill="url(#defi-grad)" stroke="#bd10e0" stroke-width="1.5"/>
+        <text x="505" y="144" text-anchor="middle" font-weight="700" fill="#bd10e0">⑥ 持续产出奖励</text>
+        <text x="505" y="164" text-anchor="middle" font-size="11" fill="#9aa0ac">按区块、时间或其他规则累计激励，具体发放机制由协议决定</text>
+
+        <rect x="220" y="120" width="170" height="60" rx="10" fill="url(#defi-grad)" stroke="#bd10e0" stroke-width="1.5"/>
+        <text x="305" y="144" text-anchor="middle" font-weight="700" fill="#bd10e0">⑦ 领取/复投</text>
+        <text x="305" y="164" text-anchor="middle" font-size="11" fill="#9aa0ac">Harvest 领取奖励 或自动复投</text>
+
+        <rect x="20" y="120" width="170" height="60" rx="10" fill="url(#defi-grad)" stroke="#bd10e0" stroke-width="1.5"/>
+        <text x="105" y="144" text-anchor="middle" font-weight="700" fill="#bd10e0">⑧ 卖出/持有</text>
+        <text x="105" y="164" text-anchor="middle" font-size="11" fill="#9aa0ac">奖励代币可在 DEX 卖出或继续持有</text>
+
+        <line x1="620" y1="150" x2="592" y2="150" stroke="#bd10e0" stroke-width="1.5" marker-end="url(#arrow-defi)"/>
+        <line x1="420" y1="150" x2="392" y2="150" stroke="#bd10e0" stroke-width="1.5" marker-end="url(#arrow-defi)"/>
+        <line x1="220" y1="150" x2="192" y2="150" stroke="#bd10e0" stroke-width="1.5" marker-end="url(#arrow-defi)"/>
+
+        <path d="M 730 84 L 730 100 L 730 118" fill="none" stroke="#bd10e0" stroke-width="1.5" marker-end="url(#arrow-defi)"/>
+
+        <!-- 中间：资金池示意 -->
+        <rect x="200" y="220" width="460" height="80" rx="12" fill="rgba(79,140,255,0.06)" stroke="#4f8cff" stroke-width="1.5" stroke-dasharray="6,3"/>
+        <text x="430" y="248" text-anchor="middle" font-weight="700" fill="#4f8cff">DEX 资金池（AMM 自动做市商）</text>
+        <text x="430" y="270" text-anchor="middle" font-size="12" fill="#9aa0ac">用户 A 的 ETH+USDC  ·  用户 B 的 ETH+USDC  ·  用户 C 的 ETH+USDC ...</text>
+        <text x="430" y="290" text-anchor="middle" font-size="11" fill="#9aa0ac">交易者在池中兑换 → 按该池费率产生交易费 → 按协议规则分配给流动性提供者；具体费率因池型和协议而异</text>
+
+        <!-- 底部：单币质押流程（简化） -->
+        <text x="430" y="332" text-anchor="middle" font-size="13" font-weight="700" fill="#bd10e0">单币质押挖矿（更简单的路径）</text>
+        <rect x="80" y="348" width="160" height="52" rx="10" fill="url(#defi-grad)" stroke="#bd10e0" stroke-width="1.5"/>
+        <text x="160" y="370" text-anchor="middle" font-weight="700" fill="#bd10e0">存入单一代币</text>
+        <text x="160" y="388" text-anchor="middle" font-size="11" fill="#9aa0ac">如 USDT / 项目币</text>
+
+        <rect x="300" y="348" width="160" height="52" rx="10" fill="url(#defi-grad)" stroke="#bd10e0" stroke-width="1.5"/>
+        <text x="380" y="370" text-anchor="middle" font-weight="700" fill="#bd10e0">质押合约锁仓</text>
+        <text x="380" y="388" text-anchor="middle" font-size="11" fill="#9aa0ac">无需配对 无 LP</text>
+
+        <rect x="520" y="348" width="160" height="52" rx="10" fill="url(#defi-grad)" stroke="#bd10e0" stroke-width="1.5"/>
+        <text x="600" y="370" text-anchor="middle" font-weight="700" fill="#bd10e0">按比例获奖励</text>
+        <text x="600" y="388" text-anchor="middle" font-size="11" fill="#9aa0ac">项目代币持续产出</text>
+
+        <line x1="240" y1="374" x2="298" y2="374" stroke="#bd10e0" stroke-width="1.5" marker-end="url(#arrow-defi)"/>
+        <line x1="460" y1="374" x2="518" y2="374" stroke="#bd10e0" stroke-width="1.5" marker-end="url(#arrow-defi)"/>
+      </g>
+    </svg>
+  </div>
+
+  <div class="card" style="margin-top:20px">
+    <h3>关键概念：无常损失（Impermanent Loss）</h3>
+    <p>LP 挖矿的重要风险之一。当池中两种资产的相对价格发生变化时，AMM 的再平衡机制会改变你的资产构成——相对价格上涨的资产在池中占比通常下降，另一种资产占比上升。此时，将 LP 仓位的价值与“从一开始就单独持有两种资产”的价值相比，可能出现相对损失，这就是常说的<strong>无常损失（Impermanent Loss）</strong>。</p>
+    <p>“无常”并不意味着只有赎回时才存在：它是相对于直接持有资产的<strong>相对表现差异</strong>。如果资产价格回到原来的相对价格，该差异可能缩小甚至消失；与此同时，手续费和激励收益可能抵消或超过无常损失。</p>
+    <div style="background:rgba(255,107,107,.08);border-radius:8px;padding:14px;margin-top:12px">
+      <p style="margin:0;font-size:13px"><strong style="color:var(--risk)">简单例子：</strong>你存入 1 ETH + 3000 USDC（当时 1 ETH = 3000 USDC）。后来 ETH 涨到 4000 USDC，AMM 自动调整后你池子里可能变成 0.866 ETH + 3464 USDC。如果当初不存池直接持有，你有 1 ETH + 3000 USDC，价值更高——这个差额就是无常损失。</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>关键特点</h3>
+    <div style="margin-bottom:8px">
+      <span class="tag pos-tag">门槛低 无需矿机</span>
+      <span class="tag pos-tag">收益来源多样</span>
+      <span class="tag pos-tag">可随时进出（多数）</span>
+      <span class="tag neg-tag">无常损失</span>
+      <span class="tag neg-tag">合约漏洞风险</span>
+      <span class="tag neg-tag"> Rug Pull 跑路</span>
+      <span class="tag neg-tag">奖励币通胀暴跌</span>
+      <span class="tag neu-tag">代表：Uniswap、Curve、PancakeSwap、SushiSwap</span>
+    </div>
+    <ul>
+      <li><strong>收益构成</strong>：项目代币奖励（主） + 交易手续费分成 + 借贷利息（借贷协议）</li>
+      <li><strong>APR 波动大</strong>：高 APR 可能来自短期激励、奖励代币高估值或资金规模较小，通常不能视为稳定年化收益；资金流入、奖励排放和代币价格变化都可能快速改变实际回报</li>
+      <li><strong>机枪池（Vault）</strong>：如 Yearn、Beefy，自动帮用户在多个协议间切换最高收益策略并自动复投</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ==================== 对比 ==================== -->
+<section id="compare">
+  <div class="sec-head" style="border-color:var(--border)">
+    <div class="sec-num" style="background:rgba(79,140,255,.15);color:var(--accent)">04</div>
+    <div>
+      <h2>三者核心对比</h2>
+      <div class="sub">一张表看懂 POW / POS / DeFi 挖矿的本质区别</div>
+    </div>
+  </div>
+
+  <div class="card" style="padding:0;overflow:hidden">
+    <table>
+      <thead>
+        <tr>
+          <th>对比维度</th>
+          <th style="color:var(--pow)">POW 工作量证明</th>
+          <th style="color:var(--pos)">POS 权益证明</th>
+          <th style="color:var(--defi)">DeFi 流动性挖矿</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>本质</td>
+          <td>算力竞争记账权</td>
+          <td>质押代币获记账权</td>
+          <td>提供资金赚项目代币</td>
+        </tr>
+        <tr>
+          <td>是否参与共识</td>
+          <td>是（区块链底层）</td>
+          <td>是（区块链底层）</td>
+          <td>否（应用层行为）</td>
+        </tr>
+        <tr>
+          <td>投入资源</td>
+          <td>矿机 + 电力 + 场地</td>
+          <td>代币（锁仓）</td>
+          <td>代币（存入协议）</td>
+        </tr>
+        <tr>
+          <td>门槛</td>
+          <td>高（取决于目标链、硬件、电价和规模）</td>
+          <td>中（取决于链；Ethereum 独立验证者需 32 ETH，池化/服务方案可低于此门槛）</td>
+          <td>可能较低，但受资产最低要求、链上 Gas 和协议规则影响</td>
+        </tr>
+        <tr>
+          <td>收益来源</td>
+          <td>区块奖励 + 手续费</td>
+          <td>协议发行奖励 + 交易费/优先费或其他协议奖励（具体依链而定）</td>
+          <td>项目代币 + 手续费 + 利息</td>
+        </tr>
+        <tr>
+          <td>能耗</td>
+          <td>极高</td>
+          <td>极低</td>
+          <td>极低</td>
+        </tr>
+        <tr>
+          <td>流动性</td>
+          <td>矿机难变现，电费持续支出</td>
+          <td>无统一固定期限；因链、退出队列和质押服务而异</td>
+          <td>多数可随时进出</td>
+        </tr>
+        <tr>
+          <td>核心风险</td>
+          <td>电价上涨、币价下跌、矿机淘汰</td>
+          <td>Slashing 罚没、币价下跌</td>
+          <td>无常损失、合约漏洞、Rug Pull</td>
+        </tr>
+        <tr>
+          <td>典型年化</td>
+          <td>不固定（取决于币价/电价/算力）</td>
+          <td>不宜给统一固定范围，随网络状态动态变化</td>
+          <td>没有可靠的统一“典型年化”，不同协议和激励计划差异极大</td>
+        </tr>
+        <tr>
+          <td>代表项目</td>
+          <td>BTC、LTC、DOGE、XMR</td>
+          <td>ETH、SOL、ADA、DOT、ATOM</td>
+          <td>Uniswap、Curve、PancakeSwap、Aave</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 关系图 -->
+  <div class="flow-box" style="margin-top:20px">
+    <div class="title">三种挖矿在区块链体系中的位置</div>
+    <svg viewBox="0 0 760 280" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrow-rel" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#9aa0ac"/>
+        </marker>
+      </defs>
+      <g font-family="sans-serif" font-size="13" fill="#e4e6eb">
+        <!-- 底层 -->
+        <rect x="180" y="20" width="400" height="56" rx="12" fill="rgba(79,140,255,0.1)" stroke="#4f8cff" stroke-width="1.5"/>
+        <text x="380" y="44" text-anchor="middle" font-weight="700" fill="#4f8cff">区块链底层共识层</text>
+        <text x="380" y="64" text-anchor="middle" font-size="11" fill="#9aa0ac">决定谁有权打包区块、维护账本安全</text>
+
+        <!-- POW 和 POS 在底层 -->
+        <rect x="60" y="110" width="260" height="70" rx="12" fill="rgba(245,166,35,0.1)" stroke="#f5a623" stroke-width="1.5"/>
+        <text x="190" y="136" text-anchor="middle" font-weight="700" fill="#f5a623">POW 挖矿</text>
+        <text x="190" y="156" text-anchor="middle" font-size="11" fill="#9aa0ac">算力竞争 → 获得记账权 → 区块奖励</text>
+        <text x="190" y="172" text-anchor="middle" font-size="11" fill="#9aa0ac">属于「共识机制」的一种实现</text>
+
+        <rect x="440" y="110" width="260" height="70" rx="12" fill="rgba(126,211,33,0.1)" stroke="#7ed321" stroke-width="1.5"/>
+        <text x="570" y="136" text-anchor="middle" font-weight="700" fill="#7ed321">POS 质押</text>
+        <text x="570" y="156" text-anchor="middle" font-size="11" fill="#9aa0ac">质押代币 → 获得记账权 → 通胀奖励</text>
+        <text x="570" y="172" text-anchor="middle" font-size="11" fill="#9aa0ac">属于「共识机制」的另一种实现</text>
+
+        <!-- 箭头 -->
+        <line x1="280" y1="76" x2="190" y2="108" stroke="#9aa0ac" stroke-width="1.2" marker-end="url(#arrow-rel)"/>
+        <line x1="480" y1="76" x2="570" y2="108" stroke="#9aa0ac" stroke-width="1.2" marker-end="url(#arrow-rel)"/>
+
+        <!-- DeFi 在应用层 -->
+        <rect x="180" y="210" width="400" height="56" rx="12" fill="rgba(189,16,224,0.1)" stroke="#bd10e0" stroke-width="1.5"/>
+        <text x="380" y="234" text-anchor="middle" font-weight="700" fill="#bd10e0">DeFi 应用层（DEX / 借贷 / 机枪池）</text>
+        <text x="380" y="254" text-anchor="middle" font-size="11" fill="#9aa0ac">DeFi 挖矿 = 在应用层提供资金，不参与底层共识，与 POW/POS 是完全不同层面的概念</text>
+
+        <line x1="380" y1="180" x2="380" y2="208" stroke="#9aa0ac" stroke-width="1.2" stroke-dasharray="5,3" marker-end="url(#arrow-rel)"/>
+        <text x="400" y="198" font-size="10" fill="#9aa0ac">DeFi 协议运行在某条底层公链之上</text>
+      </g>
+    </svg>
+  </div>
+</section>
+
+<!-- ==================== 风险 ==================== -->
+<section id="risk">
+  <div class="sec-head">
+    <div class="sec-num" style="background:rgba(255,107,107,.15);color:var(--risk)">!</div>
+    <div>
+      <h2>风险提示</h2>
+      <div class="sub">参与任何形式的"挖矿"前必须了解的风险</div>
+    </div>
+  </div>
+
+  <div class="risk-box">
+    <h3>通用风险（所有挖矿形式均适用）</h3>
+    <ul>
+      <li><strong>币价波动风险</strong>：所有收益以加密代币计价，代币价格可能大幅下跌甚至归零，法币计价收益可能为负</li>
+      <li><strong>监管政策风险</strong>：中国大陆监管部门持续整治虚拟货币相关业务及“挖矿”活动；现行政策还会调整，具体法律风险应以最新官方规定及实际所在地规则为准</li>
+      <li><strong>私钥/钱包安全</strong>：私钥丢失或被盗将导致资产永久损失，无法找回</li>
+      <li><strong>诈骗与钓鱼</strong>：虚假矿池、假质押网站、恶意合约授权等诈骗手段层出不穷</li>
+    </ul>
+  </div>
+
+  <div class="grid2" style="margin-top:16px">
+    <div class="card" style="border-color:rgba(245,166,35,.3)">
+      <h3 style="color:var(--pow)">POW 特有风险</h3>
+      <ul>
+        <li>电费成本持续支出，币价下跌时可能入不敷出</li>
+        <li>矿机硬件贬值快，换代后旧矿机可能沦为废铁</li>
+        <li>多数算力攻击：攻击者控制足够大的网络算力后，可能重组近期区块或实施双花等攻击；小型 PoW 网络通常更容易受到此类风险影响</li>
+        <li>矿池跑路或拒绝分配收益</li>
+      </ul>
+    </div>
+    <div class="card" style="border-color:rgba(126,211,33,.3)">
+      <h3 style="color:var(--pos)">POS 特有风险</h3>
+      <ul>
+        <li><strong>Slashing / 惩罚</strong>：不同 PoS 链规则不同；严重共识违规可能触发 Slashing，而普通离线通常主要表现为少领奖励或轻微惩罚</li>
+        <li>解锁期风险：解押时间因链和退出队列而异，期间可能无法立即取回全部资产；Ethereum 的验证者退出采用协议限流机制，并非固定 1-7 天</li>
+        <li>使用第三方委托/质押服务时，服务商或验证者的运营表现可能影响收益，某些链上也可能存在委托人承担部分惩罚的机制，需查看具体协议</li>
+        <li>第三方质押池、托管平台或服务商存在运营、托管、智能合约与对手方风险</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;border-color:rgba(189,16,224,.3)">
+    <h3 style="color:var(--defi)">DeFi 挖矿特有风险</h3>
+    <ul>
+      <li><strong>无常损失</strong>：两种资产相对价格变化可能使 LP 相比单纯持有资产出现相对价值差异</li>
+      <li><strong>智能合约漏洞</strong>：代码 Bug 可能导致资金池被黑客攻击盗空</li>
+      <li><strong>Rug Pull（项目跑路）</strong>：恶意项目方可能通过移除流动性、权限滥用、恶意合约逻辑等方式造成用户损失，并非所有项目都具备这种能力</li>
+      <li><strong>奖励代币风险</strong>：奖励排放、资金流入流出和市场抛压都可能导致奖励代币价格快速下跌，使以代币计价的高 APR 与实际法币回报出现巨大差异</li>
+      <li><strong>授权风险</strong>：ERC-20 等代币的无限额度授权会扩大被授权合约可转移代币的范围；若授权对象或其后续升级逻辑恶意/被攻破，可能造成资产损失。应核对授权对象并在不需要时撤销或降低额度</li>
+      <li><strong>预言机攻击</strong>：依赖价格预言机的协议可能被操纵价格攻击</li>
+    </ul>
+  </div>
+</section>
+
+<div class="card" style="margin-top:20px;border-color:rgba(79,140,255,.25)">
+  <h3>阅读说明</h3>
+  <p style="margin:0;font-size:13px;color:var(--muted)">
+    本资料用于理解概念与机制。PoW/PoS 的具体共识规则、质押/退出条件、DeFi 手续费与激励计划均可能因区块链和协议版本而变化；涉及收益率、费率、解锁时间或监管要求时，应以对应项目和官方最新文档为准。
+  </p>
+</div>
+
+<footer>
+  <p>本报告仅为知识科普，不构成任何投资建议。加密货币及 DeFi 活动涉及不同司法辖区的监管要求；中国大陆现行政策对虚拟货币相关业务及挖矿活动持续实施严格整治，请以最新官方规定为准。</p>
+  <p style="margin-top:8px">挖矿机制全解析 · POW / POS / DeFi</p>
+</footer>
+
+</div>
+</body>
+</html>
