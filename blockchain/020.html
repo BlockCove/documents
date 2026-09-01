@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智能合约升级代理模式全解析 — 透明代理 / UUPS / 钻石 / 信标 / 最小代理</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2330; --border:#2d3748;
+    --text:#e6edf3; --muted:#8b949e; --accent:#58a6ff; --accent2:#7ee787;
+    --warn:#f0883e; --danger:#f85149; --code-bg:#0d1117;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;line-height:1.7;font-size:15px}
+  .wrap{max-width:1180px;margin:0 auto;padding:32px 28px 80px}
+  header{border-bottom:1px solid var(--border);padding-bottom:24px;margin-bottom:32px}
+  h1{font-size:30px;margin:0 0 8px;background:linear-gradient(90deg,#58a6ff,#7ee787);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--muted);font-size:14px}
+  h2{font-size:22px;margin:48px 0 16px;padding-left:12px;border-left:4px solid var(--accent)}
+  h3{font-size:17px;margin:28px 0 10px;color:var(--accent2)}
+  h4{font-size:15px;margin:20px 0 8px;color:var(--accent)}
+  p{margin:10px 0}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{background:var(--code-bg);border:1px solid var(--border);padding:1px 6px;border-radius:4px;font-family:"SF Mono",Consolas,Monaco,monospace;font-size:13px;color:#f0883e}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:8px;padding:16px 18px;overflow-x:auto;font-family:"SF Mono",Consolas,Monaco,monospace;font-size:13px;line-height:1.6;margin:12px 0}
+  pre code{background:none;border:none;padding:0;color:inherit;font-size:13px}
+  .kw{color:#ff7b72} .fn{color:#d2a8ff} .tp{color:#79c0ff} .cm{color:#8b949e;font-style:italic} .st{color:#a5d6ff} .num{color:#79c0ff}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:24px 28px;margin:20px 0}
+  .card h3{margin-top:0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:14px 0}
+  @media(max-width:780px){.grid2{grid-template-columns:1fr}}
+  .pros,.cons{border-radius:8px;padding:14px 18px;font-size:14px}
+  .pros{background:rgba(126,231,135,.08);border:1px solid rgba(126,231,135,.3)}
+  .cons{background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.3)}
+  .pros b{color:var(--accent2)} .cons b{color:var(--danger)}
+  .pros ul,.cons ul{margin:6px 0 0;padding-left:20px}
+  .pros li,.cons li{margin:4px 0}
+  table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13.5px;background:var(--panel);border-radius:8px;overflow:hidden}
+  th,td{border:1px solid var(--border);padding:10px 12px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:var(--accent2);font-weight:600;white-space:nowrap}
+  tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+  .tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11.5px;font-weight:600;margin-right:6px}
+  .tag-eip{background:rgba(88,166,255,.15);color:#58a6ff;border:1px solid rgba(88,166,255,.3)}
+  .tag-up{background:rgba(126,231,135,.15);color:#7ee787;border:1px solid rgba(126,231,135,.3)}
+  .tag-noup{background:rgba(248,81,73,.15);color:#f85149;border:1px solid rgba(248,81,73,.3)}
+  .mermaid{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:20px;margin:14px 0;display:flex;justify-content:center}
+  .note{background:rgba(240,136,62,.08);border-left:3px solid var(--warn);padding:10px 16px;border-radius:0 6px 6px 0;margin:14px 0;font-size:14px}
+  .danger-note{background:rgba(248,81,73,.08);border-left:3px solid var(--danger);padding:10px 16px;border-radius:0 6px 6px 0;margin:14px 0;font-size:14px}
+  nav.toc{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px 22px;margin-bottom:32px;font-size:14px}
+  nav.toc b{color:var(--accent2)}
+  nav.toc ol{margin:8px 0 0;padding-left:22px}
+  nav.toc li{margin:3px 0}
+  .kpi{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:18px 0}
+  @media(max-width:780px){.kpi{grid-template-columns:repeat(2,1fr)}}
+  .kpi div{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center}
+  .kpi .n{font-size:20px;font-weight:700;color:var(--accent)}
+  .kpi .l{font-size:11.5px;color:var(--muted);margin-top:2px}
+  footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--border);color:var(--muted);font-size:12.5px}
+  .slot{font-family:"SF Mono",Consolas,monospace;font-size:11.5px;color:#a5d6ff;word-break:break-all}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>智能合约升级代理模式全解析</h1>
+  <div class="sub">透明代理 · UUPS · 钻石代理 · 信标代理 · 最小代理 — 原理 / 优缺点 / 对比 / 代码 / 架构图</div>
+  <div class="sub" style="margin-top:6px">基于 EIP-1967 / EIP-1822 / EIP-2535 / EIP-1167 官方规范与 OpenZeppelin 实现整理</div>
+</header>
+
+<nav class="toc">
+  <b>目录</b>
+  <ol>
+    <li><a href="#why">为什么需要代理升级：delegatecall 与存储分离</a></li>
+    <li><a href="#eip1967">共同地基：EIP-1967 代理存储槽</a></li>
+    <li><a href="#transparent">透明代理 Transparent Proxy</a></li>
+    <li><a href="#uups">UUPS 通用可升级代理</a></li>
+    <li><a href="#diamond">钻石代理 Diamond (EIP-2535)</a></li>
+    <li><a href="#beacon">信标代理 Beacon Proxy</a></li>
+    <li><a href="#minimal">最小代理 Minimal Proxy (EIP-1167)</a></li>
+    <li><a href="#compare">五模式横向对比表</a></li>
+    <li><a href="#choose">选型决策树</a></li>
+    <li><a href="#security">升级安全陷阱清单</a></li>
+  </ol>
+</nav>
+
+<!-- ===================== 1. 为什么 ===================== -->
+<h2 id="why">1. 为什么需要代理升级</h2>
+<p>智能合约一旦部署即不可变。要在<strong>保留地址与存储状态</strong>的前提下替换业务逻辑，唯一通用手段是<strong>代理模式</strong>：用户与一个永不更换的 <code>Proxy</code> 合约交互，Proxy 通过 <code>delegatecall</code> 把调用转发给可替换的 <code>Implementation</code>（逻辑合约）。</p>
+
+<div class="mermaid">
+flowchart LR
+  U([User]) -->|call| P[Proxy 合约<br/>地址永久不变<br/>存储状态在这里]
+  P -->|delegatecall| I[Implementation<br/>业务逻辑可替换]
+  style P fill:#1f6feb,stroke:#58a6ff,color:#fff
+  style I fill:#238636,stroke:#7ee787,color:#fff
+</div>
+
+<p><code>delegatecall</code> 的关键语义：<strong>代码在 Implementation 中运行，但上下文（msg.sender / msg.value / 存储）属于 Proxy</strong>。因此状态永远留在 Proxy，升级只需把 Proxy 指向的 Implementation 地址换掉。</p>
+
+<div class="note">
+  <b>核心矛盾：</b>Proxy 自己也要存"implementation 地址"等元数据，而 Implementation 的状态变量也按槽位写存储——两者必须<strong>不冲突</strong>，这就是 EIP-1967 要解决的问题。
+</div>
+
+<!-- ===================== 2. EIP-1967 ===================== -->
+<h2 id="eip1967">2. 共同地基：EIP-1967 代理存储槽</h2>
+<p>EIP-1967 定义了一组<strong>伪随机存储槽</strong>，通过 <code>keccak256</code> 计算并减 1，使代理元数据几乎不可能与逻辑合约的正常状态变量冲突。所有现代代理（透明 / UUPS / 信标）都基于它。</p>
+
+<table>
+  <tr><th>槽位</th><th>值</th><th>用途</th></tr>
+  <tr>
+    <td>Implementation</td>
+    <td class="slot">0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc</td>
+    <td>当前逻辑合约地址</td>
+  </tr>
+  <tr>
+    <td>Admin</td>
+    <td class="slot">0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103</td>
+    <td>可升级代理的管理员地址（透明代理用）</td>
+  </tr>
+  <tr>
+    <td>Beacon</td>
+    <td class="slot">0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50</td>
+    <td>信标合约地址（信标代理用，此时 implementation 槽为空）</td>
+  </tr>
+</table>
+<p class="sub">计算方式示例：<code>bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1)</code></p>
+
+<!-- ===================== 3. 透明代理 ===================== -->
+<h2 id="transparent">3. 透明代理 Transparent Proxy</h2>
+<p><span class="tag tag-eip">基于 EIP-1967</span><span class="tag tag-up">可升级</span>OpenZeppelin <code>TransparentUpgradeableProxy</code> 是最经典的实现。<strong>升级逻辑写在 Proxy 合约里</strong>，并通过一个独立的 <code>ProxyAdmin</code> 合约管理。</p>
+
+<h3>3.1 解决什么问题</h3>
+<ul>
+  <li>函数选择器冲突：如果 Implementation 里也有 <code>upgradeTo()</code>，admin 调用时到底走代理的升级函数还是 delegate 到实现？透明代理用<strong>调用者身份</strong>解决：<strong>admin 调用永远走 Proxy 自身逻辑，普通用户调用永远 delegatecall</strong>。对用户来说"看不到"代理的存在，故称"透明"。</li>
+  <li>把升级权限与业务权限隔离，admin 地址通常是多签或 ProxyAdmin 合约。</li>
+</ul>
+
+<h3>3.2 架构图</h3>
+<div class="mermaid">
+flowchart TB
+  U([普通用户]) -->|call| P[TransparentUpgradeableProxy]
+  A([Admin / ProxyAdmin]) -->|upgradeTo| P
+  P -->|admin 调用: 不走 delegate| ADMIN[代理内置升级逻辑<br/>写 EIP-1967 implementation 槽]
+  P -->|非 admin: delegatecall| IMPL[Implementation v1 / v2]
+  ADMIN -->|更新指向| IMPL
+  style P fill:#1f6feb,stroke:#58a6ff,color:#fff
+  style IMPL fill:#238636,stroke:#7ee787,color:#fff
+  style ADMIN fill:#6e40c9,stroke:#d2a8ff,color:#fff
+</div>
+
+<h3>3.3 关键代码（简化版 Proxy fallback）</h3>
+<a 
+  href="https://github.com/lbc-example/blockchain-tasks/blob/main/solidity_sample_code/TransparentProxy.sol"
+  target="_blank"
+  rel="noopener noreferrer">
+  https://github.com/lbc-example/blockchain-tasks/blob/main/solidity_sample_code/TransparentProxy.sol
+</a>
+
+<div class="grid2">
+  <div class="pros">
+    <b>优点</b>
+    <ul>
+      <li>升级逻辑与业务逻辑彻底分离，Implementation 可以是任意普通合约，无需继承任何 upgradeable 基类</li>
+      <li>admin / user 双轨 dispatch，函数选择器冲突由代理层解决，心智简单</li>
+      <li>生态最成熟，OpenZeppelin / Hardhat / Foundry 工具链一等支持</li>
+      <li>即使 Implementation 被破坏，只要 Proxy 本身安全仍可升级（升级入口不在实现里）</li>
+    </ul>
+  </div>
+  <div class="cons">
+    <b>缺点</b>
+    <ul>
+      <li><strong>每笔用户交易都要多一次 admin 身份判断</strong>（读 admin 槽 + 比较），gas 比 UUPS 略高</li>
+      <li>Proxy 字节码更重，部署 gas 更高</li>
+      <li>admin 地址不能调用任何业务函数（会被拦截并 revert），实战中必须用 ProxyAdmin 合约或第二个地址当 admin</li>
+      <li>升级权限集中在 ProxyAdmin，仍是单点</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ===================== 4. UUPS ===================== -->
+<h2 id="uups">4. UUPS 通用可升级代理（EIP-1822）</h2>
+<p><span class="tag tag-eip">EIP-1822</span><span class="tag tag-up">可升级</span>UUPS（Universal upgradable proxy standard）的核心思想：<strong>把升级逻辑从 Proxy 移到 Implementation 里</strong>。Proxy 退化为一个极简的 EIP-1967 存储 + delegatecall 转发器，本身完全不知道"升级"是什么。</p>
+
+<h3>4.1 解决什么问题</h3>
+<ul>
+  <li>透明代理每笔交易都做 admin 检查，浪费 gas。UUPS 让 Proxy 只做纯转发，<strong>用户交易更便宜</strong>。</li>
+  <li>Proxy 字节码极小，部署成本低。</li>
+  <li>"通用"在于：任何实现合约只要包含 <code>proxiableUUID()</code> 并把升级函数写在自己里面，就能被同一个极简 Proxy 承载。</li>
+</ul>
+
+<h3>4.2 架构图</h3>
+<div class="mermaid">
+flowchart TB
+  U([User / Owner]) -->|call incl. upgradeTo| P[ERC1967Proxy<br/>极简: 只读 implementation 槽 + delegatecall]
+  P -->|delegatecall| IMPL[Implementation<br/>业务逻辑 + UUPSUpgradeable<br/>upgradeTo / _authorizeUpgrade]
+  IMPL -->|升级时写 EIP-1967 槽| P
+  style P fill:#1f6feb,stroke:#58a6ff,color:#fff
+  style IMPL fill:#238636,stroke:#7ee787,color:#fff
+</div>
+
+<h3>4.3 关键代码</h3>
+<a 
+  href="https://github.com/lbc-example/blockchain-tasks/blob/main/solidity_sample_code/UUPSProxy.sol"
+  target="_blank"
+  rel="noopener noreferrer">
+  https://github.com/lbc-example/blockchain-tasks/blob/main/solidity_sample_code/UUPSProxy.sol
+</a>
+
+<pre><code><span class="cm">// === 极简 Proxy（OpenZeppelin ERC1967Proxy，没有任何升级代码）===</span>
+<span class="kw">contract</span> <span class="tp">ERC1967Proxy</span> {
+    <span class="kw">constructor</span>(<span class="kw">address</span> impl, <span class="kw">bytes</span> <span class="kw">memory</span> data) <span class="kw">payable</span> {
+        <span class="fn">_upgradeToAndCall</span>(impl, data);
+    }
+    <span class="kw">fallback</span>() <span class="kw">external</span> <span class="kw">payable</span> {
+        <span class="kw">address</span> impl = <span class="fn">_implementation</span>(); <span class="cm">// 读 EIP-1967 槽</span>
+        <span class="kw">assembly</span> {
+            <span class="fn">calldatacopy</span>(<span class="num">0</span>, <span class="num">0</span>, <span class="fn">calldatasize</span>())
+            <span class="kw">let</span> result := <span class="fn">delegatecall</span>(<span class="fn">gas</span>(), impl, <span class="num">0</span>, <span class="fn">calldatasize</span>(), <span class="num">0</span>, <span class="num">0</span>)
+            <span class="fn">returndatacopy</span>(<span class="num">0</span>, <span class="num">0</span>, <span class="fn">returndatasize</span>())
+            <span class="kw">switch</span> result
+            <span class="kw">case</span> <span class="num">0</span> { <span class="fn">revert</span>(<span class="num">0</span>, <span class="fn">returndatasize</span>()) }
+            <span class="kw">default</span> { <span class="fn">return</span>(<span class="num">0</span>, <span class="fn">returndatasize</span>()) }
+        }
+    }
+}
+
+<span class="cm">// === Implementation 侧（继承 UUPSUpgradeable）===</span>
+<span class="kw">contract</span> <span class="tp">MyLogicV1</span> <span class="kw">is</span> <span class="tp">Initializable</span>, <span class="tp">OwnableUpgradeable</span>, <span class="tp">UUPSUpgradeable</span> {
+    <span class="kw">function</span> <span class="fn">initialize</span>() <span class="kw">external</span> <span class="fn">initializer</span> {
+        <span class="fn">__Ownable_init</span>();
+        <span class="fn">__UUPSUpgradeable_init</span>();
+    }
+    <span class="cm">// 关键：授权升级的钩子，必须重写，否则任何人都能升级</span>
+    <span class="kw">function</span> <span class="fn">_authorizeUpgrade</span>(<span class="kw">address</span>) <span class="kw">internal</span> <span class="kw">override</span> <span class="fn">onlyOwner</span> {}
+
+    <span class="cm">// proxiableUUID() 返回 EIP-1967 implementation 槽，</span>
+    <span class="cm">// 升级前会 staticcall 新实现的此函数做兼容性校验</span>
+}</code></pre>
+
+<div class="danger-note">
+  <b>致命陷阱：</b>如果某次升级把 Implementation 换成一个<strong>不含 UUPS 升级逻辑</strong>的合约，Proxy 就永远失去升级能力——因为升级函数本身在实现里。OpenZeppelin 的 <code>UUPSUpgradeable</code> 默认会在升级前调用新实现的 <code>proxiableUUID()</code> 做校验，防止这种"自杀式升级"，但自定义实现时必须自己保证。
+</div>
+
+<div class="grid2">
+  <div class="pros">
+    <b>优点</b>
+    <ul>
+      <li>Proxy 极简，<strong>用户交易 gas 最低</strong>（无 admin 判断）</li>
+      <li>部署 Proxy 的 gas 远低于透明代理</li>
+      <li>同一个 ERC1967Proxy 可承载任意 UUPS 实现，通用性强</li>
+      <li>升级权限可与业务权限用同一套 Ownable / AccessControl 管理，无需额外 ProxyAdmin</li>
+    </ul>
+  </div>
+  <div class="cons">
+    <b>缺点</b>
+    <ul>
+      <li><strong>升级逻辑在 Implementation 里</strong>，实现合约必须继承 <code>UUPSUpgradeable</code>，不能是任意普通合约</li>
+      <li>若升级到不含升级函数的实现，<strong>永久锁死不可再升级</strong></li>
+      <li>函数选择器冲突需自己处理（实现里若有与升级函数同 selector 的函数会冲突）</li>
+      <li>实现合约被破坏时，升级入口也可能一起被破坏</li>
+      <li>必须用 <code>initializer</code> 代替 constructor，且不能有 <code>immutable</code> 变量（immutable 是部署时内联到字节码的，delegatecall 上下文读不到正确值）</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ===================== 5. Diamond ===================== -->
+<h2 id="diamond">5. 钻石代理 Diamond / Multi-Facet Proxy（EIP-2535）</h2>
+<p><span class="tag tag-eip">EIP-2535</span><span class="tag tag-up">可升级</span>由 Nick Mudge 提出。前面几种代理都是 <strong>1 个 Proxy → 1 个 Implementation</strong>；Diamond 是 <strong>1 个 Diamond → N 个 Facet（切面）</strong>，按 <code>function selector</code> 路由到不同的逻辑合约。</p>
+
+<h3>5.1 解决什么问题</h3>
+<ul>
+  <li><strong>单合约 24KB 大小限制</strong>：复杂协议（如 Aave、Uniswap 级别）一个实现合约根本装不下。Diamond 把功能拆到多个 Facet，每个 Facet 独立部署，整体无上限。</li>
+  <li><strong>模块化升级</strong>：只需升级出问题的那个 Facet，不用重部署整个实现；不同模块可独立迭代、独立审计。</li>
+  <li>统一地址 + 统一存储：用户只看到一个 Diamond 地址，所有 Facet 共享 Diamond 的存储（通过 Diamond Storage 模式按命名空间隔离）。</li>
+</ul>
+
+<h3>5.2 架构图</h3>
+<div class="mermaid">
+flowchart TB
+  U(["User"]) -->|"call transfer()"| D["Diamond 合约\nselector → facet 映射表"]
+  D -->|"selector 0xa9059cbb"| F1["Facet A: ERC20"]
+  D -->|"selector 0x..."| F2["Facet B: 质押 Staking"]
+  D -->|"selector 0x..."| F3["Facet C: 治理 Governance"]
+  D -->|"diamondCut"| DC["DiamondCutFacet\n增/删/替换 facet"]
+  D -->|"查询"| LP["DiamondLoupeFacet\n内省: facets() / facetAddress()"]
+  DC -.->|"更新映射表"| D
+  
+  style D fill:#1f6feb,stroke:#58a6ff,color:#fff
+  style F1 fill:#238636,stroke:#7ee787,color:#fff
+  style F2 fill:#238636,stroke:#7ee787,color:#fff
+  style F3 fill:#238636,stroke:#7ee787,color:#fff
+  style DC fill:#6e40c9,stroke:#d2a8ff,color:#fff
+  style LP fill:#8957e5,stroke:#d2a8ff,color:#fff
+</div>
+
+<h3>5.3 核心组件</h3>
+<table>
+  <tr><th>组件</th><th>职责</th></tr>
+  <tr><td><code>Diamond</code>（代理）</td><td>维护 selector→facet 映射；fallback 中查表并 delegatecall</td></tr>
+  <tr><td><code>DiamondCutFacet</code></td><td>升级入口 <code>diamondCut(FacetCut[], address, bytes)</code>，原子化增删替换 facet</td></tr>
+  <tr><td><code>DiamondLoupeFacet</code></td><td>内省（标准强制要求）：<code>facets()</code> / <code>facetFunctionSelectors()</code> / <code>facetAddresses()</code> / <code>facetAddress()</code></td></tr>
+  <tr><td><code>OwnershipFacet</code></td><td>ERC-173 所有权 <code>owner()</code> / <code>transferOwnership()</code></td></tr>
+  <tr><td>业务 Facet</td><td>如 ERC20Facet、StakingFacet，无状态，通过 Diamond Storage 读写</td></tr>
+</table>
+
+<h3>5.4 关键代码：diamondCut 与 fallback 路由</h3>
+<pre><code><span class="cm">// === Diamond 的 fallback：按 selector 查 facet 再 delegatecall ===</span>
+<span class="kw">fallback</span>() <span class="kw">external</span> <span class="kw">payable</span> {
+    <span class="kw">address</span> facet = <span class="fn">_facetAddress</span>(msg.<span class="fn">sig</span>); <span class="cm">// 从映射表查</span>
+    <span class="kw">require</span>(facet != <span class="kw">address</span>(<span class="num">0</span>), <span class="st">"Diamond: function does not exist"</span>);
+    <span class="kw">assembly</span> {
+        <span class="fn">calldatacopy</span>(<span class="num">0</span>, <span class="num">0</span>, <span class="fn">calldatasize</span>())
+        <span class="kw">let</span> result := <span class="fn">delegatecall</span>(<span class="fn">gas</span>(), facet, <span class="num">0</span>, <span class="fn">calldatasize</span>(), <span class="num">0</span>, <span class="num">0</span>)
+        <span class="fn">returndatacopy</span>(<span class="num">0</span>, <span class="num">0</span>, <span class="fn">returndatasize</span>())
+        <span class="kw">switch</span> result
+        <span class="kw">case</span> <span class="num">0</span> { <span class="fn">revert</span>(<span class="num">0</span>, <span class="fn">returndatasize</span>()) }
+        <span class="kw">default</span> { <span class="fn">return</span>(<span class="num">0</span>, <span class="fn">returndatasize</span>()) }
+    }
+}
+
+<span class="cm">// === diamondCut：原子增删替换（伪代码）===</span>
+<span class="kw">struct</span> <span class="tp">FacetCut</span> {
+    <span class="kw">address</span> facetAddress;
+    <span class="tp">FacetCutAction</span> action;   <span class="cm">// Add = 0, Replace = 1, Remove = 2</span>
+    <span class="kw">bytes4</span>[] functionSelectors;
+}
+<span class="kw">function</span> <span class="fn">diamondCut</span>(<span class="tp">FacetCut</span>[] <span class="kw">calldata</span> _diamondCut, <span class="kw">address</span> _init, <span class="kw">bytes</span> <span class="kw">calldata</span> _calldata) <span class="kw">external</span> {
+    <span class="fn">enforceIsContractOwner</span>();
+    <span class="fn">_diamondCut</span>(_diamondCut);   <span class="cm">// 更新 selector→facet 映射</span>
+    <span class="kw">if</span> (_init != <span class="kw">address</span>(<span class="num">0</span>)) {
+        <span class="fn">_init</span>.<span class="fn">delegatecall</span>(_calldata); <span class="cm">// 可选初始化回调</span>
+    }
+}
+
+<span class="cm">// === Diamond Storage：Facet 之间用命名空间隔离存储，避免槽冲突 ===</span>
+<span class="kw">library</span> <span class="tp">LibERC20</span> {
+    <span class="kw">bytes32</span> <span class="kw">constant</span> POSITION = <span class="fn">keccak256</span>(<span class="st">"diamond.storage.erc20"</span>);
+    <span class="kw">struct</span> <span class="tp">Data</span> { <span class="kw">mapping</span>(<span class="kw">address</span>=><span class="kw">uint256</span>) balances; <span class="kw">uint256</span> totalSupply; }
+    <span class="kw">function</span> <span class="fn">data</span>() <span class="kw">internal</span> <span class="kw">pure</span> <span class="kw">returns</span>(<span class="tp">Data</span> <span class="kw">storage</span> s) {
+        <span class="kw">bytes32</span> p = POSITION;
+        <span class="kw">assembly</span> { s.<span class="fn">slot</span> := p }
+    }
+}</code></pre>
+
+<div class="grid2">
+  <div class="pros">
+    <b>优点</b>
+    <ul>
+      <li><strong>突破 24KB 合约大小限制</strong>，功能可无限扩展</li>
+      <li>模块化升级：只替换出问题的 Facet，粒度细、风险小、gas 低</li>
+      <li>不同 Facet 可独立开发、独立审计、独立部署团队</li>
+      <li>统一地址对外，用户体验与单合约一致</li>
+      <li>Diamond Storage 命名空间天然避免存储冲突，比传统继承式存储更安全</li>
+      <li>支持"不可变函数"（immutable functions）：可声明某些 selector 永远不可被替换/移除</li>
+    </ul>
+  </div>
+  <div class="cons">
+    <b>缺点</b>
+    <ul>
+      <li><strong>学习曲线陡峭</strong>，Diamond Storage、selector 管理、Loupe 内省等概念多</li>
+      <li>调试复杂：一个调用到底进了哪个 Facet，需要查映射表</li>
+      <li>生态工具支持不如透明/UUPS 成熟（虽有 hardhat-deploy、foundry 插件）</li>
+      <li>selector 冲突管理是负担：两个 Facet 不能注册同一个 selector</li>
+      <li>安全审计成本高，攻击面随 Facet 数量增加</li>
+      <li>普通中小项目过度设计，没必要</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ===================== 6. Beacon ===================== -->
+<h2 id="beacon">6. 信标代理 Beacon Proxy</h2>
+<p><span class="tag tag-eip">基于 EIP-1967</span><span class="tag tag-up">可升级</span>引入一个中间层 <code>Beacon</code> 合约。Proxy 不直接存 implementation 地址，而是存 Beacon 地址；Beacon 里存真正的 implementation。<strong>升级 Beacon 一次，所有指向它的 Proxy 同时升级。</strong></p>
+
+<h3>6.1 解决什么问题</h3>
+<ul>
+  <li><strong>批量同质合约升级</strong>：典型场景是工厂模式——一个 Factory 部署出成百上千个相同逻辑的代理（如每个用户一个金库、每对交易对一个池子）。若用透明/UUPS，升级需要逐个调用每个代理的 upgradeTo，gas 爆炸且易遗漏。Beacon 只需升级一次。</li>
+  <li>逻辑版本统一管理，避免不同实例跑不同版本造成状态不一致。</li>
+</ul>
+
+<h3>6.2 架构图</h3>
+<div class="mermaid">
+flowchart TB
+  subgraph Proxies["N 个 BeaconProxy 实例（地址各自独立，状态各自独立）"]
+    P1["Proxy #1"]
+    P2["Proxy #2"]
+    P3["Proxy #N..."]
+  end
+  P1 -->|"读 beacon 槽"| B["Beacon 合约\n存 implementation 地址"]
+  P2 -->|"读 beacon 槽"| B
+  P3 -->|"读 beacon 槽"| B
+  B -->|"implementation()"| IMPL["Implementation v2"]
+  OWNER(["Owner"]) -->|"upgradeTo"| B
+  B -.->|"一次升级，全部代理生效"| IMPL
+  
+  style B fill:#6e40c9,stroke:#d2a8ff,color:#fff
+  style IMPL fill:#238636,stroke:#7ee787,color:#fff
+  style P1 fill:#1f6feb,stroke:#58a6ff,color:#fff
+  style P2 fill:#1f6feb,stroke:#58a6ff,color:#fff
+  style P3 fill:#1f6feb,stroke:#58a6ff,color:#fff
+</div>
+
+<h3>6.3 关键代码</h3>
+<pre><code><span class="cm">// === BeaconProxy：fallback 里先读 Beacon，再从 Beacon 读 implementation ===</span>
+<span class="kw">contract</span> <span class="tp">BeaconProxy</span> {
+    <span class="kw">constructor</span>(<span class="kw">address</span> beacon, <span class="kw">bytes</span> <span class="kw">memory</span> data) <span class="kw">payable</span> {
+        <span class="fn">_setBeacon</span>(beacon);  <span class="cm">// 写 EIP-1967 beacon 槽</span>
+        <span class="kw">if</span> (data.<span class="fn">length</span> > <span class="num">0</span>) <span class="fn">_functionDelegateCall</span>(<span class="fn">_implementation</span>(), data);
+    }
+    <span class="kw">function</span> <span class="fn">_implementation</span>() <span class="kw">internal</span> <span class="kw">view</span> <span class="kw">override</span> <span class="kw">returns</span>(<span class="kw">address</span>) {
+        <span class="kw">return</span> <span class="tp">IBeacon</span>(<span class="fn">_beacon</span>()).<span class="fn">implementation</span>(); <span class="cm">// 多一次外部调用</span>
+    }
+    <span class="kw">fallback</span>() <span class="kw">external</span> <span class="kw">payable</span> {
+        <span class="kw">address</span> impl = <span class="fn">_implementation</span>();
+        <span class="kw">assembly</span> { <span class="cm">/* 同标准 delegatecall 转发 */</span> }
+    }
+}
+
+<span class="cm">// === UpgradeableBeacon：被 owner 升级，所有代理立即生效 ===</span>
+<span class="kw">contract</span> <span class="tp">UpgradeableBeacon</span> <span class="kw">is</span> <span class="tp">IBeacon</span> {
+    <span class="kw">address</span> <span class="kw">private</span> _implementation;
+    <span class="kw">constructor</span>(<span class="kw">address</span> initialImpl) { _implementation = initialImpl; }
+    <span class="kw">function</span> <span class="fn">implementation</span>() <span class="kw">external</span> <span class="kw">view</span> <span class="kw">override</span> <span class="kw">returns</span>(<span class="kw">address</span>) { <span class="kw">return</span> _implementation; }
+    <span class="kw">function</span> <span class="fn">upgradeTo</span>(<span class="kw">address</span> newImpl) <span class="kw">external</span> <span class="fn">onlyOwner</span> {
+        <span class="fn">_setImplementation</span>(newImpl);
+        <span class="kw">emit</span> <span class="tp">Upgraded</span>(newImpl);
+    }
+}</code></pre>
+
+<div class="grid2">
+  <div class="pros">
+    <b>优点</b>
+    <ul>
+      <li><strong>一次升级，N 个同质代理同时生效</strong>，工厂模式的标准解法</li>
+      <li>逻辑版本全局统一，不会出现部分实例未升级</li>
+      <li>单个 Proxy 仍极简（比透明代理轻）</li>
+      <li>可动态切换 Beacon，实现一组实例整体迁移到另一套逻辑</li>
+    </ul>
+  </div>
+  <div class="cons">
+    <b>缺点</b>
+    <ul>
+      <li><strong>每笔用户交易多一次外部调用</strong>（Proxy → Beacon.implementation()），gas 比 UUPS/透明都高</li>
+      <li>Beacon 是单点：Beacon 升级错误会同时影响所有实例，爆炸半径大</li>
+      <li>无法单独升级某一个代理（要单独升级需先切换它的 Beacon）</li>
+      <li>多一层间接，调试和区块浏览器验证更麻烦</li>
+      <li>仅适合"大量同质实例"场景，单实例用它是过度设计</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ===================== 7. Minimal ===================== -->
+<h2 id="minimal">7. 最小代理 Minimal Proxy / Clone（EIP-1167）</h2>
+<p><span class="tag tag-eip">EIP-1167</span><span class="tag tag-noup">不可升级</span>前面四种都是"可升级"代理；最小代理是<strong>不可升级</strong>的极简克隆。它的运行时字节码只有 <strong>45 字节</strong>（含地址共 55 字节 init 描述），唯一功能就是把所有调用 delegatecall 到一个硬编码在字节码里的固定实现地址。</p>
+
+<h3>7.1 解决什么问题</h3>
+<ul>
+  <li><strong>极致省 gas 部署大量同质合约</strong>：工厂模式下，每个实例如果完整部署一份逻辑合约，gas 极高。用最小代理，只需部署一次逻辑合约，之后每个实例只花 ~55 字节的部署 gas（约为完整部署的 1/10 甚至更低）。</li>
+  <li>逻辑复用 + 状态隔离：所有 Clone 共享同一份实现代码，但每个 Clone 有独立存储和地址。</li>
+  <li>典型场景：Uniswap V2/V3 交易对、每用户金库、NFT 碎片化合约、GameFi 中每个玩家/道具一个实例。</li>
+</ul>
+
+<h3>7.2 字节码（EIP-1167 标准）</h3>
+<pre><code><span class="cm">// 运行时字节码（runtime bytecode），共 45 字节 + 20 字节地址</span>
+<span class="num">363d3d373d3d3d363d73</span>_<span class="st">&lt;20字节实现地址&gt;</span>_<span class="num">5af43d82803e903d91602b57fd5bf3</span>
+
+<span class="cm">// 反汇编语义：</span>
+<span class="cm">// 36          calldatasize</span>
+<span class="cm">// 3d          returndatasize (0)</span>
+<span class="cm">// 3d          returndatasize (0)</span>
+<span class="cm">// 37          calldatacopy(0, 0, calldatasize)  → 把 calldata 拷到内存 0 处</span>
+<span class="cm">// 3d 3d 3d 36 3d  堆参数</span>
+<span class="cm">// 73 address  PUSH20 &lt;implementation&gt;</span>
+<span class="cm">// 5a          gas</span>
+<span class="cm">// f4          delegatecall</span>
+<span class="cm">// 3d 82 80 3e 90 3d 91 60 2b 57 fd 5b f3  → 拷贝 return data 并 return / revert</span></code></pre>
+
+<h3>7.3 架构图与部署方式</h3>
+<div class="mermaid">
+flowchart LR
+  F[Factory 合约] -->|CREATE / CREATE2<br/>只部署 55 字节| C1[Clone #1<br/>独立存储]
+  F -->|deploy| C2[Clone #2<br/>独立存储]
+  F -->|deploy| CN[Clone #N]
+  C1 -->|delegatecall<br/>地址硬编码| IMPL[Implementation<br/>逻辑合约仅部署一次]
+  C2 -->|delegatecall| IMPL
+  CN -->|delegatecall| IMPL
+  style IMPL fill:#238636,stroke:#7ee787,color:#fff
+  style C1 fill:#1f6feb,stroke:#58a6ff,color:#fff
+  style C2 fill:#1f6feb,stroke:#58a6ff,color:#fff
+  style CN fill:#1f6feb,stroke:#58a6ff,color:#fff
+</div>
+
+<h3>7.4 关键代码：工厂用 CREATE2 部署最小代理</h3>
+<pre><code><span class="cm">// OpenZeppelin Clones 库的核心（简化）</span>
+<span class="kw">library</span> <span class="tp">Clones</span> {
+    <span class="kw">function</span> <span class="fn">cloneDeterministic</span>(<span class="kw">address</span> implementation, <span class="kw">bytes32</span> salt) <span class="kw">internal</span> <span class="kw">returns</span>(<span class="kw">address</span> instance) {
+        <span class="kw">bytes</span> <span class="kw">memory</span> creationCode = <span class="fn">_getCreationCode</span>(implementation);
+        <span class="kw">assembly</span> {
+            instance := <span class="fn">create2</span>(<span class="num">0</span>, <span class="fn">add</span>(creationCode, <span class="num">0x20</span>), <span class="fn">mload</span>(creationCode), salt)
+        }
+        <span class="kw">require</span>(instance != <span class="kw">address</span>(<span class="num">0</span>), <span class="st">"ERC1167: create2 failed"</span>);
+    }
+    <span class="cm">// creationCode = 10 字节前缀 + 20 字节地址 + 15 字节后缀，</span>
+    <span class="cm">// 部署时把这段 runtime code 写入新合约</span>
+}
+
+<span class="cm">// === 工厂合约 ===</span>
+<span class="kw">contract</span> <span class="tp">VaultFactory</span> {
+    <span class="kw">address</span> <span class="kw">public</span> immutable implementation;
+    <span class="kw">constructor</span>(<span class="kw">address</span> _impl) { implementation = _impl; }
+    <span class="kw">function</span> <span class="fn">createVault</span>(<span class="kw">bytes32</span> salt) <span class="kw">external</span> <span class="kw">returns</span>(<span class="kw">address</span> vault) {
+        vault = <span class="tp">Clones</span>.<span class="fn">cloneDeterministic</span>(implementation, salt);
+        <span class="tp">IVault</span>(vault).<span class="fn">initialize</span>(msg.<span class="fn">sender</span>); <span class="cm">// 必须用 initialize，不能用 constructor</span>
+    }
+}</code></pre>
+
+<div class="note">
+  <b>注意：</b>EIP-1167 最小代理<strong>本身不可升级</strong>（实现地址硬编码在字节码里，没有存储槽可改）。如果需要"可升级的克隆"，有两种思路：① 让被 clone 的 Implementation 本身是一个 UUPS/透明代理（套娃）；② 使用 ERC-7760 Minimal Upgradeable Proxies（在 EIP-1167 基础上把实现地址改存到 EIP-1967 槽）。
+</div>
+
+<div class="grid2">
+  <div class="pros">
+    <b>优点</b>
+    <ul>
+      <li><strong>部署 gas 极低</strong>（~55 字节，通常 10 万 gas 以内），大规模克隆场景成本优势巨大</li>
+      <li>字节码极简，审计成本低，几乎无攻击面</li>
+      <li>CREATE2 可预先计算地址，支持反事实部署（counterfactual）</li>
+      <li>逻辑合约只部署一次，代码复用率高</li>
+      <li>每个 Clone 独立地址、独立存储，互不干扰</li>
+    </ul>
+  </div>
+  <div class="cons">
+    <b>缺点</b>
+    <ul>
+      <li><strong>不可升级</strong>：实现地址硬编码，发现 bug 无法修复（只能部署新 Clone 并迁移状态）</li>
+      <li>实现合约必须用 <code>initialize()</code> 初始化，不能用 constructor</li>
+      <li>不能用 <code>immutable</code> 变量（原因同 UUPS）</li>
+      <li>区块浏览器默认不会把 Clone 识别为代理，需要特殊插件/手动验证</li>
+      <li>所有 Clone 共享实现合约的代码，若实现合约有 bug 则全部受影响（且无法升级修复）</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ===================== 8. 对比表 ===================== -->
+<h2 id="compare">8. 五模式横向对比</h2>
+<table>
+  <tr>
+    <th>维度</th>
+    <th>透明代理</th>
+    <th>UUPS</th>
+    <th>钻石 Diamond</th>
+    <th>信标 Beacon</th>
+    <th>最小代理 EIP-1167</th>
+  </tr>
+  <tr>
+    <td><b>标准</b></td>
+    <td>EIP-1967（惯例）</td>
+    <td>EIP-1822 + EIP-1967</td>
+    <td>EIP-2535</td>
+    <td>EIP-1967（惯例）</td>
+    <td>EIP-1167</td>
+  </tr>
+  <tr>
+    <td><b>可升级</b></td>
+    <td>是</td>
+    <td>是</td>
+    <td>是（按 Facet）</td>
+    <td>是（批量）</td>
+    <td><b>否</b></td>
+  </tr>
+  <tr>
+    <td><b>升级逻辑位置</b></td>
+    <td>Proxy 内</td>
+    <td>Implementation 内</td>
+    <td>DiamondCutFacet 内</td>
+    <td>Beacon 内</td>
+    <td>无</td>
+  </tr>
+  <tr>
+    <td><b>实现数量</b></td>
+    <td>1</td>
+    <td>1</td>
+    <td>N（Facet）</td>
+    <td>1（经 Beacon）</td>
+    <td>1（硬编码）</td>
+  </tr>
+  <tr>
+    <td><b>用户交易 gas</b></td>
+    <td>中（+admin 判断）</td>
+    <td><b>最低</b></td>
+    <td>中（+selector 查表）</td>
+    <td>最高（+Beacon 调用）</td>
+    <td>低（纯转发）</td>
+  </tr>
+  <tr>
+    <td><b>Proxy 部署 gas</b></td>
+    <td>高</td>
+    <td>低</td>
+    <td>中</td>
+    <td>低</td>
+    <td><b>极低</b></td>
+  </tr>
+  <tr>
+    <td><b>实现合约要求</b></td>
+    <td>任意普通合约</td>
+    <td>须继承 UUPSUpgradeable</td>
+    <td>须用 Diamond Storage</td>
+    <td>任意普通合约</td>
+    <td>须用 initialize</td>
+  </tr>
+  <tr>
+    <td><b>升级粒度</b></td>
+    <td>整合约</td>
+    <td>整合约</td>
+    <td><b>单个函数/Facet</b></td>
+    <td>整批实例</td>
+    <td>不可升级</td>
+  </tr>
+  <tr>
+    <td><b>突破 24KB 限制</b></td>
+    <td>否</td>
+    <td>否</td>
+    <td><b>是</b></td>
+    <td>否</td>
+    <td>否</td>
+  </tr>
+  <tr>
+    <td><b>学习曲线</b></td>
+    <td>低</td>
+    <td>中</td>
+    <td>高</td>
+    <td>中</td>
+    <td>低</td>
+  </tr>
+  <tr>
+    <td><b>典型场景</b></td>
+    <td>通用 DeFi 协议、标准升级需求</td>
+    <td>追求 gas 效率的可升级协议</td>
+    <td>超大型复杂协议（Aave 级）</td>
+    <td>工厂批量部署同质合约</td>
+    <td>大量克隆、无需升级的实例</td>
+  </tr>
+  <tr>
+    <td><b>代表项目</b></td>
+    <td>OpenZeppelin 早期默认、许多 DeFi</td>
+    <td>OpenZeppelin 当前推荐默认</td>
+    <td>Aave V3、BarnBridge、DerivaDEX</td>
+    <td>Uniswap V3 工厂式部署、许多 NFT 市场</td>
+    <td>Uniswap V2 pairs、Safe 钱包克隆、0x 协议</td>
+  </tr>
+</table>
+
+<!-- ===================== 9. 选型决策树 ===================== -->
+<h2 id="choose">9. 选型决策树</h2>
+<div class="mermaid">
+flowchart TD
+  Q1{"需要部署大量\n同质实例?"}
+  Q1 -->|是| Q2{"这些实例需要\n统一升级吗?"}
+  Q1 -->|否| Q3{"单个合约会超过\n24KB 或需要模块化升级?"}
+  Q2 -->|需要| B["信标代理 Beacon"]
+  Q2 -->|不需要| M["最小代理 EIP-1167"]
+  Q3 -->|是| D["钻石代理 Diamond"]
+  Q3 -->|否| Q4{"极度在意用户交易 gas?"}
+  Q4 -->|是| U["UUPS"]
+  Q4 -->|否| Q5{"实现合约不能改\n(如第三方合约)?"}
+  Q5 -->|是| T["透明代理"]
+  Q5 -->|否| U
+  
+  style B fill:#6e40c9,stroke:#d2a8ff,color:#fff
+  style M fill:#8957e5,stroke:#d2a8ff,color:#fff
+  style D fill:#1f6feb,stroke:#58a6ff,color:#fff
+  style U fill:#238636,stroke:#7ee787,color:#fff
+  style T fill:#f0883e,stroke:#f0883e,color:#fff
+</div>
+
+<h3>选型速查</h3>
+<table>
+  <tr><th>场景</th><th>推荐</th></tr>
+  <tr><td>新项目，需要可升级，没特殊需求</td><td><b>UUPS</b>（OpenZeppelin 当前默认推荐，gas 最优）</td></tr>
+  <tr><td>实现合约是第三方/不能修改，又要可升级</td><td><b>透明代理</b>（升级逻辑在 Proxy，实现无需继承）</td></tr>
+  <tr><td>协议极其复杂，单合约装不下，需要模块化</td><td><b>Diamond</b></td></tr>
+  <tr><td>工厂部署大量同质合约且要统一升级</td><td><b>Beacon</b></td></tr>
+  <tr><td>工厂部署大量同质合约，不需要升级</td><td><b>EIP-1167 最小代理</b></td></tr>
+  <tr><td>追求极致去中心化、不想留升级后门</td><td>不可变合约 或 部署后立即 renounce 升级权限的 UUPS/透明</td></tr>
+</table>
+
+<!-- ===================== 10. 安全陷阱 ===================== -->
+<h2 id="security">10. 升级安全陷阱清单</h2>
+
+<div class="card">
+<h3>10.1 存储碰撞（Storage Collision）— 最常见漏洞</h3>
+<p>升级时新实现的状态变量顺序/类型必须与旧实现兼容。在旧变量中间插入新变量会导致所有后续变量槽位错位，状态错乱。</p>
+<ul>
+  <li>透明/UUPS：用 OpenZeppelin <code>@openzeppelin/contracts-upgradeable</code> + <code>storage-upgrade-core</code> 插件在编译时检查。</li>
+  <li>Diamond：用 Diamond Storage 命名空间天然规避，但跨 Facet 共享 struct 时仍需谨慎。</li>
+  <li><strong>禁止</strong>在已有变量中间插入、修改变量类型、修改变量声明顺序。新变量只能追加在末尾。</li>
+</ul>
+</div>
+
+<div class="card">
+<h3>10.2 未初始化的实现合约（Takeover 风险）</h3>
+<p>Implementation 合约本身如果有 <code>initialize()</code> 且未调用，攻击者可以直接调用它的 <code>initialize()</code> 夺取实现合约的 owner，然后在实现合约上自毁（<code>selfdestruct</code>）或做其他破坏。虽然 delegatecall 用的是 Proxy 状态，但实现合约被接管后仍有风险（如通过 <code>selfdestruct</code> 删除代码导致所有调用失败）。</p>
+<p><b>防护：</b>OpenZeppelin 的 <code>Initializable</code> 提供 <code>_disableInitializers()</code>，在实现合约的 constructor 中调用，永久禁用其直接初始化。</p>
+<pre><code><span class="kw">contract</span> <span class="tp">MyLogicV1</span> <span class="kw">is</span> <span class="tp">Initializable</span> {
+    <span class="cm">/// @custom:oz-upgrades-unsafe-allow constructor</span>
+    <span class="kw">constructor</span>() {
+        <span class="fn">_disableInitializers</span>();
+    }
+}</code></pre>
+</div>
+
+<div class="card">
+<h3>10.3 UUPS 自杀式升级</h3>
+<p>升级到不含 <code>UUPSUpgradeable</code> 的实现 → 永久失去升级能力。OpenZeppelin 默认通过 <code>proxiableUUID()</code> 校验阻止，但自定义实现必须自己做。</p>
+</div>
+
+<div class="card">
+<h3>10.4 函数选择器冲突</h3>
+<ul>
+  <li>透明代理：admin 调用 <code>upgradeTo</code> 时若实现里也有同 selector 函数，admin 走代理逻辑（不会 delegate），user 调用则走实现——这是设计如此，但要意识到 admin 永远调不到实现里的同名函数。</li>
+  <li>UUPS：实现里的业务函数不能与 <code>upgradeTo</code> / <code>upgradeToAndCall</code> 同 selector。</li>
+  <li>Diamond：两个 Facet 不能注册同一个 selector，<code>diamondCut</code> 会 revert。</li>
+</ul>
+</div>
+
+<div class="card">
+<h3>10.5 升级权限中心化</h3>
+<p>所有可升级模式都意味着"拥有升级密钥的人可以任意更改合约逻辑"，这本质上是一个后门。生产环境必须：</p>
+<ul>
+  <li>用多签（Gnosis Safe）或 Timelock 控制升级权限，避免单点私钥泄露</li>
+  <li>Timelock 给用户留出退出时间（升级延迟 24-48 小时）</li>
+  <li>对不需要长期升级的合约，部署稳定后 <code>renounceOwnership</code> 或转移到零地址，永久锁死</li>
+</ul>
+</div>
+
+<div class="card">
+<h3>10.6 constructor / immutable 陷阱</h3>
+<ul>
+  <li>实现合约的 <code>constructor</code> 只在部署实现时执行一次，<strong>不会在 Proxy 上下文执行</strong>。所以初始化必须用 <code>initialize()</code>。</li>
+  <li><code>immutable</code> 变量在部署时被内联到实现合约的运行时字节码中。delegatecall 时代码来自实现合约，所以 immutable 实际上<strong>能读到值</strong>——但这个值是实现合约部署时确定的，对所有 Proxy 共享，不能用来存 Proxy 特有的值（如 owner）。OpenZeppelin upgradeable 合约因此禁用 immutable 存实例相关数据。</li>
+</ul>
+</div>
+
+<div class="card">
+<h3>10.7 delegatecall 上下文与 msg.sender</h3>
+<p>delegatecall 中 <code>msg.sender</code> 是原始调用者（不是 Proxy），<code>address(this)</code> 是 Proxy 地址。实现合约里所有基于 <code>address(this)</code> 的逻辑（如计算 CREATE2 地址、域名分离器 EIP-712 domain）都会正确使用 Proxy 地址——这通常是期望的，但实现合约单独部署测试时要注意上下文差异。</p>
+</div>
+
+<footer>
+  <p><b>参考资料：</b></p>
+  <ul>
+    <li>EIP-1967 Proxy Storage Slots — <a href="https://eips.ethereum.org/EIPS/eip-1967" target="_blank">eips.ethereum.org/EIPS/eip-1967</a></li>
+    <li>EIP-1822 Universal Upgradeable Proxy Standard — <a href="https://eips.ethereum.org/EIPS/eip-1822" target="_blank">eips.ethereum.org/EIPS/eip-1822</a></li>
+    <li>EIP-2535 Diamonds, Multi-Facet Proxy — <a href="https://eips.ethereum.org/EIPS/eip-2535" target="_blank">eips.ethereum.org/EIPS/eip-2535</a></li>
+    <li>EIP-1167 Minimal Proxy Contract — <a href="https://eips.ethereum.org/EIPS/eip-1167" target="_blank">eips.ethereum.org/EIPS/eip-1167</a></li>
+    <li>OpenZeppelin Contracts Proxy API — <a href="https://docs.openzeppelin.com/contracts/5.x/api/proxy" target="_blank">docs.openzeppelin.com/contracts/5.x/api/proxy</a></li>
+    <li>Diamond-1 参考实现 (mudgen) — <a href="https://github.com/mudgen/diamond-1" target="_blank">github.com/mudgen/diamond-1</a></li>
+  </ul>
+  <p style="margin-top:14px">文档生成时间：2026-08-30 · 基于官方 EIP 规范与 OpenZeppelin v5.x 实现整理</p>
+</footer>
+
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      background: '#161b22',
+      primaryColor: '#1f6feb',
+      primaryTextColor: '#e6edf3',
+      primaryBorderColor: '#58a6ff',
+      lineColor: '#8b949e',
+      secondaryColor: '#238636',
+      tertiaryColor: '#1c2330',
+      fontFamily: '-apple-system, "PingFang SC", "Microsoft YaHei", sans-serif',
+      fontSize: '13px'
+    },
+    flowchart: { curve: 'basis', padding: 16 }
+  });
+</script>
+</body>
+</html>

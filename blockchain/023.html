@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeFi 行业名词与永续合约深度报告 · 2026</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2330; --border:#2d333b;
+    --text:#e6edf3; --muted:#8b949e; --accent:#58a6ff; --accent2:#f0883e;
+    --green:#3fb950; --red:#f85149; --purple:#bc8cff; --yellow:#d29922;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;line-height:1.7;padding:0}
+  .wrap{max-width:1100px;margin:0 auto;padding:32px 24px 80px}
+  header{border-bottom:1px solid var(--border);padding-bottom:24px;margin-bottom:32px}
+  h1{font-size:32px;font-weight:700;letter-spacing:-.5px}
+  h1 .sub{display:block;font-size:15px;color:var(--muted);font-weight:400;margin-top:8px}
+  h2{font-size:24px;margin:48px 0 16px;padding-left:12px;border-left:4px solid var(--accent)}
+  h3{font-size:18px;margin:28px 0 12px;color:var(--accent)}
+  p{margin:10px 0;color:#c9d1d9}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .verdict{background:linear-gradient(135deg,#1c2330 0%,#1a2332 100%);border:1px solid var(--border);border-radius:12px;padding:28px;margin:24px 0}
+  .verdict .tag{display:inline-block;background:var(--green);color:#04260f;font-size:13px;font-weight:700;padding:3px 10px;border-radius:20px;margin-bottom:12px}
+  .verdict h2{border:none;padding:0;margin:0 0 12px;font-size:22px}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin:20px 0}
+  .stat{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px}
+  .stat .num{font-size:26px;font-weight:700;color:var(--accent2)}
+  .stat .lbl{font-size:13px;color:var(--muted);margin-top:4px}
+  table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;background:var(--panel);border-radius:10px;overflow:hidden}
+  th,td{padding:11px 14px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
+  th{background:var(--panel2);color:var(--accent);font-weight:600;font-size:13px;letter-spacing:.3px}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:#1a2029}
+  td code{background:#21262d;padding:2px 6px;border-radius:4px;font-size:12px;color:var(--yellow)}
+  .cat{display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600}
+  .cat-dex{background:#1f3a5f;color:#58a6ff}
+  .cat-lend{background:#2d1f4f;color:#bc8cff}
+  .cat-stable{background:#1f3d2d;color:#3fb950}
+  .cat-perp{background:#4d2a1f;color:#f0883e}
+  .cat-lst{background:#3d3a1f;color:#d29922}
+  .cat-oracle{background:#1f3d3d;color:#39c5cf}
+  .chart-box{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:20px;margin:18px 0;overflow-x:auto}
+  .chart-title{font-size:14px;color:var(--muted);margin-bottom:14px;font-weight:600}
+  .bar-chart{display:flex;align-items:flex-end;gap:24px;height:220px;padding:0 10px}
+  .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px}
+  .bar{width:100%;max-width:90px;background:linear-gradient(180deg,var(--accent2),#c76a2a);border-radius:6px 6px 0 0;position:relative;transition:all .3s}
+  .bar:hover{filter:brightness(1.2)}
+  .bar .val{position:absolute;top:-24px;left:50%;transform:translateX(-50%);font-size:13px;font-weight:700;color:var(--accent2);white-space:nowrap}
+  .bar-col .yr{font-size:13px;color:var(--muted)}
+  .mermaid{background:var(--panel);border-radius:10px;padding:20px;margin:18px 0;text-align:center}
+  .note{background:#1c2330;border-left:3px solid var(--yellow);padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0;font-size:14px;color:#d4c79a}
+  .warn{background:#2a1a1a;border-left:3px solid var(--red);padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0;font-size:14px;color:#e3b3b0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}
+  @media(max-width:720px){.grid2{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:18px}
+  .card h4{color:var(--accent);margin-bottom:8px;font-size:15px}
+  .card p{font-size:14px;margin:6px 0}
+  .formula{background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:14px;font-family:"SF Mono",Consolas,monospace;font-size:14px;color:var(--green);margin:12px 0;overflow-x:auto}
+  .toc{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:18px 22px;margin:24px 0}
+  .toc ol{margin-left:20px}
+  .toc li{margin:5px 0}
+  .toc a{color:#c9d1d9}
+  footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--border);color:var(--muted);font-size:13px}
+  .src{font-size:12px;color:var(--muted);margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>DeFi 行业名词与永续合约深度报告
+    <span class="sub">Decentralized Finance Glossary · Notable Projects · Perpetual Futures Deep Dive · 2026.08</span>
+  </h1>
+</header>
+
+<!-- ============ 0. 直接回答 ============ -->
+<section class="verdict">
+  <span class="tag">结论先行</span>
+  <h2>永续合约是当前 DeFi 最重要的增长赛道之一吗？—— 可以这样说，但不宜绝对化。</h2>
+  <p>从 2025 年的链上衍生品交易量、协议收入与市场关注度看，<strong>链上永续合约（On-chain Perps）确实是 DeFi 增长最明显的赛道之一</strong>。但“最火”“没有之一”属于主观判断，而且不同数据源对“链上永续”的统计口径并不一致，因此这里采用更严谨的表述。</p>
+  <div class="stats">
+    <div class="stat"><div class="num">$6.7T</div><div class="lbl">2025 年 Top 10 Perp DEX 年交易量（CoinGecko）</div></div>
+    <div class="stat"><div class="num">~44%</div><div class="lbl">Hyperliquid 在 2025 年末附近的链上永续市场份额口径（并非全年固定值）</div></div>
+    <div class="stat"><div class="num">$2.65B</div><div class="lbl">Hyperliquid Futures 近期 24h 交易量（页面实时数据，持续变化）</div></div>
+    <div class="stat"><div class="num">~$17.9B</div><div class="lbl">HYPE 当前流通市值（CoinGecko 页面实时数据，持续变化）</div></div>
+  </div>
+  <p class="src">口径说明：2025 年 Top 10 Perp DEX 交易量与 Hyperliquid 年内份额存在明显差异；部分研究报告给出“阶段性 70–80%”而非全年固定份额。实时交易量、市值应以当日数据源为准。</p>
+</section>
+
+<div class="toc">
+  <strong>目录</strong>
+  <ol>
+    <li><a href="#glossary">DeFi 核心名词速查表</a></li>
+    <li><a href="#projects">著名项目与官网（按赛道）</a></li>
+    <li><a href="#perps">永续合约深度解析</a>
+      <ol>
+        <li>是什么 / 为什么火</li>
+        <li>四大核心机制</li>
+        <li>两种架构：订单簿 vs 流动性池</li>
+        <li>做多/做空实例计算</li>
+        <li>风险清单</li>
+      </ol>
+    </li>
+    <li><a href="#ecosystem">DeFi 生态图谱</a></li>
+  </ol>
+</div>
+
+<!-- ============ 1. 名词表 ============ -->
+<h2 id="glossary">1. DeFi 核心名词速查表</h2>
+<table>
+  <thead><tr><th style="width:140px">名词</th><th style="width:120px">英文 / 缩写</th><th>一句话解释</th></tr></thead>
+  <tbody>
+    <tr><td>去中心化金融</td><td>DeFi</td><td>用智能合约替代银行/券商等中介，在链上提供借贷、交易、衍生品等金融服务。</td></tr>
+    <tr><td>总锁仓价值</td><td>TVL (Total Value Locked)</td><td>存入某协议的资产总市值，是衡量 DeFi 协议规模最常用的指标。</td></tr>
+    <tr><td>去中心化交易所</td><td>DEX</td><td>主要依靠智能合约和去中心化基础设施完成交易；具体访问方式、前端与地区合规要求并不一定相同，代表 Uniswap。</td></tr>
+    <tr><td>自动做市商</td><td>AMM</td><td>使用预设定价函数自动报价，不依赖传统订单簿；恒定乘积只是其中一种经典模型。</td></tr>
+    <tr><td>流动性提供者</td><td>LP</td><td>向 AMM/流动性池提供资产并承担相应市场风险，以获得手续费或其他激励；不一定都是“两种资产”等额存入。</td></tr>
+    <tr><td>滑点</td><td>Slippage</td><td>下单价格与实际成交价的差异，池子越浅滑点越大。</td></tr>
+    <tr><td>无常损失</td><td>IL (Impermanent Loss)</td><td>LP 因币价波动，相对于"单纯持有"产生的账面损失。</td></tr>
+    <tr><td>超额抵押借贷</td><td>Over-collateralized Lending</td><td>抵押价值必须高于借款价值（如抵押率 150%），代表 Aave / Compound。</td></tr>
+    <tr><td>清算</td><td>Liquidation</td><td>抵押率跌破阈值时，协议强制拍卖抵押品还债。</td></tr>
+    <tr><td>稳定币</td><td>Stablecoin</td><td>目标是维持相对稳定的参考价值（通常为美元）；常见设计包括法币/现实世界资产支持、加密资产超额抵押，以及其他机制。把“算法稳定币”单独作为主流三分法已过于简化。</td></tr>
+    <tr><td>流动性质押代币</td><td>LST</td><td>质押 ETH 后获得的可流通凭证（如 stETH），让质押资产仍可参与 DeFi。</td></tr>
+    <tr><td>收益耕种</td><td>Yield Farming</td><td>通过提供流动性/借贷获取协议代币奖励的行为。</td></tr>
+    <tr><td>闪电贷</td><td>Flash Loan</td><td>同一笔交易内借出并归还的无抵押贷款，用于套利、清算，需编程能力。</td></tr>
+    <tr><td>预言机</td><td>Oracle</td><td>向智能合约提供外部世界数据（如价格、利率、事件结果等）的基础设施；数据既可能来自链下，也可能经过多源聚合与链上验证，代表 Chainlink、Pyth。</td></tr>
+    <tr><td>跨链桥</td><td>Bridge</td><td>在不同链之间转移资产的协议，历史上是黑客攻击重灾区。</td></tr>
+    <tr><td>治理代币</td><td>Governance Token</td><td>用于参与协议治理或参数决策；是否拥有协议收入分配、回购等经济权益，需要看具体代币与协议设计，不能默认等同于“分红代币”。</td></tr>
+    <tr><td><strong>永续合约</strong></td><td><strong>Perpetual Futures / Perp</strong></td><td><strong>无到期日的期货合约，靠资金费率锚定现货价，可长期持仓、双向交易、加杠杆。详见第 3 节。</strong></td></tr>
+    <tr><td>资金费率</td><td>Funding Rate</td><td>永续市场中多空交易者按平台规则定期支付或收取的费用，用于影响持仓成本并帮助永续价格围绕参考价格交易；具体公式和结算周期因协议而异。</td></tr>
+    <tr><td>标记价格</td><td>Mark Price</td><td>用于保证金、未实现盈亏和清算等风险计算的参考价格；具体算法由平台决定，可能结合指数价格、盘口、中间价、成交价和 EMA 等信息。</td></tr>
+    <tr><td>未平仓量</td><td>OI (Open Interest)</td><td>市场中尚未平仓的合约名义价值/数量，具体统计口径依平台而定。</td></tr>
+    <tr><td>初始/维持保证金</td><td>Initial / Maintenance Margin</td><td>建立仓位所需的初始保证金，以及维持仓位所需的最低保证金/风险缓冲。</td></tr>
+    <tr><td>自动减仓</td><td>ADL (Auto-Deleveraging)</td><td>部分衍生品平台在极端情况下采用的风险处置机制，通过主动削减部分对手方仓位来处理系统性穿仓风险；并非所有协议都有 ADL。</td></tr>
+  </tbody>
+</table>
+
+<!-- ============ 2. 项目表 ============ -->
+<h2 id="projects">2. 著名项目与官网（按赛道）</h2>
+<table>
+  <thead><tr><th style="width:130px">项目</th><th style="width:100px">赛道</th><th>一句话定位</th><th style="width:220px">官网</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Uniswap</strong></td><td><span class="cat cat-dex">DEX</span></td><td>最大 DEX，AMM 鼻祖，V4 引入 Hooks 自定义逻辑。</td><td><a href="https://uniswap.org" target="_blank">uniswap.org</a></td></tr>
+    <tr><td><strong>Curve Finance</strong></td><td><span class="cat cat-dex">DEX</span></td><td>稳定币/锚定资产低滑点交易之王，CRV 激励模型影响深远。</td><td><a href="https://curve.fi" target="_blank">curve.fi</a></td></tr>
+    <tr><td><strong>Balancer</strong></td><td><span class="cat cat-dex">DEX</span></td><td>支持自定义资产权重的 AMM，可做"指数基金池"。</td><td><a href="https://balancer.fi" target="_blank">balancer.fi</a></td></tr>
+    <tr><td><strong>PancakeSwap</strong></td><td><span class="cat cat-dex">DEX</span></td><td>BSC 上最大 DEX，用户量巨大。</td><td><a href="https://pancakeswap.finance" target="_blank">pancakeswap.finance</a></td></tr>
+
+    <tr><td><strong>Aave</strong></td><td><span class="cat cat-lend">借贷</span></td><td>头部去中心化借贷协议；Aave V4 已于 2026 年 3 月在 Ethereum 主网上线，采用 Hub-and-Spoke 架构。</td><td><a href="https://aave.com" target="_blank">aave.com</a></td></tr>
+    <tr><td><strong>Compound</strong></td><td><span class="cat cat-lend">借贷</span></td><td>算法利率借贷先驱，V3 支持隔离市场。</td><td><a href="https://compound.finance" target="_blank">compound.finance</a></td></tr>
+    <tr><td><strong>Morpho</strong></td><td><span class="cat cat-lend">借贷</span></td><td>以 Morpho Blue 等不可变、隔离市场为核心的借贷基础层。当前 Morpho 不应再简单描述为“Aave/Compound 之上的 P2P 撮合层”。</td><td><a href="https://morpho.org" target="_blank">morpho.org</a></td></tr>
+    <tr><td><strong>Spark</strong></td><td><span class="cat cat-lend">借贷</span></td><td>MakerDAO 生态借贷市场，与 DAI Savings Rate 联动。</td><td><a href="https://spark.fi" target="_blank">spark.fi</a></td></tr>
+
+    <tr><td><strong>MakerDAO / Sky</strong></td><td><span class="cat cat-stable">稳定币</span></td><td>DAI 发行方，DeFi 最老牌协议之一，已升级为 Sky 生态。</td><td><a href="https://sky.money" target="_blank">sky.money</a></td></tr>
+    <tr><td><strong>Liquity</strong></td><td><span class="cat cat-stable">稳定币</span></td><td>无息借稳定币 LUSD，治理最小化。</td><td><a href="https://liquity.org" target="_blank">liquity.org</a></td></tr>
+
+    <tr><td><strong>Hyperliquid</strong></td><td><span class="cat cat-perp">永续/衍生品</span></td><td><strong>2025 年链上永续头部平台之一</strong>，采用自研 L1 与订单簿架构。其市场份额随时间和统计口径变化，不能写成全年固定的 70–80%。</td><td><a href="https://hyperliquid.xyz" target="_blank">hyperliquid.xyz</a></td></tr>
+    <tr><td><strong>GMX</strong></td><td><span class="cat cat-perp">永续/衍生品</span></td><td>池式永续代表，GM/GLV 等流动性池为交易提供对手方流动性，LP 收益与交易活动和市场风险相关。</td><td><a href="https://gmx.io" target="_blank">gmx.io</a></td></tr>
+    <tr><td><strong>dYdX</strong></td><td><span class="cat cat-perp">永续/衍生品</span></td><td>老牌链上永续，已迁移至自研 dYdX Chain（Cosmos）。</td><td><a href="https://dydx.exchange" target="_blank">dydx.exchange</a></td></tr>
+    <tr><td><strong>Paradex</strong></td><td><span class="cat cat-perp">永续/衍生品</span></td><td>基于 Starknet 生态的订单簿衍生品交易平台；截至 2026 年公开费率文档，零费率主要适用于 Retail，Pro 用户采用独立费率表。</td><td><a href="https://paradex.xyz" target="_blank">paradex.xyz</a></td></tr>
+    <tr><td><strong>ApolloX</strong></td><td><span class="cat cat-perp">永续/衍生品</span></td><td>BSC 系永续 DEX，面向零售。</td><td><a href="https://apollox.network" target="_blank">apollox.network</a></td></tr>
+
+    <tr><td><strong>Lido</strong></td><td><span class="cat cat-lst">质押/LST</span></td><td>最大 ETH 流动性质押协议，发行 stETH。</td><td><a href="https://lido.fi" target="_blank">lido.fi</a></td></tr>
+    <tr><td><strong>Rocket Pool</strong></td><td><span class="cat cat-lst">质押/LST</span></td><td>去中心化 ETH 质押，发行 rETH。</td><td><a href="https://rocketpool.net" target="_blank">rocketpool.net</a></td></tr>
+    <tr><td><strong>EigenLayer</strong></td><td><span class="cat cat-lst">再质押</span></td><td>Restaking 龙头，让 ETH 同时为多个中间件提供安全。</td><td><a href="https://eigenlayer.xyz" target="_blank">eigenlayer.xyz</a></td></tr>
+
+    <tr><td><strong>Chainlink</strong></td><td><span class="cat cat-oracle">预言机</span></td><td>最大去中心化预言机网络，价格喂价+CCIP 跨链。</td><td><a href="https://chain.link" target="_blank">chain.link</a></td></tr>
+    <tr><td><strong>Pyth Network</strong></td><td><span class="cat cat-oracle">预言机</span></td><td>高频低延迟金融数据预言机，衍生品协议常用。</td><td><a href="https://pyth.network" target="_blank">pyth.network</a></td></tr>
+
+    <tr><td><strong>Yearn Finance</strong></td><td><span class="cat cat-lend">收益聚合</span></td><td>自动寻找最高收益策略的机枪池鼻祖。</td><td><a href="https://yearn.fi" target="_blank">yearn.fi</a></td></tr>
+    <tr><td><strong>Convex Finance</strong></td><td><span class="cat cat-lend">收益聚合</span></td><td>Curve 生态收益增强器，锁定 CRV 提升 LP 收益。</td><td><a href="https://convexfinance.com" target="_blank">convexfinance.com</a></td></tr>
+  </tbody>
+</table>
+
+<!-- ============ 3. 永续合约深度 ============ -->
+<h2 id="perps">3. 永续合约深度解析</h2>
+
+<h3>3.1 是什么 & 为什么这么火</h3>
+<p><strong>永续合约（Perpetual Futures / Perp）是一种没有到期日、不需要交割的期货合约。</strong>交易者可以长期持有多头或空头仓位，用杠杆放大收益，合约价格通过"资金费率"机制锚定标的现货价格。</p>
+<p>它火的底层逻辑：</p>
+<ul style="margin:10px 0 10px 24px;color:#c9d1d9">
+  <li><strong>市场够大</strong>：传统金融里衍生品交易量是现货的数十倍，加密也不例外——永续是 CEX 交易量最大的品种，链上化是必然趋势。</li>
+  <li><strong>资金效率高</strong>：通常支持较高杠杆、双向交易和较低的保证金占用，但具体最高杠杆由平台、交易对和风险分层决定，并非所有协议都是 10–100 倍。</li>
+  <li><strong>无到期日</strong>：不像传统有到期日的期货需要到期交割或移仓，因此可以在满足保证金条件的情况下持续持仓。</li>
+  <li><strong>收入模型更成熟</strong>：部分协议拥有手续费、清算费等可量化收入，并可能进一步用于 LP 激励、国库或代币回购；<strong>资金费率通常是多空交易者之间的支付，不应直接等同于协议收入</strong>。</li>
+  <li><strong>执行性能提升</strong>：以 Hyperliquid 等专用交易基础设施为代表，链上永续的撮合和执行体验显著改善；但不宜用单一“亚毫秒”数字代表端到端链上交易延迟。</li>
+</ul>
+
+<div class="chart-box">
+  <div class="chart-title">Perp DEX 年交易量增长（单位：万亿美元）</div>
+  <div class="bar-chart">
+    <div class="bar-col"><div class="bar" style="height:22%"><span class="val">$1.5T</span></div><span class="yr">2024</span></div>
+    <div class="bar-col"><div class="bar" style="height:100%"><span class="val">$6.7T</span></div><span class="yr">2025</span></div>
+  </div>
+  <p class="src">来源：CoinGecko《2025 Annual Crypto Industry Report》：Top 10 Perp DEX 2024 年约 $1.5T，2025 年约 $6.7T。不同研究机构对“链上永续”的统计范围可能不同。</p>
+</div>
+
+<h3>3.2 四大核心机制</h3>
+
+<div class="grid2">
+  <div class="card">
+    <h4>① 资金费率 Funding Rate</h4>
+    <p>永续合约的重要机制，但<strong>结算周期、公式与参考价格并不统一</strong>：</p>
+    <p>• 永续价格相对参考价格偏高时，资金费率<strong style="color:var(--red)">通常倾向为正，常见结果是多头向空头支付</strong></p>
+    <p>• 永续价格相对参考价格偏低时，资金费率<strong style="color:var(--green)">通常倾向为负，常见结果是空头向多头支付</strong></p>
+    <p>它的目标是改变持仓经济成本，帮助市场价格围绕参考价格运行，但并不能保证价格“自动回归”。</p>
+  </div>
+  <div class="card">
+    <h4>② 标记价格 Mark Price</h4>
+    <p>通常不直接使用单一最新成交价；协议会设计独立的风险参考价格，例如结合指数价格、盘口和时间平滑后的价格，以降低瞬时异常成交对清算的影响。<strong>具体公式必须看交易平台文档。</strong></p>
+  </div>
+  <div class="card">
+    <h4>③ 保证金分级</h4>
+    <p><strong>初始保证金</strong>：开仓时要求的保证金，10 倍杠杆仅可理解为“名义仓位约为保证金的 10 倍”的简化例子。<br><strong>维持保证金</strong>：维持仓位所需的最低保证金水平，具体数值通常随交易对和风险档位变化；跌破后可能触发清算。</p>
+  </div>
+  <div class="card">
+    <h4>④ 保险基金 + ADL</h4>
+    <p>这是<strong>部分衍生品平台</strong>采用的风险控制路径：可能使用保险基金、破产价格机制、ADL 或其他风险分担手段处理穿仓；具体顺序、是否存在 ADL 以及损失如何分担，都取决于协议设计。</p>
+  </div>
+</div>
+
+<div class="formula">
+资金费 = 仓位名义价值 × 资金费率 × (持仓时段 / 结算周期)<br>
+例：10,000 USDT 名义仓位，费率 +0.01%（8h），持有 8h → 多头付 1 USDT 给空头
+</div>
+
+<div class="mermaid">
+flowchart LR
+  A[永续价格相对指数/参考价格偏高] -->|通常对应正资金费率| B[多头 → 空头<br/>支付资金费]
+  C[永续价格相对指数/参考价格偏低] -->|通常对应负资金费率| D[空头 → 多头<br/>支付资金费]
+  B --> E[持仓成本变化<br/>促进价格偏离收敛]
+  D --> E
+  style A fill:#4d2a1f,stroke:#f0883e,color:#fff
+  style C fill:#1f3a5f,stroke:#58a6ff,color:#fff
+  style E fill:#1f3d2d,stroke:#3fb950,color:#fff
+</div>
+
+<h3>3.3 两种架构：订单簿 vs 流动性池</h3>
+<table>
+  <thead><tr><th style="width:120px">维度</th><th>订单簿 Order Book</th><th>流动性池 Peer-to-Pool</th></tr></thead>
+  <tbody>
+    <tr><td>代表项目</td><td>Hyperliquid、dYdX、Paradex</td><td>GMX v2、早期 Perpetual Protocol</td></tr>
+    <tr><td>对手方</td><td>其他交易者（做市商挂单）</td><td>共享流动性池（如 GM；GLP 主要是 GMX V1 的历史机制）</td></tr>
+    <tr><td>价格发现</td><td>订单簿中的买卖盘共同形成市场价格</td><td>通常以预言机/指数价格为核心，再叠加价格影响、库存或其他协议规则</td></tr>
+    <tr><td>滑点</td><td>主要来自盘口深度、价差和订单规模；不同市场差异很大</td><td>取决于池子深度、未平衡仓位、价格影响与协议参数</td></tr>
+    <tr><td>LP 风险</td><td>做市商主要承担库存、方向与流动性风险</td><td>在 GMX 等池对交易者形成对手方暴露，交易者盈利可能体现为池子损益，同时还存在价格影响、借贷费等其他变量</td></tr>
+    <tr><td>优势</td><td>专业、高效、可上大仓位</td><td>任何资产都能开市场，长尾资产友好</td></tr>
+    <tr><td>劣势</td><td>需要做市商生态，冷启动难</td><td>极端行情池子可能亏损，预言机依赖重</td></tr>
+  </tbody>
+</table>
+
+<h3>3.4 做多/做空实例计算</h3>
+<div class="grid2">
+  <div class="card">
+    <h4 style="color:var(--green)">做多 BTC（10 倍杠杆）</h4>
+    <p>保证金：1,000 USDT → 名义仓位 10,000 USDT</p>
+    <p>BTC 价格：50,000 → 持仓 0.2 BTC</p>
+    <p>BTC 涨 5% 到 52,500：</p>
+    <p>• 仓位盈利 = 10,000 × 5% = <strong style="color:var(--green)">+500 USDT</strong></p>
+    <p>• 简化保证金收益率 = 500 / 1,000 = <strong style="color:var(--green)">+50%</strong></p>
+    <p>• 反之跌 5% → 简化口径下亏 50%；跌 10% → 理论上损失达到初始保证金，但实际通常会在此之前因维持保证金和清算规则而被强平</p>
+  </div>
+  <div class="card">
+    <h4 style="color:var(--red)">做空 ETH（10 倍杠杆）</h4>
+    <p>保证金：1,000 USDT → 名义仓位 10,000 USDT</p>
+    <p>ETH 价格：3,000 → 做空 3.33 ETH</p>
+    <p>ETH 跌 5% 到 2,850：</p>
+    <p>• 仓位盈利 = 10,000 × 5% = <strong style="color:var(--green)">+500 USDT</strong></p>
+    <p>• 简化保证金收益率 = <strong style="color:var(--green)">+50%</strong></p>
+    <p>• 若 ETH 涨幅接近 10% → 理论亏损接近初始保证金，但<strong>实际通常会在达到 10% 前因维持保证金、手续费及清算规则而触发强平</strong></p>
+  </div>
+</div>
+<div class="note">注意：以上未计手续费和资金费率。若持续做多且资金费率长期为正，持仓成本会持续累积——这是很多新手忽略的"隐形亏损"。</div>
+
+<div class="mermaid">
+flowchart TD
+  A[开仓时存入初始保证金] --> B[价格波动 → 标记价格计算未实现盈亏]
+  B --> C{保证金余额 ≥ 维持保证金?}
+  C -->|是| D[继续持有，定期结算资金费]
+  D --> B
+  C -->|否| E[触发强平引擎]
+  E --> F[按破产价平仓]
+  F --> G{有盈余?}
+  G -->|是| H[盈余注入保险基金]
+  G -->|否,穿仓| I[保险基金兜底]
+  I --> J{基金足够?}
+  J -->|是| K[系统承担]
+  J -->|否| L[ADL 自动减仓<br/>按盈利排名强平对手]
+  style E fill:#4d1f1f,stroke:#f85149,color:#fff
+  style L fill:#4d1f1f,stroke:#f85149,color:#fff
+  style H fill:#1f3d2d,stroke:#3fb950,color:#fff
+</div>
+
+<h3>3.5 风险清单</h3>
+<div class="warn">
+  <strong>爆仓风险</strong>：杠杆放大收益也放大亏损，高杠杆下小幅反向波动即可清零。<br>
+  <strong>资金费率持续支出</strong>：趋势行情中费率可能长期单向，持仓成本不可忽视。<br>
+  <strong>预言机风险</strong>：池式/指数价格驱动的永续协议通常高度依赖价格数据，预言机故障/被攻击可导致异常爆仓。<br>
+  <strong>智能合约风险</strong>：合约漏洞、管理员密钥被盗、跨链桥被黑均可能造成本金损失。<br>
+  <strong>流动性风险</strong>：极端行情下滑点剧增，强平价可能比预期更差。<br>
+  <strong>ADL 风险</strong>：盈利仓位可能被自动减仓，无法按计划止盈。<br>
+  <strong>监管风险</strong>：衍生品在多地属监管敏感品类，政策变化可能影响访问。
+</div>
+
+<!-- ============ 4. 生态图谱 ============ -->
+<h2 id="ecosystem">4. DeFi 生态图谱</h2>
+<div class="mermaid">
+mindmap
+  root((DeFi))
+    交易 DEX
+      Uniswap
+      Curve
+      Balancer
+      PancakeSwap
+    借贷 Lending
+      Aave
+      Compound
+      Morpho
+      Spark
+    稳定币 Stablecoin
+      MakerDAO Sky DAI
+      Liquity LUSD
+      USDT USDC 法币抵押
+    衍生品 Derivatives
+      永续合约 Perps
+        Hyperliquid
+        GMX
+        dYdX
+        Paradex
+      期权 Options
+        Lyra
+        Dopex
+    质押 Staking
+      Lido stETH
+      Rocket Pool rETH
+      EigenLayer 再质押
+    基础设施
+      Chainlink 预言机
+      Pyth 预言机
+      LayerZero 跨链
+    收益聚合
+      Yearn
+      Convex
+</div>
+
+<footer>
+  <p>报告生成时间：2026-08-31 · 数据截至 2026 年 8 月公开信息；TVL、交易量、市值与市场份额会持续变化，请以实时数据源为准。</p>
+  <p>本次修订优先参考：CoinGecko 2025 Annual Crypto Industry Report、DefiLlama《State of DeFi 2025》、Aave 官方博客、Morpho 官方文档、GMX 官方文档、Hyperliquid 官方文档、Paradex 官方费率文档、dYdX 官方文档。</p>
+  <p style="margin-top:8px">本报告仅为知识科普，不构成任何投资建议。加密资产与衍生品交易风险极高。</p>
+</footer>
+
+</div>
+
+<script>
+  mermaid.initialize({startOnLoad:true, theme:'dark', themeVariables:{
+    primaryColor:'#1c2330', primaryTextColor:'#e6edf3', primaryBorderColor:'#58a6ff',
+    lineColor:'#8b949e', secondaryColor:'#161b22', tertiaryColor:'#0d1117'
+  }});
+</script>
+</body>
+</html>

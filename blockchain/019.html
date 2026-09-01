@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EIP-1967 代理合约 Implementation 存储机制深度解析</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2333;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text2: #8b949e;
+    --accent: #58a6ff;
+    --accent2: #7ee787;
+    --warn: #f0883e;
+    --danger: #f85149;
+    --purple: #d2a8ff;
+    --yellow: #e3b341;
+    --code-bg: #0d1117;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 0;
+  }
+  .container { max-width: 960px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  /* Header */
+  .header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 32px;
+    margin-bottom: 40px;
+  }
+  .header .tag {
+    display: inline-block;
+    background: rgba(88,166,255,0.12);
+    color: var(--accent);
+    border: 1px solid rgba(88,166,255,0.3);
+    border-radius: 6px;
+    padding: 2px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    letter-spacing: 0.5px;
+  }
+  .header h1 {
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 1.3;
+    margin-bottom: 12px;
+  }
+  .header .subtitle {
+    color: var(--text2);
+    font-size: 16px;
+  }
+
+  /* TOC */
+  .toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 28px;
+    margin-bottom: 40px;
+  }
+  .toc h3 { font-size: 14px; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+  .toc ol { padding-left: 20px; }
+  .toc li { margin: 6px 0; }
+  .toc a { color: var(--accent); text-decoration: none; font-size: 14px; }
+  .toc a:hover { text-decoration: underline; }
+
+  /* Sections */
+  section { margin-bottom: 48px; }
+  h2 {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    padding-left: 14px;
+    border-left: 4px solid var(--accent);
+    line-height: 1.4;
+  }
+  h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 28px 0 14px;
+    color: var(--accent2);
+  }
+  h4 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 20px 0 10px;
+    color: var(--purple);
+  }
+  p { margin-bottom: 14px; font-size: 15px; }
+  ul, ol { padding-left: 24px; margin-bottom: 14px; }
+  li { margin: 6px 0; font-size: 15px; }
+
+  /* Code */
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    overflow-x: auto;
+    margin: 14px 0;
+    font-size: 13.5px;
+    line-height: 1.6;
+  }
+  code {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 13.5px;
+  }
+  p code, li code {
+    background: var(--surface2);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--accent);
+    font-size: 13px;
+  }
+  .highlight-line {
+    background: rgba(88,166,255,0.12);
+    display: block;
+    margin: 0 -20px;
+    padding: 0 20px;
+    border-left: 3px solid var(--accent);
+  }
+  .kw { color: #ff7b72; }
+  .tp { color: #ffa657; }
+  .fn { color: #d2a8ff; }
+  .st { color: #a5d6ff; }
+  .cm { color: #8b949e; font-style: italic; }
+  .num { color: #79c0ff; }
+  .op { color: #ff7b72; }
+
+  /* Callout */
+  .callout {
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 18px 0;
+    border-left: 4px solid;
+    font-size: 14.5px;
+  }
+  .callout.info { background: rgba(88,166,255,0.08); border-color: var(--accent); }
+  .callout.warn { background: rgba(240,136,62,0.08); border-color: var(--warn); }
+  .callout.danger { background: rgba(248,81,73,0.08); border-color: var(--danger); }
+  .callout.success { background: rgba(126,231,135,0.08); border-color: var(--accent2); }
+  .callout strong { display: block; margin-bottom: 6px; }
+
+  /* Diagram container */
+  .diagram-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin: 20px 0;
+    text-align: center;
+  }
+  .diagram-box .caption {
+    color: var(--text2);
+    font-size: 13px;
+    margin-top: 12px;
+    font-style: italic;
+  }
+  .mermaid { background: transparent; }
+
+  /* Step flow */
+  .step-flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 20px 0;
+  }
+  .step {
+    display: flex;
+    gap: 16px;
+    position: relative;
+  }
+  .step-num {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--bg);
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    z-index: 1;
+  }
+  .step-content {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 12px;
+  }
+  .step-content .step-title {
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 6px;
+    font-size: 15px;
+  }
+  .step-content p { margin-bottom: 0; font-size: 14px; color: var(--text); }
+  .step::after {
+    content: '';
+    position: absolute;
+    left: 17px;
+    top: 36px;
+    bottom: 12px;
+    width: 2px;
+    background: var(--border);
+  }
+  .step:last-child::after { display: none; }
+
+  /* Table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 10px 14px;
+    text-align: left;
+  }
+  th {
+    background: var(--surface2);
+    font-weight: 600;
+    color: var(--accent);
+  }
+  td { background: var(--surface); }
+  td code { font-size: 12.5px; }
+
+  /* Memory slot visual */
+  .slot-visual {
+    margin: 20px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+  .slot-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 4px;
+    gap: 12px;
+  }
+  .slot-label {
+    width: 120px;
+    text-align: right;
+    color: var(--text2);
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .slot-bar {
+    flex: 1;
+    height: 40px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    position: relative;
+    overflow: hidden;
+  }
+  .slot-bar.proxy { background: rgba(88,166,255,0.2); border: 1px solid var(--accent); color: var(--accent); }
+  .slot-bar.impl { background: rgba(126,231,135,0.15); border: 1px solid var(--accent2); color: var(--accent2); }
+  .slot-bar.eip { background: rgba(210,168,255,0.2); border: 1px solid var(--purple); color: var(--purple); }
+  .slot-bar.empty { background: rgba(139,148,158,0.08); border: 1px dashed var(--border); color: var(--text2); }
+
+  /* Byte breakdown */
+  .byte-grid {
+    display: flex;
+    gap: 2px;
+    margin: 16px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+  }
+  .byte-cell {
+    flex: 1;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    font-weight: 600;
+  }
+  .byte-cell.addr { background: rgba(126,231,135,0.3); color: var(--accent2); }
+  .byte-cell.zero { background: rgba(139,148,158,0.15); color: var(--text2); }
+
+  .footer {
+    text-align: center;
+    color: var(--text2);
+    font-size: 13px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+    margin-top: 40px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <span class="tag">Solidity · EIP-1967 · 代理合约</span>
+    <h1>EIP-1967 代理合约中 Implementation Address 的存储机制深度解析</h1>
+    <p class="subtitle">从 keccak256 槽位计算 → StorageSlot 库 assembly 指针 → 写入实现合约地址，逐行拆解 <code>StorageSlot.getAddressSlot(...).value = _implementation</code></p>
+    <p class="subtitle">
+    示例代码：
+    <a href="https://github.com/lbc-example/blockchain-tasks/blob/main/solidity_sample_code/CounterFallback.sol" target="_blank">
+        https://github.com/lbc-example/blockchain-tasks/blob/main/solidity_sample_code/CounterFallback.sol
+    </a>
+    </p>
+  </div>
+
+  <!-- TOC -->
+  <div class="toc">
+    <h3>目录</h3>
+    <ol>
+      <li><a href="#s1">问题背景：为什么不能直接声明状态变量？</a></li>
+      <li><a href="#s2">EIP-1967 存储槽的计算</a></li>
+      <li><a href="#s3">StorageSlot 库深度解析</a></li>
+      <li><a href="#s4">核心行逐步骤拆解（重点）</a></li>
+      <li><a href="#s5">存储槽内的字节布局</a></li>
+      <li><a href="#s6">delegatecall 与存储语义</a></li>
+      <li><a href="#s7">完整存储布局全景图</a></li>
+      <li><a href="#s8">如何在合约中自定义 Storage 变量的 Slot</a></li>
+      <li><a href="#s9">已定义的 Storage 变量能自定义 Slot 吗？</a></li>
+      <li><a href="#s10">代码中的其他问题</a></li>
+    </ol>
+  </div>
+
+  <!-- Section 1 -->
+  <section id="s1">
+    <h2>1. 问题背景：为什么不能直接声明状态变量？</h2>
+    <p>在理解 <code>StorageSlot.getAddressSlot(...).value = _implementation</code> 之前，必须先回答一个问题：<strong>代理合约为什么不直接写 <code>address public implementation;</code>？</strong></p>
+
+    <div class="diagram-box">
+      <div class="mermaid">
+graph TD
+    A[用户调用 add 2] --> B[CounterProxy 代理合约]
+    B -->|delegatecall| C[CounterV2 实现合约]
+    C -->|代码执行| D[读写代理合约的存储]
+    style B fill:#1f6feb33,stroke:#58a6ff,color:#58a6ff
+    style C fill:#23863633,stroke:#7ee787,color:#7ee787
+    style D fill:#a371f733,stroke:#d2a8ff,color:#d2a8ff
+      </div>
+      <div class="caption">图 1：代理模式下，实现合约的代码操作的是代理合约的存储</div>
+    </div>
+
+    <p>核心矛盾在于 <strong>delegatecall 的存储语义</strong>：</p>
+    <ul>
+      <li>实现合约（Counter / CounterV2）的代码通过 <code>delegatecall</code> 在代理合约的上下文执行</li>
+      <li>在这个教学示例中，若实现合约的第一个状态变量是 <code>uint256 private counter;</code>，它通常位于 <strong>slot 0</strong></li>
+      <li>如果代理合约也用普通状态变量声明 <code>address public implementation;</code>，且它占用了 slot 0，就会与实现合约的状态布局发生冲突</li>
+      <li>实现合约执行 <code>counter += 5</code> 时，实际写的是代理合约的 slot 0，从而可能覆盖 implementation 地址</li>
+    </ul>
+
+    <div class="callout danger">
+      <strong>冲突示意</strong>
+      如果代理合约用 <code>address implementation;</code>（slot 0），实现合约的 <code>counter</code> 也在 slot 0。当调用 <code>add(5)</code> 时，<code>counter += 5</code> 会把 slot 0 的值改掉，implementation 地址就被破坏了，代理立刻失效。
+    </div>
+
+    <p>因此，EIP-1967 的解决方案是：<strong>使用一个由标准规定、不会被 Solidity 编译器正常分配给状态变量的专用槽位</strong>保存 implementation 地址，并通过固定的槽位约定让链下工具能够识别代理的实现地址。<code>StorageSlot</code> 只是常见的类型安全读写封装，并不是 EIP-1967 本身的一部分。</p>
+  </section>
+
+  <!-- Section 2 -->
+  <section id="s2">
+    <h2>2. EIP-1967 存储槽的计算</h2>
+
+    <pre><code><span class="kw">bytes32</span> <span class="kw">private</span> <span class="kw">constant</span> IMPLEMENTATION_SLOT =
+    <span class="kw">bytes32</span>(<span class="kw">uint</span>(<span class="fn">keccak256</span>(<span class="st">"eip1967.proxy.implementation"</span>)) - <span class="num">1</span>);</code></pre>
+
+    <h3>2.1 逐步计算</h3>
+    <div class="step-flow">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <div class="step-title">keccak256 哈希</div>
+          <p>对字符串 <code>"eip1967.proxy.implementation"</code> 做 keccak256，得到一个 256-bit（32 字节）的哈希值：<br><code>0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbd</code></p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <div class="step-title">转 uint 并减 1</div>
+          <p>将哈希值转为 <code>uint256</code> 后减 1，得到：<br><code>0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc</code></p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <div class="step-title">转回 bytes32 作为槽位编号</div>
+          <p>这个值就是存储槽的编号（slot index）。它是一个极大的数，远大于正常状态变量使用的 slot 0、1、2……</p>
+        </div>
+      </div>
+    </div>
+
+    <h3>2.2 为什么要减 1？</h3>
+    <p>EIP-1967 规范明确规定逻辑实现地址的槽位为 <code>bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1)</code>。这里的 <code>- 1</code> 不是简单的“随机化”：它与 EIP-1967 对存储槽位选择的碰撞规避设计有关。</p>
+    <ul>
+      <li>Solidity 普通状态变量由编译器按存储布局规则分配，而 mapping、动态数组等数据则会使用基于 <code>keccak256</code> 的位置计算。</li>
+      <li>EIP-1967 选择哈希结果再减 1，使最终槽位不是该字符串的直接 <code>keccak256</code> 输出，并进一步避免与 Solidity 编译器正常分配的状态变量槽位发生冲突。</li>
+      <li>因此，更准确的说法是：这是一个<strong>标准化、专用的高位槽位</strong>，而不是普通意义上的“随机槽位”。</li>
+    </ul>
+
+    <div class="callout info">
+      <strong>EIP-1967 标准槽位</strong>
+      <ul style="margin-bottom:0;">
+        <li>实现地址：<code>bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1)</code></li>
+        <li>管理员地址：<code>bytes32(uint256(keccak256("eip1967.proxy.admin")) - 1)</code></li>
+        <li>信标地址：<code>bytes32(uint256(keccak256("eip1967.proxy.beacon")) - 1)</code></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- Section 3 -->
+  <section id="s3">
+    <h2>3. StorageSlot 库深度解析</h2>
+    <p>注意：getAddressSlot 函数返回值类型为 <strong>storage</strong>。</p>
+    <pre><code><span class="kw">library</span> StorageSlot {
+
+    <span class="kw">struct</span> AddressSlot {
+        <span class="kw">address</span> value;
+    }
+
+    <span class="kw">function</span> <span class="fn">getAddressSlot</span>(
+        <span class="kw">bytes32</span> slot
+    ) <span class="kw">internal</span> <span class="kw">pure</span> <span class="kw">returns</span> (AddressSlot <span class="kw">storage</span> r) {
+        <span class="kw">assembly</span> {
+            r.slot := slot
+        }
+    }
+}</code></pre>
+
+    <h3>3.1 这个库做了什么？</h3>
+    <p>它的作用只有一个：<strong>给任意一个 bytes32 槽位编号，返回一个指向该槽位的、带类型的 storage 引用（指针）</strong>。</p>
+
+    <h3>3.2 关键概念：storage 引用的 .slot 成员</h3>
+    <p>在 Solidity 中，<code>AddressSlot storage r</code> 是一个<strong>存储引用</strong>（storage pointer/reference），它本身不存储数据，而是指向存储中的某个位置。</p>
+    <p>对于这种可在内联汇编中操作的 storage 引用，<code>.slot</code> 表示其存储位置的槽位编号。这里通过给返回的 storage 引用设置 <code>r.slot</code>，把它绑定到指定槽位。</p>
+
+    <div class="callout success">
+      <strong><code>r.slot := slot</code> 的含义</strong><br>
+      把传入的 <code>slot</code>（即 IMPLEMENTATION_SLOT 那个巨大的 bytes32 值）赋值给返回值 <code>r</code> 的槽位编号。执行完这行后，<code>r</code> 就不再是悬空引用，而是精确指向了 EIP-1967 规定的那个存储槽。之后通过 <code>r.value</code> 读写，就是在读写那个槽里的 address。
+    </div>
+
+    <h3>3.3 为什么用 struct 包一层？</h3>
+    <p><code>struct AddressSlot { address value; }</code> 只有一个字段。这样做的目的是<strong>类型安全</strong>：</p>
+    <ul>
+      <li>如果直接返回 <code>address storage</code>，Solidity 不允许（没有"指向 address 的 storage 引用"这种独立类型，必须通过 struct 或数组元素）</li>
+      <li>用 struct 包装后，<code>r.value</code> 明确表示"这个槽里存的是一个 address"，编译器会做类型检查</li>
+      <li>OpenZeppelin 的 StorageSlot 库还提供了 <code>BooleanSlot</code>、<code>Bytes32Slot</code>、<code>Uint256Slot</code> 等，都是同样的模式</li>
+    </ul>
+
+    <div class="callout warn">
+      <strong>注意 <code>pure</code> 修饰符</strong><br>
+      <code>getAddressSlot</code> 标记为 <code>pure</code>，因为它本身不读取或修改存储——它只是<strong>创建一个指针</strong>。真正的读写发生在调用方使用 <code>.value</code> 的时候。
+    </div>
+  </section>
+
+  <!-- Section 4 - 核心 -->
+  <section id="s4">
+    <h2>4. 核心行逐步骤拆解（重点）</h2>
+
+    <p>现在来看你最关心的这行代码：</p>
+
+    <pre><code><span class="highlight-line">StorageSlot.<span class="fn">getAddressSlot</span>(IMPLEMENTATION_SLOT).value = _implementation;</span></code></pre>
+
+    <p>这一行看起来简洁，但实际上包含了 <strong>5 个语义步骤</strong>。下面逐步拆解：</p>
+
+    <div class="step-flow">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <div class="step-title">传入槽位编号</div>
+          <p><code>IMPLEMENTATION_SLOT</code> 是一个编译期常量，值为 <code>0x360894a1...382bbc</code>（32 字节）。它作为参数传入 <code>getAddressSlot</code>。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <div class="step-title">assembly 绑定指针</div>
+          <p>函数内部执行 <code>r.slot := slot</code>，将返回值 <code>r</code>（一个 <code>AddressSlot storage</code> 引用）的槽位编号设置为 <code>0x360894a1...382bbc</code>。此时 <code>r</code> 精确指向了 EIP-1967 实现地址槽。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <div class="step-title">返回 storage 引用</div>
+          <p>函数返回 <code>AddressSlot storage r</code>。注意：返回的是<strong>引用</strong>，不是值拷贝。调用方拿到的 <code>r</code> 仍然指向同一个存储槽。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <div class="step-title">访问 .value 字段</div>
+          <p><code>.value</code> 是 struct 的唯一字段，类型为 <code>address</code>。因为 <code>r</code> 指向 slot <code>0x360894a1...382bbc</code>，所以 <code>r.value</code> 就是<strong>该存储槽中存储的 address</strong>（address 占 20 字节，存在 32 字节槽的低 160 位，高 12 字节为 0）。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-content">
+          <div class="step-title">写入实现合约地址</div>
+          <p><code>= _implementation</code> 将新的实现合约地址写入该槽。EVM 执行 <code>SSTORE</code> 指令，把 <code>_implementation</code> 存入槽位 <code>0x360894a1...382bbc</code>。</p>
+        </div>
+      </div>
+    </div>
+
+    <h3>4.1 等价的"展开版"代码</h3>
+    <p>为了更清楚，这行代码等价于：</p>
+
+    <pre><code><span class="cm">// 步骤 1-3：获取指向 EIP-1967 槽的 storage 引用</span>
+AddressSlot <span class="kw">storage</span> slotRef = StorageSlot.<span class="fn">getAddressSlot</span>(IMPLEMENTATION_SLOT);
+
+<span class="cm">// 步骤 4-5：通过引用写入 address</span>
+slotRef.value = _implementation;
+
+<span class="cm">// 再等价于纯汇编：</span>
+<span class="kw">assembly</span> {
+    <span class="fn">sstore</span>(IMPLEMENTATION_SLOT, _implementation)
+}</code></pre>
+
+    <div class="callout info">
+      <strong>一句话总结</strong><br>
+      <code>StorageSlot.getAddressSlot(IMPLEMENTATION_SLOT).value = _implementation</code> 本质上就是：<strong>把 <code>_implementation</code> 这个地址，用 <code>SSTORE</code> 指令写入编号为 <code>IMPLEMENTATION_SLOT</code> 的存储槽</strong>。StorageSlot 库只是给这个裸操作套了一层类型安全的、符合 Solidity 语法的外壳。
+    </div>
+
+    <h3>4.2 读取时的对应操作</h3>
+    <p><code>_getImplementation</code> 函数是写入的逆过程：</p>
+
+    <pre><code><span class="kw">function</span> <span class="fn">_getImplementation</span>() <span class="kw">private</span> <span class="kw">view</span> <span class="kw">returns</span> (<span class="kw">address</span>) {
+    <span class="kw">return</span> StorageSlot.<span class="fn">getAddressSlot</span>(IMPLEMENTATION_SLOT).value;
+}</code></pre>
+
+    <p>同样的 5 步，只是最后一步变成了<strong>读取</strong>（<code>SLOAD</code>）而不是写入（<code>SSTORE</code>）。</p>
+  </section>
+
+  <!-- Section 5 -->
+  <section id="s5">
+    <h2>5. 存储槽内的字节布局</h2>
+
+    <p>EVM 的每个存储槽是 <strong>32 字节（256 bit）</strong>。一个 <code>address</code> 类型占 <strong>20 字节（160 bit）</strong>。当 address 存入 32 字节槽时，它是<strong>右对齐</strong>的——存在低 160 位，高 96 位（12 字节）补零。</p>
+
+    <h4>假设 _implementation = 0x1234567890123456789012345678901234567890</h4>
+
+    <p><strong>槽 0x360894a1...382bbc 的内容（32 字节，从左到右表示 32 字节存储值的高位到低位）：</strong></p>
+
+    <div class="byte-grid">
+      <div class="byte-cell zero">00</div>
+      <div class="byte-cell zero">00</div>
+      <div class="byte-cell zero">00</div>
+      <div class="byte-cell zero">00</div>
+      <div class="byte-cell zero">00</div>
+      <div class="byte-cell zero">00</div>
+      <div class="byte-cell zero">00</div>
+      <div class="byte-cell zero">00</div>
+      <div class="byte-cell zero">00</div>
+      <div class="byte-cell zero">00</div>
+      <div class="byte-cell zero">00</div>
+      <div class="byte-cell zero">00</div>
+      <div class="byte-cell addr">12</div>
+      <div class="byte-cell addr">34</div>
+      <div class="byte-cell addr">56</div>
+      <div class="byte-cell addr">78</div>
+      <div class="byte-cell addr">90</div>
+      <div class="byte-cell addr">12</div>
+      <div class="byte-cell addr">34</div>
+      <div class="byte-cell addr">56</div>
+      <div class="byte-cell addr">78</div>
+      <div class="byte-cell addr">90</div>
+      <div class="byte-cell addr">12</div>
+      <div class="byte-cell addr">34</div>
+      <div class="byte-cell addr">56</div>
+      <div class="byte-cell addr">78</div>
+      <div class="byte-cell addr">90</div>
+      <div class="byte-cell addr">12</div>
+      <div class="byte-cell addr">34</div>
+      <div class="byte-cell addr">56</div>
+      <div class="byte-cell addr">78</div>
+      <div class="byte-cell addr">90</div>
+    </div>
+    <p style="font-size:12px;color:var(--text2);text-align:center;margin-top:-8px;">← 高 12 字节（96 bit）为 0 → | ←——— address 20 字节（160 bit）——— →</p>
+
+    <div class="callout warn">
+      <strong>为什么示例中的高 12 字节为 0？</strong><br>
+      <code>address</code> 是 160-bit 类型，作为独立值写入一个 256-bit storage slot 时，Solidity 会按其类型语义生成相应的存储表示。需要注意：这不是 EVM 的通用规则“自动清理任意 SSTORE 的高位”；如果直接用汇编写入一个 256-bit 数值，是否清理高位取决于你写入的值本身。
+    </div>
+  </section>
+
+  <!-- Section 6 -->
+  <section id="s6">
+    <h2>6. delegatecall 与存储语义</h2>
+
+    <p>理解了 implementation 的存储，还需要理解它<strong>何时被读取</strong>。每次用户调用代理合约时，流程如下：</p>
+
+    <div class="diagram-box">
+      <div class="mermaid">
+sequenceDiagram
+    participant U as 用户
+    participant P as CounterProxy
+    participant S as 代理存储
+    participant I as CounterV2 实现
+
+    U->>P: 调用 add(5)
+    P->>P: fallback() 触发
+    P->>S: SLOAD 读取 IMPLEMENTATION_SLOT
+    S-->>P: 返回实现合约地址
+    P->>I: delegatecall(add(5))
+    Note over I,S: 实现代码在代理上下文执行<br/>读写的是代理的存储
+    I->>S: SSTORE slot 0 (counter += 5)
+    I-->>P: 返回执行结果
+    P-->>U: 返回结果
+      </div>
+      <div class="caption">图 2：每次调用都从 EIP-1967 槽读取实现地址，再 delegatecall</div>
+    </div>
+
+    <h3>6.1 关键要点</h3>
+    <ul>
+      <li><strong>implementation 地址只在代理合约中存储一份</strong>，存在 EIP-1967 槽</li>
+      <li>实现合约（CounterV2）<strong>自己不知道</strong>代理的存在，它的代码里没有 implementation 变量</li>
+      <li>在当前示例中，若 <code>counter</code> 与 <code>counter2</code> 都是按顺序声明的 <code>uint256</code>，它们通过 delegatecall 分别对应<strong>代理合约的 slot 0、slot 1</strong></li>
+      <li>升级时调用 <code>upgradeTo(newImpl)</code>，只需修改 EIP-1967 槽里的地址，<strong>存储数据完全保留</strong></li>
+    </ul>
+  </section>
+
+  <!-- Section 7 -->
+  <section id="s7">
+    <h2>7. 完整存储布局全景图</h2>
+
+    <p>当代理合约升级到 CounterV2 后，代理合约的存储布局如下：</p>
+
+    <div class="slot-visual">
+      <div class="slot-row">
+        <div class="slot-label">slot 0</div>
+        <div class="slot-bar impl">uint counter（实现合约状态变量，通过 delegatecall 操作）</div>
+      </div>
+      <div class="slot-row">
+        <div class="slot-label">slot 1</div>
+        <div class="slot-bar impl">uint counter2（CounterV2 新增状态变量）</div>
+      </div>
+      <div class="slot-row">
+        <div class="slot-label">slot 2 ...</div>
+        <div class="slot-bar empty">（未使用 / 未来实现合约扩展）</div>
+      </div>
+      <div class="slot-row">
+        <div class="slot-label">... ...</div>
+        <div class="slot-bar empty">（大量未使用空间）</div>
+      </div>
+      <div class="slot-row">
+        <div class="slot-label">slot 0x3608...2bbc</div>
+        <div class="slot-bar eip">address implementation（EIP-1967 代理槽，代理自己管理）</div>
+      </div>
+    </div>
+
+    <div class="diagram-box">
+      <div class="mermaid">
+graph LR
+    subgraph 代理合约存储
+        direction TB
+        S0["slot 0: counter<br/>(来自实现合约)"]
+        S1["slot 1: counter2<br/>(来自实现合约)"]
+        SE["slot 0x3608...2bbc<br/>implementation 地址<br/>(EIP-1967)"]
+        S0 --> S1
+        S1 -.->|巨大间隔| SE
+    end
+    style S0 fill:#23863633,stroke:#7ee787,color:#7ee787
+    style S1 fill:#23863633,stroke:#7ee787,color:#7ee787
+    style SE fill:#a371f733,stroke:#d2a8ff,color:#d2a8ff
+      </div>
+      <div class="caption">图 3：实现合约的状态变量从 slot 0 开始递增，EIP-1967 专用槽位，互不干扰</div>
+    </div>
+
+    <table>
+      <tr>
+        <th>存储区域</th>
+        <th>槽位</th>
+        <th>内容</th>
+        <th>谁在操作</th>
+      </tr>
+      <tr>
+        <td>实现合约状态</td>
+        <td>slot 0</td>
+        <td><code>uint counter</code></td>
+        <td>实现合约代码（通过 delegatecall）</td>
+      </tr>
+      <tr>
+        <td>实现合约状态</td>
+        <td>slot 1</td>
+        <td><code>uint counter2</code></td>
+        <td>实现合约代码（通过 delegatecall）</td>
+      </tr>
+      <tr>
+        <td>代理管理数据</td>
+        <td>0x3608...2bbc</td>
+        <td><code>address implementation</code></td>
+        <td>代理合约自己（upgradeTo / _getImplementation）</td>
+      </tr>
+    </table>
+  </section>
+
+  <!-- Section 8 -->
+  <!-- ========== 第8章：如何自定义 Storage 变量的 Slot ========== -->
+  <section id="s8">
+    <h2>8. 如何在合约中自定义 Storage 变量的 Slot</h2>
+
+    <div class="callout warn">
+      <strong>前提：Solidity 原生不支持为普通状态变量直接指定 Slot</strong><br>
+      与某些语言可以用 <code>[[gnu::section(".foo")]]</code> 指定段地址不同，Solidity 没有 <code>slot</code> 关键字或注解来直接声明"这个变量放在某个槽"。普通状态变量的槽位由编译器按声明顺序从 slot 0 自动分配。要实现自定义 slot，必须通过以下四种方式之一。
+    </div>
+
+    <h3>8.1 方式一：内联汇编直接 SSTORE / SLOAD</h3>
+    <p>最底层的方式，直接用 EVM 指令读写任意槽位：</p>
+
+    <pre><code><span class="kw">contract</span> ManualSlot {
+    <span class="cm">// 自定义槽位编号：用一个字符串的哈希作为槽位</span>
+    <span class="kw">bytes32</span> <span class="kw">constant</span> MY_SLOT = <span class="fn">keccak256</span>(<span class="st">"myapp.custom.counter"</span>);
+
+    <span class="kw">function</span> <span class="fn">setValue</span>(<span class="kw">uint256</span> newValue) <span class="kw">external</span> {
+        <span class="kw">assembly</span> {
+            <span class="fn">sstore</span>(MY_SLOT, newValue)   <span class="cm">// 写入自定义槽</span>
+        }
+    }
+
+    <span class="kw">function</span> <span class="fn">getValue</span>() <span class="kw">external</span> <span class="kw">view</span> <span class="kw">returns</span> (<span class="kw">uint256</span> result) {
+        <span class="kw">assembly</span> {
+            result := <span class="fn">sload</span>(MY_SLOT)  <span class="cm">// 读取自定义槽</span>
+        }
+    }
+}</code></pre>
+
+    <table>
+      <tr><th>优点</th><th>缺点</th></tr>
+      <tr>
+        <td>最直接，完全控制槽位；不占用顺序分配的 slot 0、1、2…</td>
+        <td>无类型安全，address / uint / bool 全靠自觉；每次读写都要写汇编；容易因字节对齐出错</td>
+      </tr>
+    </table>
+
+    <h3>8.2 方式二：StorageSlot 库模式（类型安全封装）</h3>
+    <p>就是本报告前面详细讲解的模式。把汇编封装在 library 里，对外暴露带类型的 struct 引用。不限于 address，可以封装任意类型：</p>
+
+    <pre><code><span class="kw">library</span> MyStorageSlot {
+    <span class="kw">struct</span> Uint256Slot { <span class="kw">uint256</span> value; }
+    <span class="kw">struct</span> BoolSlot    { <span class="kw">bool</span> value; }
+
+    <span class="kw">function</span> <span class="fn">getUint256Slot</span>(<span class="kw">bytes32</span> slot) <span class="kw">internal</span> <span class="kw">pure</span> <span class="kw">returns</span> (Uint256Slot <span class="kw">storage</span> r) {
+        <span class="kw">assembly</span> { r.slot := slot }
+    }
+    <span class="kw">function</span> <span class="fn">getBoolSlot</span>(<span class="kw">bytes32</span> slot) <span class="kw">internal</span> <span class="kw">pure</span> <span class="kw">returns</span> (BoolSlot <span class="kw">storage</span> r) {
+        <span class="kw">assembly</span> { r.slot := slot }
+    }
+}
+
+<span class="kw">contract</span> MyContract {
+    <span class="kw">bytes32</span> <span class="kw">constant</span> COUNTER_SLOT = <span class="fn">keccak256</span>(<span class="st">"myapp.counter"</span>);
+    <span class="kw">bytes32</span> <span class="kw">constant</span> PAUSED_SLOT  = <span class="fn">keccak256</span>(<span class="st">"myapp.paused"</span>);
+
+    <span class="kw">function</span> <span class="fn">setCounter</span>(<span class="kw">uint256</span> v) <span class="kw">external</span> {
+        MyStorageSlot.<span class="fn">getUint256Slot</span>(COUNTER_SLOT).value = v;
+    }
+    <span class="kw">function</span> <span class="fn">setPaused</span>(<span class="kw">bool</span> p) <span class="kw">external</span> {
+        MyStorageSlot.<span class="fn">getBoolSlot</span>(PAUSED_SLOT).value = p;
+    }
+}</code></pre>
+
+    <div class="callout success">
+      这是生产环境最常用的方式。OpenZeppelin 的 <code>StorageSlot</code> 库内置了 <code>AddressSlot</code>、<code>BooleanSlot</code>、<code>Bytes32Slot</code>、<code>Uint256Slot</code> 四种，直接 import 即可使用。
+    </div>
+
+    <h3>8.3 方式三：EIP-7201 命名空间存储（行业新标准）</h3>
+    <p>EIP-7201（现称 ERC-7201）是命名空间存储标准。OpenZeppelin Contracts Upgradeable 从 v5.0 开始采用这一模式。它的核心思想是：<strong>把一个合约的一组状态变量放入带唯一命名空间的 struct，并把该 struct 的根槽位放到独立的存储区域</strong>，从而降低复杂继承和可升级场景中的存储布局冲突风险。</p>
+
+    <h4>槽位计算公式</h4>
+    <pre><code><span class="fn">erc7201</span>(id) = <span class="fn">keccak256</span>(<span class="fn">abi.encode</span>(<span class="kw">uint256</span>(<span class="fn">keccak256</span>(id)) - <span class="num">1</span>)) & ~<span class="kw">bytes32</span>(<span class="kw">uint256</span>(<span class="num">0xff</span>))</code></pre>
+
+    <p>末尾的 <code>& ~0xff</code> 会清零最终槽位的低 8 位，使根槽位成为 256 的倍数。ERC-7201 的规范说明，这种对齐主要是为了在未来可能的存储优化中提供条件；不要把它理解成“给 mapping / dynamic array 预留连续槽位”，因为这些类型仍然按照 Solidity 的哈希寻址规则计算实际数据位置。</p>
+
+    <h4>完整示例</h4>
+    <pre><code><span class="cm">/// @custom:storage-location erc7201:myapp.vault</span>
+<span class="kw">struct</span> VaultStorage {
+    <span class="kw">uint256</span> totalDeposits;
+    <span class="kw">mapping</span>(<span class="kw">address</span> =&gt; <span class="kw">uint256</span>) balances;
+}
+
+<span class="kw">contract</span> Vault {
+    <span class="kw">bytes32</span> <span class="kw">private</span> <span class="kw">constant</span> VAULT_STORAGE_LOCATION =
+        <span class="fn">keccak256</span>(<span class="fn">abi.encode</span>(<span class="kw">uint256</span>(<span class="fn">keccak256</span>(<span class="st">"myapp.vault"</span>)) - <span class="num">1</span>)) & ~<span class="kw">bytes32</span>(<span class="kw">uint256</span>(<span class="num">0xff</span>));
+
+    <span class="kw">function</span> <span class="fn">_v</span>() <span class="kw">private</span> <span class="kw">pure</span> <span class="kw">returns</span> (VaultStorage <span class="kw">storage</span> $) {
+        <span class="kw">assembly</span> { $.slot := VAULT_STORAGE_LOCATION }
+    }
+
+    <span class="kw">function</span> <span class="fn">deposit</span>() <span class="kw">external</span> <span class="kw">payable</span> {
+        VaultStorage <span class="kw">storage</span> $ = <span class="fn">_v</span>();
+        $.totalDeposits += msg.value;
+        $.balances[msg.sender] += msg.value;
+    }
+}</code></pre>
+
+    <div class="diagram-box">
+      <div class="mermaid">
+graph TB
+    subgraph "EIP-7201 命名空间存储布局"
+        direction TB
+        NS["命名空间根槽<br/>0x...（256 对齐）"]
+        F1["totalDeposits<br/>（struct 第1字段，根槽+0）"]
+        F2["balances mapping<br/>（struct 第2字段，根槽+1）"]
+        MV["balances[msg.sender]<br/>keccak256(key, 根槽+1)"]
+        NS --> F1
+        NS --> F2
+        F2 --> MV
+    end
+    style NS fill:#a371f733,stroke:#d2a8ff,color:#d2a8ff
+    style F1 fill:#23863633,stroke:#7ee787,color:#7ee787
+    style F2 fill:#23863633,stroke:#7ee787,color:#7ee787
+    style MV fill:#1f6feb33,stroke:#58a6ff,color:#58a6ff
+      </div>
+      <div class="caption">图 4：EIP-7201 把整个 struct 放到自定义根槽，内部字段和 mapping 相对于根槽偏移</div>
+    </div>
+
+    <h3>8.4 方式四：利用 mapping 间接实现（不推荐）</h3>
+    <pre><code><span class="kw">contract</span> MappingAsSlot {
+    <span class="cm">// mapping 本身占一个顺序分配的槽，但值的位置 = keccak256(key, baseSlot)</span>
+    <span class="kw">mapping</span>(<span class="kw">bytes32</span> =&gt; <span class="kw">uint256</span>) <span class="kw">private</span> _store;
+
+    <span class="kw">function</span> <span class="fn">set</span>(<span class="kw">bytes32</span> key, <span class="kw">uint256</span> value) <span class="kw">external</span> {
+        _store[key] = value;  <span class="cm">// 实际写入 keccak256(key, mapping 的 baseSlot)</span>
+    }
+}</code></pre>
+    <p>这种方式虽然值的位置是哈希出来的，但 mapping 本身仍然占用一个顺序分配的槽，且 key 对应的最终槽位公式不可控，<strong>不适合作为自定义 slot 的方案</strong>。</p>
+
+    <h3>8.5 四种方式对比</h3>
+    <table>
+      <tr>
+        <th>方式</th>
+        <th>类型安全</th>
+        <th>代码量</th>
+        <th>适用场景</th>
+        <th>推荐度</th>
+      </tr>
+      <tr>
+        <td>内联汇编 SSTORE/SLOAD</td>
+        <td>无</td>
+        <td>少</td>
+        <td>极端 gas 优化、临时调试</td>
+        <td>低</td>
+      </tr>
+      <tr>
+        <td>StorageSlot 库模式</td>
+        <td>有</td>
+        <td>中</td>
+        <td>单个变量自定义槽（如 EIP-1967）</td>
+        <td>高</td>
+      </tr>
+      <tr>
+        <td>ERC-7201 命名空间</td>
+        <td>有</td>
+        <td>中</td>
+        <td>一组相关变量、可升级合约、复杂继承体系</td>
+        <td>高（适合命名空间存储）</td>
+      </tr>
+      <tr>
+        <td>mapping 间接</td>
+        <td>有</td>
+        <td>少</td>
+        <td>不推荐</td>
+        <td>不推荐</td>
+      </tr>
+    </table>
+  </section>
+
+  <!-- ========== 第9章：已定义的 Storage 变量能自定义 Slot 吗？ ========== -->
+  <section id="s9">
+    <h2>9. 已定义的 Storage 变量能自定义 Slot 吗？</h2>
+
+    <div class="callout danger">
+      <strong>直接回答：不能。</strong><br>
+      一旦状态变量以普通方式声明（<code>uint256 public x;</code>），它的槽位就在<strong>编译期</strong>被编译器固定下来，部署后<strong>永远无法修改</strong>。你不能事后给它"搬家"到另一个槽位。
+    </div>
+
+    <h3>9.1 为什么不能？—— 槽位是编译期硬编码的</h3>
+    <p>Solidity 编译器在编译时，会把每个状态变量的读写翻译成具体的 <code>SLOAD</code> / <code>SSTORE</code> 指令，操作数就是<strong>硬编码的槽位编号</strong>。</p>
+
+    <pre><code><span class="cm">// Solidity 源码</span>
+<span class="kw">contract</span> Demo {
+    <span class="kw">uint256</span> <span class="kw">public</span> counter;  <span class="cm">// 编译器分配 slot 0</span>
+    <span class="kw">function</span> <span class="fn">inc</span>() <span class="kw">external</span> { counter++; }
+}
+
+<span class="cm">// 编译后 inc() 的大致字节码逻辑：</span>
+<span class="cm">//   SLOAD  0x00    ← 槽位 0 是硬编码的立即数</span>
+<span class="cm">//   PUSH1  0x01</span>
+<span class="cm">//   ADD</span>
+<span class="cm">//   SSTORE 0x00    ← 写回槽位 0，也是硬编码</span></code></pre>
+
+    <p>字节码部署到链上后不可变，因此槽位也不可变。运行时没有任何机制可以"告诉"这些 SLOAD/SSTORE 去操作另一个槽。</p>
+
+    <h3>9.2 各类变量的槽位分配规则</h3>
+    <table>
+      <tr>
+        <th>变量类型</th>
+        <th>槽位分配方式</th>
+        <th>能否自定义</th>
+      </tr>
+      <tr>
+        <td>普通状态变量（uint/address/bool 等）</td>
+        <td>按声明顺序从 slot 0 递增，小于 32 字节的可打包进同一槽</td>
+        <td>不能</td>
+      </tr>
+      <tr>
+        <td>struct</td>
+        <td>从分配的起始槽开始，字段按声明顺序连续打包</td>
+        <td>struct 整体可通过 StorageSlot/EIP-7201 指定根槽；<strong>内部字段不能单独指定</strong></td>
+      </tr>
+      <tr>
+        <td>固定大小数组 T[n]</td>
+        <td>从分配的起始位置开始布局；元素若小于 32 字节也可能按 Solidity 规则进行槽内打包</td>
+        <td>不能直接指定普通状态变量的起始 slot</td>
+      </tr>
+      <tr>
+        <td>mapping</td>
+        <td>本身占一个槽（不存数据），值存在 <code>keccak256(key, baseSlot)</code></td>
+        <td>baseSlot 不能自定义；值的位置由公式决定</td>
+      </tr>
+      <tr>
+        <td>动态数组</td>
+        <td>长度存于 baseSlot；元素区域从 <code>keccak256(abi.encode(baseSlot))</code> 开始，并按元素类型的存储布局计算位置</td>
+        <td>普通状态变量的 baseSlot 不能直接自定义</td>
+      </tr>
+    </table>
+
+    <h3>9.3 升级合约中的存储约束</h3>
+    <p>在传统的可升级代理模式中，由于实现合约的代码通过 <code>delegatecall</code> 操作代理的存储，<strong>实现合约之间的 storage layout 必须兼容</strong>。对于普通顺序布局，典型约束如下：</p>
+
+    <div class="step-flow">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <div class="step-title">不要删除已有变量</div>
+          <p>在传统顺序布局下，删除会改变后续变量的布局，导致新旧版本对同一槽位的解释不同。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <div class="step-title">不能改变已有变量的类型</div>
+          <p>例如 <code>uint128</code> 改成 <code>uint256</code> 会破坏槽内打包布局，导致数据解析错误。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <div class="step-title">不能改变已有变量的声明顺序</div>
+          <p>reorder 等价于批量改变槽位，是升级中最常见的存储冲突原因。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <div class="step-title">新变量通常追加在末尾</div>
+          <p>对于传统顺序布局，这是保持兼容性的常见做法。实际还要考虑继承链、槽内打包以及父合约布局变化。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-content">
+          <div class="step-title">想用自定义 slot 必须从 v1 开始</div>
+          <p>如果 v1 用了顺序分配，v2 不能突然把某个变量改成自定义 slot——数据还在旧槽里，新代码去新槽读就是空值。要么一开始就用 StorageSlot/EIP-7201，要么只能追加。</p>
+        </div>
+      </div>
+    </div>
+
+    <h3>9.4 旧时代的预留方案：storage gap</h3>
+    <p>在 EIP-7201 普及之前，可升级合约用 <strong>storage gap</strong> 来预留空间：</p>
+
+    <pre><code><span class="kw">abstract contract</span> Initializable {
+    <span class="kw">uint256</span>[<span class="num">50</span>] <span class="kw">private</span> __gap;  <span class="cm">// 预留 50 个槽位给未来子类的变量</span>
+}</code></pre>
+
+    <p>原理是父合约声明一个固定大小数组作为预留空间。未来父合约新增变量时，可以减少 gap 的大小来释放相应槽位，从而避免占用子合约已有变量的位置。实际计算时还必须考虑 Solidity 的槽内打包规则。对于新设计，ERC-7201 命名空间存储可以显著降低复杂继承场景下的布局耦合，但并不是所有项目都必须从 storage gap 迁移到 ERC-7201。</p>
+
+    <h3>9.5 什么情况下"可以"自定义？</h3>
+    <div class="callout info">
+      <strong>可以自定义的场景</strong>
+      <ul style="margin-bottom:0;">
+        <li><strong>新增变量时</strong>：可以选择用顺序分配，或者用 StorageSlot / EIP-7201 放到自定义槽</li>
+        <li><strong>设计新合约时</strong>：可以采用 ERC-7201，将相关状态变量组织到命名空间中；但是否采用取决于项目的升级和继承需求</li>
+        <li><strong>代理合约的管理数据</strong>：例如 EIP-1967 规定的 implementation / admin 槽，需要使用标准化的专用槽位；但并不是所有代理模式都会同时使用 admin 槽（例如 UUPS 的升级逻辑位于实现合约）</li>
+      </ul>
+    </div>
+
+    <div class="callout danger">
+      <strong>绝对做不到的事</strong>
+      <ul style="margin-bottom:0;">
+        <li>给已经按顺序分配的变量"搬家"到另一个槽</li>
+        <li>在普通顺序布局下，给 struct 内部的某个字段单独声明一个任意 slot</li>
+        <li>在普通状态变量声明方式下，直接改变 mapping / dynamic array 的 baseSlot</li>
+        <li>部署后通过任何方式修改已编译字节码中的硬编码槽位</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="s10">
+    <h2>10. 代码中的其他问题</h2>
+
+    <p>顺带指出这份教学代码中的几个问题，供参考：</p>
+
+    <h3>10.1 Counter.add 忽略了参数</h3>
+    <pre><code><span class="kw">function</span> <span class="fn">add</span>(<span class="kw">uint256</span> i) <span class="kw">public</span> {
+    counter += <span class="num">1</span>;  <span class="cm">// 参数 i 没有被使用，应该是 counter += i;</span>
+}</code></pre>
+
+    <h3>10.2 CounterV2.upgradesdgasTo 是空函数</h3>
+    <pre><code><span class="kw">function</span> <span class="fn">upgradesdgasTo</span>(<span class="kw">address</span> _implementation) <span class="kw">external</span> {
+    <span class="cm">// 空实现，函数名也有拼写错误（upgradesdgasTo → upgradeTo？）</span>
+    <span class="cm">// 如果意图是在实现合约中也能升级，需要通过 delegatecall 调用代理的 upgradeTo</span>
+    <span class="cm">// 但更常见的做法是升级逻辑只在代理合约中，实现合约不包含升级函数</span>
+}</code></pre>
+
+    <h3>10.3 upgradeTo 没有访问控制</h3>
+    <pre><code><span class="kw">function</span> <span class="fn">upgradeTo</span>(<span class="kw">address</span> _implementation) <span class="kw">external</span> {
+    _setImplementation(_implementation);
+    <span class="cm">// 任何人都可以调用 upgradeTo 替换实现合约，存在严重安全风险</span>
+    <span class="cm">// 生产环境需要加 onlyOwner / onlyAdmin 修饰符</span>
+}</code></pre>
+
+    <h3>10.4 构造函数未初始化 implementation</h3>
+    <pre><code><span class="kw">constructor</span>() {
+    <span class="cm">// 空构造函数，部署后 implementation 槽为 0</span>
+    <span class="cm">// 需要在构造函数中调用 _setImplementation(initialImpl) 传入初始实现地址</span>
+}</code></pre>
+
+    <div class="callout danger">
+      <strong>安全提醒</strong><br>
+      这份代码是教学用的最小化代理实现，<strong>不可直接用于生产环境</strong>。当前示例至少缺少升级权限控制、实现地址有效性校验、升级事件，以及与具体代理模式相匹配的初始化/升级机制。若采用 Transparent Proxy 或 UUPS，应直接参考 OpenZeppelin 的经过审计实现，而不是把这个教学版本直接用于生产。
+    </div>
+  </section>
+
+  <!-- Summary -->
+  <section>
+    <h2>总结</h2>
+    <div class="callout success">
+      <strong>核心结论</strong>
+      <ol style="margin-bottom:0;">
+        <li><strong>不能直接声明</strong> <code>address implementation</code>，因为会和实现合约的 slot 0 冲突</li>
+        <li>EIP-1967 用 <code>keccak256("eip1967.proxy.implementation") - 1</code> 计算出一个极远的、几乎不可能冲突的槽位</li>
+        <li><code>StorageSlot.getAddressSlot(slot)</code> 通过 <code>r.slot := slot</code> 这条汇编，创建一个指向该槽位的类型安全 storage 引用</li>
+        <li><code>.value = _implementation</code> 就是对该引用的 value 字段赋值，底层执行 <code>SSTORE(IMPLEMENTATION_SLOT, _implementation)</code></li>
+        <li>读取时同理，<code>.value</code> 底层执行 <code>SLOAD(IMPLEMENTATION_SLOT)</code></li>
+        <li><strong>自定义 slot 的常见方式</strong>：内联汇编（底层、易出错）、StorageSlot/类似封装（适合单个值）、ERC-7201 命名空间（适合组织一组相关状态）、mapping 间接寻址（不是通用的自定义 slot 方案）</li>
+        <li><strong>已定义的变量不能改 slot</strong>：槽位在编译期硬编码到字节码中，部署后永久固定；struct 内部字段、mapping/dynamic array 的 baseSlot 均不可单独自定义</li>
+        <li><strong>升级合约只能追加变量</strong>：不能删除、reorder、改类型；想用自定义 slot 必须从 v1 开始设计，不能事后"搬家"</li>
+      </ol>
+    </div>
+  </section>
+
+  <div class="footer">
+    EIP-1967 代理合约 Implementation 存储机制解析 · 基于 Solidity ^0.8.0
+  </div>
+
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#1c2333',
+      primaryTextColor: '#e6edf3',
+      primaryBorderColor: '#58a6ff',
+      lineColor: '#8b949e',
+      secondaryColor: '#161b22',
+      tertiaryColor: '#0d1117',
+      fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
+      fontSize: '14px'
+    },
+    flowchart: { htmlLabels: true, curve: 'basis' },
+    sequence: { actorMargin: 60, messageMargin: 40 }
+  });
+</script>
+</body>
+</html>

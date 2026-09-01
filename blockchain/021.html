@@ -1,0 +1,1732 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UUPS 可升级合约部署与升级完全指南</title>
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap">
+<style>
+/* ===== 设计 Token ===== */
+:root {
+  --bg: #0d1117;
+  --bg-elevated: #161b22;
+  --bg-elevated-2: #1c2128;
+  --border: #30363d;
+  --border-light: #21262d;
+  --text: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #6e7681;
+  --proxy: #f0883e;
+  --impl: #58a6ff;
+  --safe: #3fb950;
+  --danger: #f85149;
+  --warning: #d29922;
+  --info: #a371f7;
+  --code-bg: #0d1117;
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', Consolas, monospace;
+  --font-sans: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.7;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ===== 导航 ===== */
+.nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: rgba(13, 17, 23, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+}
+.nav-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+}
+.nav-brand {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--proxy);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.nav-brand .dot {
+  width: 8px; height: 8px;
+  background: var(--proxy);
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.nav-links {
+  display: flex;
+  gap: 24px;
+  list-style: none;
+}
+.nav-links a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+.nav-links a:hover { color: var(--text); }
+
+/* ===== Hero ===== */
+.hero {
+  padding: 140px 24px 80px;
+  max-width: 1200px;
+  margin: 0 auto;
+  position: relative;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -200px;
+  right: -200px;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(240, 136, 62, 0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+.hero-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--proxy);
+  border: 1px solid rgba(240, 136, 62, 0.3);
+  padding: 6px 14px;
+  border-radius: 4px;
+  margin-bottom: 24px;
+  background: rgba(240, 136, 62, 0.05);
+}
+.hero h1 {
+  font-size: clamp(32px, 5vw, 56px);
+  font-weight: 900;
+  line-height: 1.15;
+  margin-bottom: 20px;
+  letter-spacing: -0.02em;
+}
+.hero h1 .highlight {
+  color: var(--proxy);
+  position: relative;
+}
+.hero-sub {
+  font-size: 18px;
+  color: var(--text-secondary);
+  max-width: 720px;
+  margin-bottom: 40px;
+  line-height: 1.8;
+}
+.hero-meta {
+  display: flex;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+.hero-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.hero-meta-item .label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.hero-meta-item .value {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+/* ===== 通用 Section ===== */
+.section {
+  padding: 80px 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.section-header {
+  margin-bottom: 48px;
+}
+.section-number {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--proxy);
+  font-weight: 700;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.section-number::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+  max-width: 200px;
+}
+.section-title {
+  font-size: clamp(24px, 3.5vw, 36px);
+  font-weight: 700;
+  margin-bottom: 12px;
+  letter-spacing: -0.01em;
+}
+.section-desc {
+  font-size: 16px;
+  color: var(--text-secondary);
+  max-width: 760px;
+}
+
+/* ===== 架构图 ===== */
+.arch-diagram {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 48px 32px;
+  margin-bottom: 40px;
+  overflow-x: auto;
+}
+.arch-diagram svg {
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+  height: auto;
+}
+
+/* ===== 概念卡片 ===== */
+.concept-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+  margin-bottom: 40px;
+}
+.concept-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 28px;
+  transition: border-color 0.2s;
+}
+.concept-card:hover { border-color: var(--border-light); }
+.concept-card .icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 700;
+}
+.concept-card.proxy .icon { background: rgba(240,136,62,0.12); color: var(--proxy); }
+.concept-card.impl .icon { background: rgba(88,166,255,0.12); color: var(--impl); }
+.concept-card.storage .icon { background: rgba(163,113,247,0.12); color: var(--info); }
+.concept-card h3 {
+  font-size: 17px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.concept-card p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+.concept-card .code-ref {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--proxy);
+  margin-top: 12px;
+  display: inline-block;
+}
+
+/* ===== 流程步骤 ===== */
+.flow-steps {
+  position: relative;
+  padding-left: 0;
+}
+.flow-step {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  gap: 24px;
+  margin-bottom: 32px;
+  position: relative;
+}
+.flow-step:last-child { margin-bottom: 0; }
+.flow-step::before {
+  content: '';
+  position: absolute;
+  left: 29px;
+  top: 60px;
+  bottom: -32px;
+  width: 2px;
+  background: var(--border);
+}
+.flow-step:last-child::before { display: none; }
+.step-number {
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 700;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+.step-number.deploy { background: rgba(88,166,255,0.12); color: var(--impl); border: 1px solid rgba(88,166,255,0.3); }
+.step-number.proxy { background: rgba(240,136,62,0.12); color: var(--proxy); border: 1px solid rgba(240,136,62,0.3); }
+.step-number.init { background: rgba(163,113,247,0.12); color: var(--info); border: 1px solid rgba(163,113,247,0.3); }
+.step-number.safe { background: rgba(63,185,80,0.12); color: var(--safe); border: 1px solid rgba(63,185,80,0.3); }
+.step-number.upgrade { background: rgba(210,153,34,0.12); color: var(--warning); border: 1px solid rgba(210,153,34,0.3); }
+.step-number.verify { background: rgba(248,81,73,0.12); color: var(--danger); border: 1px solid rgba(248,81,73,0.3); }
+
+.step-content {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 24px 28px;
+}
+.step-content h3 {
+  font-size: 17px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.step-content h3 .tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+.tag.eoa { background: rgba(88,166,255,0.15); color: var(--impl); }
+.tag.proxy { background: rgba(240,136,62,0.15); color: var(--proxy); }
+.tag.safe { background: rgba(63,185,80,0.15); color: var(--safe); }
+.tag.mandatory { background: rgba(248,81,73,0.15); color: var(--danger); }
+.tag.optional { background: rgba(139,148,158,0.15); color: var(--text-secondary); }
+
+.step-content p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  line-height: 1.7;
+}
+.step-content p:last-child { margin-bottom: 0; }
+.step-content ul {
+  margin: 8px 0 12px 20px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+.step-content ul li { margin-bottom: 6px; }
+.step-content ul li strong { color: var(--text); font-weight: 500; }
+
+/* ===== 代码块 ===== */
+.code-block {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin: 16px 0;
+  overflow: hidden;
+}
+.code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--bg-elevated-2);
+  border-bottom: 1px solid var(--border);
+}
+.code-header .filename {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.code-header .lang {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+.code-body {
+  padding: 16px 20px;
+  overflow-x: auto;
+}
+.code-body pre {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text);
+  white-space: pre;
+  margin: 0;
+}
+/* 语法高亮 */
+.tok-kw { color: #ff7b72; }
+.tok-type { color: #ffa657; }
+.tok-fn { color: #d2a8ff; }
+.tok-str { color: #a5d6ff; }
+.tok-comment { color: #6e7681; font-style: italic; }
+.tok-num { color: #79c0ff; }
+.tok-modifier { color: #ff7b72; }
+.tok-event { color: #79c0ff; }
+
+/* ===== 对比表格 ===== */
+.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 24px 0;
+  font-size: 14px;
+}
+.compare-table th {
+  text-align: left;
+  padding: 14px 16px;
+  background: var(--bg-elevated-2);
+  border-bottom: 2px solid var(--border);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text);
+}
+.compare-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  vertical-align: top;
+}
+.compare-table tr:hover td { background: rgba(255,255,255,0.02); }
+.compare-table td:first-child {
+  color: var(--text);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* ===== 提示框 ===== */
+.callout {
+  border-radius: 8px;
+  padding: 20px 24px;
+  margin: 20px 0;
+  border-left: 3px solid;
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+.callout.warning {
+  background: rgba(210,153,34,0.06);
+  border-color: var(--warning);
+}
+.callout.danger {
+  background: rgba(248,81,73,0.06);
+  border-color: var(--danger);
+}
+.callout.info {
+  background: rgba(88,166,255,0.06);
+  border-color: var(--impl);
+}
+.callout.success {
+  background: rgba(63,185,80,0.06);
+  border-color: var(--safe);
+}
+.callout .callout-icon {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+  flex-shrink: 0;
+  width: 24px;
+  text-align: center;
+}
+.callout.warning .callout-icon { color: var(--warning); }
+.callout.danger .callout-icon { color: var(--danger); }
+.callout.info .callout-icon { color: var(--impl); }
+.callout.success .callout-icon { color: var(--safe); }
+.callout .callout-body { flex: 1; }
+.callout .callout-title {
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+.callout.warning .callout-title { color: var(--warning); }
+.callout.danger .callout-title { color: var(--danger); }
+.callout.info .callout-title { color: var(--impl); }
+.callout.success .callout-title { color: var(--safe); }
+.callout .callout-text {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+.callout .callout-text code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: rgba(255,255,255,0.06);
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: var(--text);
+}
+
+/* ===== 检查清单 ===== */
+.checklist {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 28px 32px;
+  margin: 24px 0;
+}
+.checklist h4 {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  color: var(--text);
+}
+.checklist ul {
+  list-style: none;
+  padding: 0;
+}
+.checklist ul li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-light);
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+.checklist ul li:last-child { border-bottom: none; }
+.checklist .check-icon {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--safe);
+  border-radius: 4px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--safe);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* ===== 地址展示 ===== */
+.addr-display {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+  overflow-x: auto;
+}
+.addr-display .addr-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.addr-display .addr-value {
+  color: var(--impl);
+  white-space: nowrap;
+}
+
+/* ===== 流程图 SVG 容器 ===== */
+.flow-diagram {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 40px 24px;
+  margin: 32px 0;
+  overflow-x: auto;
+}
+.flow-diagram svg {
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+}
+
+/* ===== 双栏布局 ===== */
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin: 24px 0;
+}
+@media (max-width: 768px) {
+  .two-col { grid-template-columns: 1fr; }
+}
+
+/* ===== Footer ===== */
+.footer {
+  border-top: 1px solid var(--border);
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.footer .footer-brand {
+  font-family: var(--font-mono);
+  color: var(--proxy);
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+/* ===== 响应式 ===== */
+@media (max-width: 768px) {
+  .nav-links { display: none; }
+  .hero { padding: 100px 20px 60px; }
+  .section { padding: 60px 20px; }
+  .flow-step { grid-template-columns: 48px 1fr; gap: 16px; }
+  .step-number { width: 48px; height: 48px; font-size: 16px; }
+  .flow-step::before { left: 23px; top: 48px; }
+  .step-content { padding: 20px; }
+  .concept-grid { grid-template-columns: 1fr; }
+  .arch-diagram { padding: 24px 16px; }
+  .code-body { padding: 12px 14px; }
+  .code-body pre { font-size: 12px; }
+  .hero-meta { gap: 20px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== 导航 ===== -->
+<nav class="nav">
+  <div class="nav-inner">
+    <div class="nav-brand"><span class="dot"></span>UUPS Upgrade Guide</div>
+    <ul class="nav-links">
+      <li><a href="#architecture">架构</a></li>
+      <li><a href="#deploy">首次部署</a></li>
+      <li><a href="#safe">多签迁移</a></li>
+      <li><a href="#upgrade">升级流程</a></li>
+      <li><a href="#security">安全清单</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ===== Hero ===== -->
+<header class="hero">
+  <div class="hero-tag">EIP-1822 &middot; ERC-1967 &middot; UUPS Proxy Pattern &middot; OpenZeppelin Contracts 5.x</div>
+  <h1>UUPS 可升级合约<br><span class="highlight">部署与升级完全指南</span></h1>
+  <p class="hero-sub">
+    以 NFTMarket 合约为例，从零讲解 UUPS 代理模式的首次部署流程、EOA 与 Safe 多签的所有权迁移、以及后续版本升级的完整操作链路。包含架构图解、Solidity 代码示例与 Hardhat 部署脚本。
+  </p>
+  <div class="hero-meta">
+    <div class="hero-meta-item">
+      <span class="label">标准</span>
+      <span class="value">EIP-1822 + ERC-1967</span>
+    </div>
+    <div class="hero-meta-item">
+      <span class="label">示例合约</span>
+      <span class="value">NFTMarket (UUPS)</span>
+    </div>
+    <div class="hero-meta-item">
+      <span class="label">开发框架</span>
+      <span class="value">Hardhat + OpenZeppelin</span>
+    </div>
+    <div class="hero-meta-item">
+      <span class="label">多签方案</span>
+      <span class="value">Safe 多签</span>
+    </div>
+  </div>
+</header>
+
+<!-- ===== 第一部分：架构概览 ===== -->
+<section class="section" id="architecture">
+  <div class="section-header">
+    <div class="section-number">01 / ARCHITECTURE</div>
+    <h2 class="section-title">UUPS 代理模式架构</h2>
+    <p class="section-desc">
+      UUPS（Universal Upgradeable Proxy Standard）将升级逻辑放在<strong>实现合约</strong>中，而非代理合约中。这意味着代理合约本身极其轻量，所有业务逻辑和升级能力都由实现合约提供。
+    </p>
+  </div>
+
+  <!-- 架构图 -->
+  <div class="arch-diagram">
+    <svg viewBox="0 0 900 420" width="900" height="420" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrow-orange" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#f0883e"/>
+        </marker>
+        <marker id="arrow-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#58a6ff"/>
+        </marker>
+        <marker id="arrow-purple" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#a371f7"/>
+        </marker>
+      </defs>
+
+      <!-- 用户/EOA -->
+      <rect x="40" y="160" width="140" height="80" rx="8" fill="#1c2128" stroke="#30363d" stroke-width="1.5"/>
+      <text x="110" y="195" text-anchor="middle" fill="#e6edf3" font-family="'JetBrains Mono', monospace" font-size="14" font-weight="700">EOA / User</text>
+      <text x="110" y="218" text-anchor="middle" fill="#8b949e" font-family="'JetBrains Mono', monospace" font-size="11">0x7a3...f9c2</text>
+
+      <!-- 代理合约 -->
+      <rect x="280" y="100" width="200" height="200" rx="8" fill="rgba(240,136,62,0.06)" stroke="#f0883e" stroke-width="2"/>
+      <text x="380" y="135" text-anchor="middle" fill="#f0883e" font-family="'JetBrains Mono', monospace" font-size="13" font-weight="700">PROXY CONTRACT</text>
+      <text x="380" y="155" text-anchor="middle" fill="#8b949e" font-family="'JetBrains Mono', monospace" font-size="10">ERC1967Proxy</text>
+      <line x1="300" y1="170" x2="460" y2="170" stroke="#30363d" stroke-width="1"/>
+      <text x="380" y="195" text-anchor="middle" fill="#e6edf3" font-family="'JetBrains Mono', monospace" font-size="12" font-weight="500">fallback()</text>
+      <text x="380" y="215" text-anchor="middle" fill="#8b949e" font-family="'JetBrains Mono', monospace" font-size="11">delegatecall</text>
+      <line x1="300" y1="235" x2="460" y2="235" stroke="#30363d" stroke-width="1"/>
+      <text x="380" y="260" text-anchor="middle" fill="#a371f7" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="500">Storage Slot</text>
+      <text x="380" y="278" text-anchor="middle" fill="#8b949e" font-family="'JetBrains Mono', monospace" font-size="10">_IMPLEMENTATION_SLOT</text>
+
+      <!-- 实现合约 V1 -->
+      <rect x="580" y="40" width="240" height="140" rx="8" fill="rgba(88,166,255,0.06)" stroke="#58a6ff" stroke-width="2"/>
+      <text x="700" y="72" text-anchor="middle" fill="#58a6ff" font-family="'JetBrains Mono', monospace" font-size="13" font-weight="700">IMPLEMENTATION V1</text>
+      <text x="700" y="92" text-anchor="middle" fill="#8b949e" font-family="'JetBrains Mono', monospace" font-size="10">NFTMarket.sol</text>
+      <line x1="600" y1="105" x2="800" y2="105" stroke="#30363d" stroke-width="1"/>
+      <text x="700" y="128" text-anchor="middle" fill="#e6edf3" font-family="'JetBrains Mono', monospace" font-size="12">listNFT() / buyNFT()</text>
+      <text x="700" y="150" text-anchor="middle" fill="#f0883e" font-family="'JetBrains Mono', monospace" font-size="12" font-weight="500">upgradeToAndCall(newImpl, 0x)</text>
+      <text x="700" y="168" text-anchor="middle" fill="#8b949e" font-family="'JetBrains Mono', monospace" font-size="10">UUPSUpgradeable</text>
+
+      <!-- 实现合约 V2 (虚线，表示未来) -->
+      <rect x="580" y="220" width="240" height="140" rx="8" fill="rgba(88,166,255,0.03)" stroke="#58a6ff" stroke-width="1.5" stroke-dasharray="6,4"/>
+      <text x="700" y="252" text-anchor="middle" fill="#58a6ff" font-family="'JetBrains Mono', monospace" font-size="13" font-weight="700">IMPLEMENTATION V2</text>
+      <text x="700" y="272" text-anchor="middle" fill="#8b949e" font-family="'JetBrains Mono', monospace" font-size="10">NFTMarketV2.sol (未来)</text>
+      <line x1="600" y1="285" x2="800" y2="285" stroke="#30363d" stroke-width="1"/>
+      <text x="700" y="308" text-anchor="middle" fill="#e6edf3" font-family="'JetBrains Mono', monospace" font-size="12">listNFT() / buyNFT()</text>
+      <text x="700" y="330" text-anchor="middle" fill="#3fb950" font-family="'JetBrains Mono', monospace" font-size="12" font-weight="500">+ auctionNFT() (新功能)</text>
+      <text x="700" y="348" text-anchor="middle" fill="#8b949e" font-family="'JetBrains Mono', monospace" font-size="10">upgradeToAndCall(newImpl, 0x)</text>
+
+      <!-- 箭头：用户 -> 代理 -->
+      <line x1="180" y1="200" x2="275" y2="200" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow-blue)"/>
+      <text x="227" y="190" text-anchor="middle" fill="#58a6ff" font-family="'JetBrains Mono', monospace" font-size="10">call</text>
+
+      <!-- 箭头：代理 -> 实现V1 (delegatecall) -->
+      <path d="M 480 170 Q 530 130 575 110" stroke="#f0883e" stroke-width="2" fill="none" marker-end="url(#arrow-orange)"/>
+      <text x="530" y="125" text-anchor="middle" fill="#f0883e" font-family="'JetBrains Mono', monospace" font-size="10">delegatecall</text>
+
+      <!-- 箭头：升级指向 V2 -->
+      <path d="M 700 180 L 700 215" stroke="#3fb950" stroke-width="2" stroke-dasharray="4,3" marker-end="url(#arrow-orange)"/>
+      <text x="720" y="202" fill="#3fb950" font-family="'JetBrains Mono', monospace" font-size="10">upgradeToAndCall()</text>
+
+      <!-- 存储说明 -->
+      <rect x="280" y="330" width="200" height="60" rx="6" fill="rgba(163,113,247,0.06)" stroke="#a371f7" stroke-width="1" stroke-dasharray="4,3"/>
+      <text x="380" y="355" text-anchor="middle" fill="#a371f7" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="500">数据存储在 Proxy</text>
+      <text x="380" y="375" text-anchor="middle" fill="#8b949e" font-family="'JetBrains Mono', monospace" font-size="10">升级不丢失状态</text>
+    </svg>
+  </div>
+
+  <!-- 核心概念卡片 -->
+  <div class="concept-grid">
+    <div class="concept-card proxy">
+      <div class="icon">P</div>
+      <h3>代理合约 (Proxy)</h3>
+      <p>用户始终与代理合约交互。它不包含业务逻辑，通过 <code style="font-family:var(--font-mono);font-size:12px;color:var(--proxy);">delegatecall</code> 将调用转发给当前实现合约。存储槽位中记录实现合约地址。</p>
+      <span class="code-ref">ERC1967Proxy</span>
+    </div>
+    <div class="concept-card impl">
+      <div class="icon">I</div>
+      <h3>实现合约 (Implementation)</h3>
+      <p>包含实际业务逻辑（如 listNFT、buyNFT）。UUPS 模式下，升级函数 <code style="font-family:var(--font-mono);font-size:12px;color:var(--impl);">upgradeToAndCall()</code> 定义在实现合约一侧，由 <code style="font-family:var(--font-mono);font-size:12px;color:var(--impl);">UUPSUpgradeable</code> 提供。当前 OpenZeppelin Contracts 5.x 的 UUPS 接口只提供 <code>upgradeToAndCall()</code>，应通过它完成升级。</p>
+      <span class="code-ref">NFTMarket + UUPSUpgradeable</span>
+    </div>
+    <div class="concept-card storage">
+      <div class="icon">S</div>
+      <h3>存储隔离</h3>
+      <p>所有状态变量存储在代理合约的存储上下文中。delegatecall 在代理的存储环境中执行实现合约的代码，因此升级实现合约不会丢失已有数据。</p>
+      <span class="code-ref">delegatecall 存储上下文</span>
+    </div>
+  </div>
+
+  <!-- UUPS vs Transparent 对比 -->
+  <h3 style="font-size:18px;font-weight:700;margin-bottom:16px;">UUPS vs Transparent Proxy</h3>
+  <div style="overflow-x:auto;">
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th>维度</th>
+          <th>UUPS (本指南)</th>
+          <th>Transparent Proxy</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>升级逻辑位置</td>
+          <td>实现合约中 (UUPSUpgradeable)</td>
+          <td>TransparentUpgradeableProxy + ProxyAdmin</td>
+        </tr>
+        <tr>
+          <td>代理合约大小</td>
+          <td>极小，仅 ERC1967Proxy</td>
+          <td>较大，含 admin 管理逻辑</td>
+        </tr>
+        <tr>
+          <td>部署 Gas</td>
+          <td>更低</td>
+          <td>更高</td>
+        </tr>
+        <tr>
+          <td>实现合约要求</td>
+          <td>必须继承 UUPSUpgradeable，实现 _authorizeUpgrade</td>
+          <td>实现合约无需 UUPS 升级入口，由 Transparent Proxy 的管理员控制升级</td>
+        </tr>
+        <tr>
+          <td>升级风险</td>
+          <td>当前 UUPS 实现会在链上校验新实现的 ERC-1822 UUID；不兼容的实现通常会直接拒绝升级</td>
+          <td>升级逻辑在代理中，相对安全</td>
+        </tr>
+        <tr>
+          <td>适用场景</td>
+          <td>Gas 敏感、追求轻量代理的项目</td>
+          <td>需要 ProxyAdmin 统一管理多合约的项目</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ===== 第二部分：合约代码 ===== -->
+<section class="section" id="contract">
+  <div class="section-header">
+    <div class="section-number">02 / CONTRACT</div>
+    <h2 class="section-title">NFTMarket 合约代码</h2>
+    <p class="section-desc">
+      一个标准的 UUPS 可升级合约需要：继承 <code style="font-family:var(--font-mono);font-size:14px;color:var(--impl);">UUPSUpgradeable</code>、使用 <code style="font-family:var(--font-mono);font-size:14px;color:var(--info);">initialize()</code> 替代 constructor、实现 <code style="font-family:var(--font-mono);font-size:14px;color:var(--proxy);">_authorizeUpgrade()</code> 权限控制。
+    </p>
+  </div>
+
+  <div class="code-block">
+    <div class="code-header">
+      <span class="filename">contracts/NFTMarket.sol</span>
+      <span class="lang">Solidity ^0.8.20</span>
+    </div>
+    <div class="code-body">
+<pre><span class="tok-comment">// SPDX-License-Identifier: MIT</span>
+<span class="tok-kw">pragma solidity</span> ^0.8.22;
+
+<span class="tok-kw">import</span> <span class="tok-str">"@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol"</span>;
+<span class="tok-kw">import</span> <span class="tok-str">"@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol"</span>;
+<span class="tok-kw">import</span> <span class="tok-str">"@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol"</span>;
+<span class="tok-kw">import</span> <span class="tok-str">"@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol"</span>;
+<span class="tok-kw">import</span> <span class="tok-str">"@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol"</span>;
+<span class="tok-kw">import</span> <span class="tok-str">"@openzeppelin/contracts/token/ERC721/IERC721.sol"</span>;
+
+<span class="tok-comment">/**
+ * @title NFTMarket
+ * @notice UUPS 可升级的 NFT 交易市场合约
+ * @dev 业务状态通过 initialize 初始化；implementation constructor 仅用于 _disableInitializers()
+ */</span>
+<span class="tok-kw">contract</span> <span class="tok-type">NFTMarket</span> <span class="tok-kw">is</span>
+    <span class="tok-type">Initializable</span>,
+    <span class="tok-type">UUPSUpgradeable</span>,
+    <span class="tok-type">OwnableUpgradeable</span>,
+    <span class="tok-type">PausableUpgradeable</span>,
+    <span class="tok-type">ReentrancyGuardUpgradeable</span>
+{
+    <span class="tok-comment">/// @custom:oz-upgrades-unsafe-allow constructor</span>
+    <span class="tok-kw">constructor</span>() {
+        <span class="tok-fn">_disableInitializers</span>();
+    }
+    <span class="tok-comment">// ===== 状态变量（存储在 Proxy 中，升级时不可乱序）=====</span>
+
+    <span class="tok-comment">/// @notice 平台手续费 (basis points, 100 = 1%)</span>
+    <span class="tok-type">uint256</span> <span class="tok-kw">public</span> feeBps;
+
+    <span class="tok-comment">/// @notice 手续费接收地址</span>
+    <span class="tok-type">address</span> <span class="tok-kw">public</span> feeRecipient;
+
+    <span class="tok-comment">/// @notice 挂牌信息: listingId =&gt; Listing</span>
+    <span class="tok-kw">struct</span> <span class="tok-type">Listing</span> {
+        <span class="tok-type">address</span> seller;
+        <span class="tok-type">address</span> nftContract;
+        <span class="tok-type">uint256</span> tokenId;
+        <span class="tok-type">uint256</span> price;
+        <span class="tok-type">bool</span> active;
+    }
+    <span class="tok-type">mapping</span>(<span class="tok-type">uint256</span> =&gt; <span class="tok-type">Listing</span>) <span class="tok-kw">public</span> listings;
+    <span class="tok-type">uint256</span> <span class="tok-kw">public</span> nextListingId;
+
+    <span class="tok-comment">// ===== 事件 =====</span>
+    <span class="tok-event">event</span> <span class="tok-fn">NFTListed</span>(<span class="tok-type">uint256</span> <span class="tok-kw">indexed</span> listingId, <span class="tok-type">address</span> <span class="tok-kw">indexed</span> seller, <span class="tok-type">uint256</span> price);
+    <span class="tok-event">event</span> <span class="tok-fn">NFTSold</span>(<span class="tok-type">uint256</span> <span class="tok-kw">indexed</span> listingId, <span class="tok-type">address</span> <span class="tok-kw">indexed</span> buyer, <span class="tok-type">uint256</span> price);
+
+    <span class="tok-comment">/**
+     * @notice 初始化函数，替代 constructor
+     * @dev 仅在代理部署时通过 delegatecall 调用一次
+     * @param _feeBps 平台手续费 (basis points)
+     * @param _feeRecipient 手续费接收地址
+     */</span>
+    <span class="tok-kw">function</span> <span class="tok-fn">initialize</span>(<span class="tok-type">uint256</span> _feeBps, <span class="tok-type">address</span> _feeRecipient) <span class="tok-kw">public</span> <span class="tok-modifier">initializer</span> {
+        <span class="tok-comment">// 初始化需要初始化的父模块</span>
+        <span class="tok-fn">__Ownable_init</span>(msg.sender);
+        <span class="tok-fn">__Pausable_init</span>();
+        <span class="tok-fn">__ReentrancyGuard_init</span>();
+
+        <span class="tok-comment">// 初始化业务状态</span>
+        <span class="tok-kw">require</span>(_feeBps &lt;= <span class="tok-num">10000</span>, <span class="tok-str">"Fee too high"</span>);
+        <span class="tok-kw">require</span>(_feeRecipient != address(0), <span class="tok-str">"Invalid fee recipient"</span>);
+        feeBps = _feeBps;
+        feeRecipient = _feeRecipient;
+        nextListingId = <span class="tok-num">1</span>;
+    }
+
+    <span class="tok-comment">/**
+     * @notice UUPS 升级授权钩子
+     * @dev 每次 UUPS 升级调用前都会执行此函数
+     *      只有 owner 可以授权升级
+     * @param newImplementation 新实现合约地址
+     */</span>
+    <span class="tok-kw">function</span> <span class="tok-fn">_authorizeUpgrade</span>(<span class="tok-type">address</span> newImplementation) <span class="tok-kw">internal</span> <span class="tok-kw">override</span> <span class="tok-modifier">onlyOwner</span> {
+        <span class="tok-comment">// 空函数体即可，onlyOwner 修饰器已完成权限检查</span>
+        <span class="tok-comment">// 可在此添加额外检查：如新实现地址的代码大小验证</span>
+    }
+
+    <span class="tok-comment">// ===== 业务函数 =====</span>
+
+    <span class="tok-kw">function</span> <span class="tok-fn">listNFT</span>(<span class="tok-type">address</span> nftContract, <span class="tok-type">uint256</span> tokenId, <span class="tok-type">uint256</span> price)
+        <span class="tok-kw">external</span> <span class="tok-kw">whenNotPaused</span> <span class="tok-modifier">nonReentrant</span>
+    {
+        <span class="tok-kw">require</span>(nftContract != address(0), <span class="tok-str">"Invalid NFT contract"</span>);
+        <span class="tok-kw">require</span>(price &gt; <span class="tok-num">0</span>, <span class="tok-str">"Price must be &gt; 0"</span>);
+        <span class="tok-kw">require</span>(IERC721(nftContract).<span class="tok-fn">ownerOf</span>(tokenId) == msg.sender, <span class="tok-str">"Not NFT owner"</span>);
+        <span class="tok-kw">require</span>(
+            IERC721(nftContract).<span class="tok-fn">getApproved</span>(tokenId) == address(this) ||
+            IERC721(nftContract).<span class="tok-fn">isApprovedForAll</span>(msg.sender, address(this)),
+            <span class="tok-str">"Marketplace not approved"</span>
+        );
+
+        <span class="tok-type">uint256</span> listingId = nextListingId++;
+        listings[listingId] = <span class="tok-type">Listing</span>(msg.sender, nftContract, tokenId, price, <span class="tok-kw">true</span>);
+        <span class="tok-kw">emit</span> <span class="tok-fn">NFTListed</span>(listingId, msg.sender, price);
+    }
+
+    <span class="tok-kw">function</span> <span class="tok-fn">buyNFT</span>(<span class="tok-type">uint256</span> listingId) <span class="tok-kw">external</span> <span class="tok-kw">payable</span> <span class="tok-kw">whenNotPaused</span> <span class="tok-modifier">nonReentrant</span> {
+        <span class="tok-type">Listing</span> <span class="tok-kw">storage</span> listing = listings[listingId];
+        <span class="tok-kw">require</span>(listing.active, <span class="tok-str">"Not active"</span>);
+        <span class="tok-kw">require</span>(msg.value == listing.price, <span class="tok-str">"Wrong price"</span>);
+        <span class="tok-kw">require</span>(feeBps &lt;= <span class="tok-num">10000</span>, <span class="tok-str">"Fee too high"</span>);
+
+        listing.active = <span class="tok-kw">false</span>;
+
+        <span class="tok-comment">// 先完成 NFT 交割；失败则整笔交易回滚</span>
+        IERC721(listing.nftContract).<span class="tok-fn">safeTransferFrom</span>(listing.seller, msg.sender, listing.tokenId);
+
+        <span class="tok-type">uint256</span> fee = msg.value * feeBps / <span class="tok-num">10000</span>;
+        (bool sellerOk, ) = payable(listing.seller).<span class="tok-fn">call</span>{value: msg.value - fee}("");
+        <span class="tok-kw">require</span>(sellerOk, <span class="tok-str">"Seller payment failed"</span>);
+
+        (bool feeOk, ) = payable(feeRecipient).<span class="tok-fn">call</span>{value: fee}("");
+        <span class="tok-kw">require</span>(feeOk, <span class="tok-str">"Fee payment failed"</span>);
+
+        <span class="tok-kw">emit</span> <span class="tok-fn">NFTSold</span>(listingId, msg.sender, msg.value);
+    }
+
+    <span class="tok-comment">// ===== Owner 管理函数 =====</span>
+    <span class="tok-kw">function</span> <span class="tok-fn">setFeeBps</span>(<span class="tok-type">uint256</span> _feeBps) <span class="tok-kw">external</span> <span class="tok-modifier">onlyOwner</span> { <span class="tok-kw">require</span>(_feeBps &lt;= <span class="tok-num">10000</span>, <span class="tok-str">"Fee too high"</span>); feeBps = _feeBps; }
+    <span class="tok-kw">function</span> <span class="tok-fn">pause</span>() <span class="tok-kw">external</span> <span class="tok-modifier">onlyOwner</span> { <span class="tok-fn">_pause</span>(); }
+    <span class="tok-kw">function</span> <span class="tok-fn">unpause</span>() <span class="tok-kw">external</span> <span class="tok-modifier">onlyOwner</span> { <span class="tok-fn">_unpause</span>(); }
+}</pre>
+    </div>
+  </div>
+
+  <div class="callout danger">
+    <div class="callout-icon">!</div>
+    <div class="callout-body">
+      <div class="callout-title">存储布局不可变（Storage Gap 规则）</div>
+      <div class="callout-text">
+        对于采用传统线性 storage 的自定义状态变量，升级时不能在旧变量前面插入、删除或重排变量，新增变量通常只能追加到已有布局末尾。与此同时，OpenZeppelin Contracts 5.x 的多个 upgradeable 模块已经采用 ERC-7201 namespaced storage，因此不要把“所有继承变量都必须按声明顺序排列”作为绝对规则；应以实际 storage layout 检查结果为准。对于自定义线性 storage，可按项目需要设计 storage gap；使用 ERC-7201 namespace 的模块则应遵循其 namespace 设计。
+      </div>
+    </div>
+  </div>
+  <div class="callout info">
+    <div class="callout-icon">i</div>
+    <div class="callout-body">
+      <div class="callout-title">版本说明：OpenZeppelin 5.x</div>
+      <div class="callout-text">
+        本示例按 OpenZeppelin Contracts Upgradeable 5.x 编写：<code>OwnableUpgradeable</code> 使用 <code>__Ownable_init(initialOwner)</code>；<code>PausableUpgradeable</code> 位于 <code>utils/</code>；UUPS 使用 <code>upgradeToAndCall()</code>。实际项目请固定依赖版本，避免不同主版本之间的 storage layout 和 API 差异。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 第三部分：首次部署 ===== -->
+<section class="section" id="deploy">
+  <div class="section-header">
+    <div class="section-number">03 / FIRST DEPLOY</div>
+    <h2 class="section-title">首次部署完整流程</h2>
+    <p class="section-desc">
+      首次部署需要依次完成：部署实现合约 → 部署代理合约（同时触发初始化）→ 验证合约。部署者使用 EOA 账户，初始化后 owner 默认为该 EOA。
+    </p>
+  </div>
+
+  <!-- 部署流程图 -->
+  <div class="flow-diagram">
+    <svg viewBox="0 0 860 340" width="860" height="340" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arr" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#8b949e"/>
+        </marker>
+      </defs>
+
+      <!-- EOA -->
+      <rect x="20" y="130" width="120" height="70" rx="8" fill="#1c2128" stroke="#58a6ff" stroke-width="1.5"/>
+      <text x="80" y="160" text-anchor="middle" fill="#58a6ff" font-family="'JetBrains Mono', monospace" font-size="12" font-weight="700">EOA Deployer</text>
+      <text x="80" y="180" text-anchor="middle" fill="#8b949e" font-family="'JetBrains Mono', monospace" font-size="10">0x7a3...f9c2</text>
+
+      <!-- Step 1: 部署实现 -->
+      <rect x="190" y="40" width="170" height="90" rx="8" fill="rgba(88,166,255,0.08)" stroke="#58a6ff" stroke-width="1.5"/>
+      <text x="275" y="68" text-anchor="middle" fill="#58a6ff" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="700">STEP 1</text>
+      <text x="275" y="90" text-anchor="middle" fill="#e6edf3" font-family="'JetBrains Mono', monospace" font-size="13" font-weight="500">deploy Implementation</text>
+      <text x="275" y="110" text-anchor="middle" fill="#8b949e" font-family="'JetBrains Mono', monospace" font-size="10">NFTMarket 字节码上链</text>
+
+      <!-- Step 2: 部署代理 -->
+      <rect x="190" y="180" width="170" height="90" rx="8" fill="rgba(240,136,62,0.08)" stroke="#f0883e" stroke-width="1.5"/>
+      <text x="275" y="208" text-anchor="middle" fill="#f0883e" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="700">STEP 2</text>
+      <text x="275" y="230" text-anchor="middle" fill="#e6edf3" font-family="'JetBrains Mono', monospace" font-size="13" font-weight="500">deploy ERC1967Proxy</text>
+      <text x="275" y="250" text-anchor="middle" fill="#8b949e" font-family="'JetBrains Mono', monospace" font-size="10">构造时 delegatecall initialize()</text>
+
+      <!-- 结果：Proxy 地址 -->
+      <rect x="430" y="130" width="180" height="70" rx="8" fill="rgba(240,136,62,0.1)" stroke="#f0883e" stroke-width="2"/>
+      <text x="520" y="158" text-anchor="middle" fill="#f0883e" font-family="'JetBrains Mono', monospace" font-size="12" font-weight="700">PROXY ADDRESS</text>
+      <text x="520" y="180" text-anchor="middle" fill="#e6edf3" font-family="'JetBrains Mono', monospace" font-size="11">0x9f1...a4b7</text>
+
+      <!-- Step 3: 验证 -->
+      <rect x="670" y="130" width="170" height="70" rx="8" fill="rgba(63,185,80,0.08)" stroke="#3fb950" stroke-width="1.5"/>
+      <text x="755" y="158" text-anchor="middle" fill="#3fb950" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="700">STEP 3</text>
+      <text x="755" y="180" text-anchor="middle" fill="#e6edf3" font-family="'JetBrains Mono', monospace" font-size="13" font-weight="500">Verify on Explorer</text>
+
+      <!-- 箭头 -->
+      <line x1="140" y1="155" x2="185" y2="85" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arr)"/>
+      <line x1="140" y1="175" x2="185" y2="225" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arr)"/>
+      <line x1="360" y1="85" x2="425" y2="155" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arr)"/>
+      <line x1="360" y1="225" x2="425" y2="175" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arr)"/>
+      <line x1="610" y1="165" x2="665" y2="165" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arr)"/>
+
+      <!-- 标注：owner = EOA -->
+      <rect x="430" y="220" width="180" height="40" rx="6" fill="rgba(88,166,255,0.06)" stroke="#58a6ff" stroke-width="1" stroke-dasharray="4,3"/>
+      <text x="520" y="245" text-anchor="middle" fill="#58a6ff" font-family="'JetBrains Mono', monospace" font-size="11">owner() = EOA Deployer</text>
+    </svg>
+  </div>
+
+  <!-- 详细步骤 -->
+  <div class="flow-steps">
+    <div class="flow-step">
+      <div class="step-number deploy">1</div>
+      <div class="step-content">
+        <h3>准备部署者 EOA 账户 <span class="tag eoa">EOA</span></h3>
+        <p>使用一个外部拥有账户（Externally Owned Account）作为部署者。这个账户需要有足够的原生代币（ETH / BNB / MATIC 等）支付 Gas。</p>
+        <ul>
+          <li><strong>私钥管理</strong>：使用 Hardhat 配置中的 <code style="font-family:var(--font-mono);font-size:12px;">PRIVATE_KEY</code> 环境变量，绝不要提交到 Git</li>
+          <li><strong>推荐做法</strong>：使用专门的部署账户，不要用日常交互账户；部署完成后该账户仅保留 owner 角色直到迁移到多签</li>
+          <li><strong>非部署者选项</strong>：也可以使用 CREATE2 工厂合约确定性部署，但首次部署通常直接用 EOA 更简单</li>
+        </ul>
+        <div class="addr-display">
+          <span class="addr-label">Deployer EOA</span>
+          <span class="addr-value">0x7a3F9c2E... (示例，替换为你的地址)</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="step-number deploy">2</div>
+      <div class="step-content">
+        <h3>部署实现合约 NFTMarket <span class="tag eoa">EOA 发起</span></h3>
+        <p>将 NFTMarket.sol 的字节码部署到链上。这一步部署的是<strong>实现合约</strong>，它不会被直接使用，而是作为代理合约的逻辑目标。</p>
+        <div class="callout info">
+          <div class="callout-icon">i</div>
+          <div class="callout-body">
+            <div class="callout-text">
+              实现合约自身的 constructor 中应调用 <code>_disableInitializers()</code>，锁定实现合约的 initializer；这也是 OpenZeppelin 对 upgradeable implementation 的推荐做法。OpenZeppelin 推荐在实现合约的 constructor 中禁用初始化。
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="step-number proxy">3</div>
+      <div class="step-content">
+        <h3>部署 ERC1967Proxy 并触发初始化 <span class="tag proxy">核心步骤</span> <span class="tag mandatory">必须</span></h3>
+        <p>部署代理合约时，在构造函数中传入两个参数：实现合约地址 + 初始化调用的 calldata。代理合约在构造时会通过 delegatecall 执行 initialize()。</p>
+        <p>在 OpenZeppelin Contracts 5.x 中，ERC1967Proxy 的构造函数仍接收 <code>implementation</code> 和初始化 calldata；提供非空 <code>data</code> 时会在构造阶段 delegatecall 到实现合约。当前版本默认不允许以空 calldata 留下未初始化的代理。</p>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="filename">ERC1967Proxy 构造函数</span>
+            <span class="lang">Solidity</span>
+          </div>
+          <div class="code-body">
+<pre><span class="tok-kw">constructor</span>(<span class="tok-type">address</span> implementation, <span class="tok-type">bytes</span> <span class="tok-kw">memory</span> data) <span class="tok-kw">payable</span> {
+    <span class="tok-comment">// 当前 OpenZeppelin 5.x：设置实现地址，并把 data delegatecall 到实现合约</span>
+    <span class="tok-fn">ERC1967Utils.upgradeToAndCall</span>(implementation, data);
+}</pre>
+          </div>
+        </div>
+        <p>初始化完成后，<code style="font-family:var(--font-mono);font-size:12px;color:var(--impl);">owner()</code> 返回部署者 EOA 地址：<code>initialize()</code> 中调用 <code>__Ownable_init(msg.sender)</code>，而代理构造阶段的 delegatecall 保留原始调用者的 <code>msg.sender</code>。</p>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="step-number verify">4</div>
+      <div class="step-content">
+        <h3>在区块浏览器验证合约 <span class="tag optional">强烈推荐</span></h3>
+        <p>验证代理合约和实现合约的源代码，使用户可以在 Etherscan 等浏览器上直接读取合约和调用函数。</p>
+        <ul>
+          <li><strong>实现合约验证</strong>：标准的 Solidity 源码验证</li>
+          <li><strong>代理合约验证</strong>：验证为 ERC1967Proxy，浏览器会自动识别代理模式并提供 "Read as Proxy" / "Write as Proxy" 界面</li>
+          <li>使用 <code style="font-family:var(--font-mono);font-size:12px;">hardhat verify</code> 或 <code style="font-family:var(--font-mono);font-size:12px;">@nomicfoundation/hardhat-verify</code> 插件自动化验证</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 部署脚本 -->
+  <h3 style="font-size:18px;font-weight:700;margin:40px 0 16px;">Hardhat 部署脚本</h3>
+  <div class="code-block">
+    <div class="code-header">
+      <span class="filename">scripts/deploy.ts</span>
+      <span class="lang">TypeScript / Hardhat</span>
+    </div>
+    <div class="code-body">
+<pre><span class="tok-kw">import</span> hre <span class="tok-kw">from</span> <span class="tok-str">"hardhat"</span>;
+
+<span class="tok-kw">async function</span> <span class="tok-fn">main</span>() {
+  <span class="tok-kw">const</span> connection = <span class="tok-kw">await</span> hre.network.<span class="tok-fn">create</span>();
+  <span class="tok-kw">const</span> { ethers } = connection;
+  <span class="tok-comment">// ===== 配置参数 =====</span>
+  <span class="tok-kw">const</span> FEE_BPS = <span class="tok-num">250</span>;           <span class="tok-comment">// 2.5% 手续费</span>
+  <span class="tok-kw">const</span> FEE_RECIPIENT = <span class="tok-str">"0xYourTreasuryAddress..."</span>;
+
+  <span class="tok-kw">const</span> [deployer] = <span class="tok-kw">await</span> ethers.<span class="tok-fn">getSigners</span>();
+  console.<span class="tok-fn">log</span>(<span class="tok-str">`Deployer: ${deployer.address}`</span>);
+
+  <span class="tok-comment">// ===== Step 1: 部署实现合约 =====</span>
+  console.<span class="tok-fn">log</span>(<span class="tok-str">"\n[1/3] Deploying NFTMarket implementation..."</span>);
+  <span class="tok-kw">const</span> NFTMarket = <span class="tok-kw">await</span> ethers.<span class="tok-fn">getContractFactory</span>(<span class="tok-str">"NFTMarket"</span>);
+  <span class="tok-kw">const</span> implementation = <span class="tok-kw">await</span> NFTMarket.<span class="tok-fn">deploy</span>();
+  <span class="tok-kw">await</span> implementation.<span class="tok-fn">waitForDeployment</span>();
+  <span class="tok-kw">const</span> implAddress = <span class="tok-kw">await</span> implementation.<span class="tok-fn">getAddress</span>();
+  console.<span class="tok-fn">log</span>(<span class="tok-str">`  Implementation: ${implAddress}`</span>);
+
+  <span class="tok-comment">// ===== Step 2: 编码 initialize 调用数据 =====</span>
+  <span class="tok-comment">// initialize(uint256,address) 的 ABI 编码</span>
+  <span class="tok-kw">const</span> initializeData = NFTMarket.<span class="tok-fn">interface</span>.<span class="tok-fn">encodeFunctionData</span>(
+    <span class="tok-str">"initialize"</span>,
+    [FEE_BPS, FEE_RECIPIENT]
+  );
+
+  <span class="tok-comment">// ===== Step 3: 部署 ERC1967Proxy =====</span>
+  console.<span class="tok-fn">log</span>(<span class="tok-str">"\n[2/3] Deploying ERC1967Proxy..."</span>);
+  <span class="tok-kw">const</span> ERC1967Proxy = <span class="tok-kw">await</span> ethers.<span class="tok-fn">getContractFactory</span>(<span class="tok-str">"ERC1967Proxy"</span>);
+  <span class="tok-kw">const</span> proxy = <span class="tok-kw">await</span> ERC1967Proxy.<span class="tok-fn">deploy</span>(implAddress, initializeData);
+  <span class="tok-kw">await</span> proxy.<span class="tok-fn">waitForDeployment</span>();
+  <span class="tok-kw">const</span> proxyAddress = <span class="tok-kw">await</span> proxy.<span class="tok-fn">getAddress</span>();
+  console.<span class="tok-fn">log</span>(<span class="tok-str">`  Proxy Address:  ${proxyAddress}`</span>);
+
+  <span class="tok-comment">// ===== Step 4: 验证初始化结果 =====</span>
+  console.<span class="tok-fn">log</span>(<span class="tok-str">"\n[3/3] Verifying initialization..."</span>);
+  <span class="tok-kw">const</span> market = NFTMarket.<span class="tok-fn">attach</span>(proxyAddress);
+  console.<span class="tok-fn">log</span>(<span class="tok-str">`  owner():         ${await market.owner()}`</span>);
+  console.<span class="tok-fn">log</span>(<span class="tok-str">`  feeBps():         ${await market.feeBps()}`</span>);
+  console.<span class="tok-fn">log</span>(<span class="tok-str">`  feeRecipient():   ${await market.feeRecipient()}`</span>);
+
+  console.<span class="tok-fn">log</span>(<span class="tok-str">"\n=== Deployment Complete ==="</span>);
+  console.<span class="tok-fn">log</span>(<span class="tok-str">`Proxy: ${proxyAddress}`</span>);
+  console.<span class="tok-fn">log</span>(<span class="tok-str">`Impl:  ${implAddress}`</span>);
+}
+
+<span class="tok-fn">main</span>().<span class="tok-fn">catch</span>((error) =&gt; {
+  console.<span class="tok-fn">error</span>(error);
+  process.<span class="tok-fn">exit</span>(<span class="tok-num">1</span>);
+});</pre>
+    </div>
+  </div>
+
+  <div class="callout warning">
+    <div class="callout-icon">!</div>
+    <div class="callout-body">
+      <div class="callout-title">为什么不用 OpenZeppelin upgrades 插件的 deployProxy？</div>
+      <div class="callout-text">
+        <code>@openzeppelin/hardhat-upgrades</code> 插件的 <code>deployProxy()</code> 会自动完成上述三步（部署实现 + 部署代理 + 初始化），非常方便。但手动部署能让你理解每一步发生了什么，也便于在不支持插件的环境中操作。生产环境推荐使用插件，它还会自动检查存储布局兼容性。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 第四部分：Owner 迁移到 Safe ===== -->
+<section class="section" id="safe">
+  <div class="section-header">
+    <div class="section-number">04 / OWNERSHIP</div>
+    <h2 class="section-title">Owner 迁移到 Safe 多签</h2>
+    <p class="section-desc">
+      首次部署后 owner 是 EOA 账户，这意味着任何拿到该私钥的人都可以升级合约。生产环境必须将 owner 转移到 Gnosis Safe 多签钱包，使升级需要多个签名者共同确认。
+    </p>
+  </div>
+
+  <div class="two-col">
+    <div>
+      <div class="callout danger">
+        <div class="callout-icon">!</div>
+        <div class="callout-body">
+          <div class="callout-title">为什么必须迁移到多签？</div>
+          <div class="callout-text">
+            EOA 私钥是单点故障：电脑被入侵、私钥泄露、助记词丢失，都可能导致恶意升级或永久失去升级能力。Safe 多签要求 N 个签名者中至少 M 个确认（如 3/5），大幅提高安全性。
+          </div>
+        </div>
+      </div>
+
+      <div class="callout success">
+        <div class="callout-icon">+</div>
+        <div class="callout-body">
+          <div class="callout-title">迁移时机</div>
+          <div class="callout-text">
+            部署完成并验证无误后<strong>立即迁移</strong>。不要让 EOA owner 状态持续超过必要时间。迁移前确保 Safe 钱包已正确配置（签名者列表、阈值、链网络）。
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="checklist">
+        <h4>Safe 多签配置建议</h4>
+        <ul>
+          <li><span class="check-icon">+</span><span>签名者数量：3-5 人，阈值设为多数（如 3/5、2/3）</span></li>
+          <li><span class="check-icon">+</span><span>签名者使用硬件钱包（Ledger / Trezor），不用热钱包</span></li>
+          <li><span class="check-icon">+</span><span>签名者分布在不同地理位置、不同设备</span></li>
+          <li><span class="check-icon">+</span><span>记录 Safe 地址和交易哈希，存档备查</span></li>
+          <li><span class="check-icon">+</span><span>在测试网先演练完整的部署→迁移→升级流程</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 迁移流程图 -->
+  <div class="flow-diagram">
+    <svg viewBox="0 0 860 280" width="860" height="280" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arr2" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#8b949e"/>
+        </marker>
+      </defs>
+
+      <!-- 迁移前 -->
+      <rect x="30" y="80" width="220" height="120" rx="8" fill="rgba(248,81,73,0.05)" stroke="#f85149" stroke-width="1.5" stroke-dasharray="6,3"/>
+      <text x="140" y="110" text-anchor="middle" fill="#f85149" font-family="'JetBrains Mono', monospace" font-size="12" font-weight="700">迁移前 (危险)</text>
+      <line x1="50" y1="125" x2="230" y2="125" stroke="#30363d" stroke-width="1"/>
+      <text x="140" y="150" text-anchor="middle" fill="#e6edf3" font-family="'JetBrains Mono', monospace" font-size="12">Proxy.owner() = EOA</text>
+      <text x="140" y="172" text-anchor="middle" fill="#8b949e" font-family="'JetBrains Mono', monospace" font-size="11">单点故障，私钥泄露=灾难</text>
+
+      <!-- 箭头 -->
+      <line x1="250" y1="140" x2="340" y2="140" stroke="#3fb950" stroke-width="2" marker-end="url(#arr2)"/>
+      <text x="295" y="130" text-anchor="middle" fill="#3fb950" font-family="'JetBrains Mono', monospace" font-size="10">transferOwnership</text>
+      <text x="295" y="155" text-anchor="middle" fill="#3fb950" font-family="'JetBrains Mono', monospace" font-size="10">(EOA 发起)</text>
+
+      <!-- Safe 多签 -->
+      <rect x="360" y="60" width="200" height="160" rx="8" fill="rgba(63,185,80,0.06)" stroke="#3fb950" stroke-width="2"/>
+      <text x="460" y="90" text-anchor="middle" fill="#3fb950" font-family="'JetBrains Mono', monospace" font-size="13" font-weight="700">Gnosis Safe</text>
+      <text x="460" y="110" text-anchor="middle" fill="#8b949e" font-family="'JetBrains Mono', monospace" font-size="10">3/5 多签钱包</text>
+      <line x1="380" y1="125" x2="540" y2="125" stroke="#30363d" stroke-width="1"/>
+      <circle cx="410" cy="150" r="14" fill="#1c2128" stroke="#58a6ff" stroke-width="1.5"/>
+      <text x="410" y="154" text-anchor="middle" fill="#58a6ff" font-family="'JetBrains Mono', monospace" font-size="9">S1</text>
+      <circle cx="460" cy="150" r="14" fill="#1c2128" stroke="#58a6ff" stroke-width="1.5"/>
+      <text x="460" y="154" text-anchor="middle" fill="#58a6ff" font-family="'JetBrains Mono', monospace" font-size="9">S2</text>
+      <circle cx="510" cy="150" r="14" fill="#1c2128" stroke="#58a6ff" stroke-width="1.5"/>
+      <text x="510" y="154" text-anchor="middle" fill="#58a6ff" font-family="'JetBrains Mono', monospace" font-size="9">S3</text>
+      <text x="460" y="185" text-anchor="middle" fill="#8b949e" font-family="'JetBrains Mono', monospace" font-size="10">至少 3 人确认才能执行</text>
+      <text x="460" y="205" text-anchor="middle" fill="#8b949e" font-family="'JetBrains Mono', monospace" font-size="10">0xSafe...Address</text>
+
+      <!-- 箭头 -->
+      <line x1="560" y1="140" x2="650" y2="140" stroke="#f0883e" stroke-width="2" marker-end="url(#arr2)"/>
+      <text x="605" y="130" text-anchor="middle" fill="#f0883e" font-family="'JetBrains Mono', monospace" font-size="10">upgradeTo</text>
+      <text x="605" y="155" text-anchor="middle" fill="#f0883e" font-family="'JetBrains Mono', monospace" font-size="10">(需多签确认)</text>
+
+      <!-- 迁移后 -->
+      <rect x="670" y="80" width="170" height="120" rx="8" fill="rgba(63,185,80,0.05)" stroke="#3fb950" stroke-width="1.5"/>
+      <text x="755" y="110" text-anchor="middle" fill="#3fb950" font-family="'JetBrains Mono', monospace" font-size="12" font-weight="700">迁移后 (安全)</text>
+      <line x1="690" y1="125" x2="820" y2="125" stroke="#30363d" stroke-width="1"/>
+      <text x="755" y="150" text-anchor="middle" fill="#e6edf3" font-family="'JetBrains Mono', monospace" font-size="12">Proxy.owner() = Safe</text>
+      <text x="755" y="172" text-anchor="middle" fill="#8b949e" font-family="'JetBrains Mono', monospace" font-size="11">升级需多签授权</text>
+    </svg>
+  </div>
+
+  <!-- 迁移代码 -->
+  <h3 style="font-size:18px;font-weight:700;margin:32px 0 16px;">所有权迁移代码</h3>
+  <div class="code-block">
+    <div class="code-header">
+      <span class="filename">scripts/transfer-ownership.ts</span>
+      <span class="lang">TypeScript / Hardhat</span>
+    </div>
+    <div class="code-body">
+<pre><span class="tok-kw">import</span> hre <span class="tok-kw">from</span> <span class="tok-str">"hardhat"</span>;
+
+<span class="tok-kw">async function</span> <span class="tok-fn">main</span>() {
+  <span class="tok-kw">const</span> connection = <span class="tok-kw">await</span> hre.network.<span class="tok-fn">create</span>();
+  <span class="tok-kw">const</span> { ethers } = connection;
+
+  <span class="tok-kw">const</span> PROXY_ADDRESS = <span class="tok-str">"0x9f1...a4b7"</span>;     <span class="tok-comment">// 你的代理合约地址</span>
+  <span class="tok-kw">const</span> SAFE_ADDRESS = <span class="tok-str">"0xSafe...Address"</span>;    <span class="tok-comment">// 你的 Gnosis Safe 地址</span>
+
+  <span class="tok-kw">const</span> [deployer] = <span class="tok-kw">await</span> ethers.<span class="tok-fn">getSigners</span>();
+  console.<span class="tok-fn">log</span>(<span class="tok-str">`Current owner (EOA): ${deployer.address}`</span>);
+
+  <span class="tok-comment">// 附加到代理合约</span>
+  <span class="tok-kw">const</span> NFTMarket = <span class="tok-kw">await</span> ethers.<span class="tok-fn">getContractFactory</span>(<span class="tok-str">"NFTMarket"</span>);
+  <span class="tok-kw">const</span> market = NFTMarket.<span class="tok-fn">attach</span>(PROXY_ADDRESS);
+
+  <span class="tok-comment">// 迁移前确认</span>
+  <span class="tok-kw">const</span> currentOwner = <span class="tok-kw">await</span> market.<span class="tok-fn">owner</span>();
+  <span class="tok-kw">if</span> (currentOwner !== deployer.address) {
+    <span class="tok-kw">throw new</span> <span class="tok-type">Error</span>(<span class="tok-str">`Deployer is not owner! Current owner: ${currentOwner}`</span>);
+  }
+
+  <span class="tok-comment">// 执行所有权转移</span>
+  console.<span class="tok-fn">log</span>(<span class="tok-str">`\nTransferring ownership to Safe: ${SAFE_ADDRESS}`</span>);
+  <span class="tok-kw">const</span> tx = <span class="tok-kw">await</span> market.<span class="tok-fn">transferOwnership</span>(SAFE_ADDRESS);
+  <span class="tok-kw">await</span> tx.<span class="tok-fn">wait</span>();
+  console.<span class="tok-fn">log</span>(<span class="tok-str">`Tx hash: ${tx.hash}`</span>);
+
+  <span class="tok-comment">// 验证</span>
+  <span class="tok-kw">const</span> newOwner = <span class="tok-kw">await</span> market.<span class="tok-fn">owner</span>();
+  console.<span class="tok-fn">log</span>(<span class="tok-str">`\nNew owner: ${newOwner}`</span>);
+  console.<span class="tok-fn">log</span>(newOwner === SAFE_ADDRESS ? <span class="tok-str">"✓ Ownership transferred successfully"</span> : <span class="tok-str">"✗ Transfer failed"</span>);
+}
+
+<span class="tok-fn">main</span>().<span class="tok-fn">catch</span>((error) =&gt; {
+  console.<span class="tok-fn">error</span>(error);
+  process.<span class="tok-fn">exit</span>(<span class="tok-num">1</span>);
+});</pre>
+    </div>
+  </div>
+
+  <div class="callout warning">
+    <div class="callout-icon">!</div>
+    <div class="callout-body">
+      <div class="callout-title">迁移后 EOA 账户的处理</div>
+      <div class="callout-text">
+        所有权转移后，原 EOA 不再具有升级权限。但该 EOA 仍可能有其他角色（如 Pauser），请检查并一并迁移或撤销。建议将 EOA 私钥安全冷存储，作为应急恢复的最后手段（但在多签正常工作时不应使用）。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 第五部分：升级流程 ===== -->
+<section class="section" id="upgrade">
+  <div class="section-header">
+    <div class="section-number">05 / UPGRADE</div>
+    <h2 class="section-title">后续升级完整流程</h2>
+    <p class="section-desc">
+      当需要添加新功能或修复 Bug 时，部署新的实现合约，然后由 owner（Safe 多签）通过代理合约调用 <code style="font-family:var(--font-mono);font-size:14px;color:var(--proxy);">upgradeToAndCall()</code> 将代理指向新实现。已有数据完全保留。
+    </p>
+  </div>
+
+  <!-- 升级流程图 -->
+  <div class="flow-diagram">
+    <svg viewBox="0 0 880 380" width="880" height="380" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arr3" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#8b949e"/>
+        </marker>
+        <marker id="arr-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#3fb950"/>
+        </marker>
+      </defs>
+
+      <!-- Safe 多签 -->
+      <rect x="20" y="140" width="160" height="100" rx="8" fill="rgba(63,185,80,0.08)" stroke="#3fb950" stroke-width="2"/>
+      <text x="100" y="172" text-anchor="middle" fill="#3fb950" font-family="'JetBrains Mono', monospace" font-size="12" font-weight="700">Safe Multisig</text>
+      <text x="100" y="192" text-anchor="middle" fill="#8b949e" font-family="'JetBrains Mono', monospace" font-size="10">owner of Proxy</text>
+      <text x="100" y="215" text-anchor="middle" fill="#8b949e" font-family="'JetBrains Mono', monospace" font-size="10">3/5 确认后执行</text>
+
+      <!-- Proxy -->
+      <rect x="260" y="140" width="180" height="100" rx="8" fill="rgba(240,136,62,0.08)" stroke="#f0883e" stroke-width="2"/>
+      <text x="350" y="172" text-anchor="middle" fill="#f0883e" font-family="'JetBrains Mono', monospace" font-size="12" font-weight="700">ERC1967Proxy</text>
+      <text x="350" y="192" text-anchor="middle" fill="#e6edf3" font-family="'JetBrains Mono', monospace" font-size="11">upgradeToAndCall(newImpl, 0x)</text>
+      <text x="350" y="212" text-anchor="middle" fill="#8b949e" font-family="'JetBrains Mono', monospace" font-size="10">更新 _IMPLEMENTATION_SLOT</text>
+
+      <!-- 旧实现 V1 -->
+      <rect x="520" y="40" width="200" height="110" rx="8" fill="rgba(139,148,158,0.05)" stroke="#6e7681" stroke-width="1.5" stroke-dasharray="6,3"/>
+      <text x="620" y="70" text-anchor="middle" fill="#6e7681" font-family="'JetBrains Mono', monospace" font-size="12" font-weight="700">Implementation V1</text>
+      <text x="620" y="90" text-anchor="middle" fill="#6e7681" font-family="'JetBrains Mono', monospace" font-size="10">(旧版本，不再使用)</text>
+      <line x1="540" y1="105" x2="700" y2="105" stroke="#30363d" stroke-width="1"/>
+      <text x="620" y="128" text-anchor="middle" fill="#6e7681" font-family="'JetBrains Mono', monospace" font-size="11">listNFT / buyNFT</text>
+
+      <!-- 新实现 V2 -->
+      <rect x="520" y="200" width="200" height="130" rx="8" fill="rgba(88,166,255,0.1)" stroke="#58a6ff" stroke-width="2"/>
+      <text x="620" y="230" text-anchor="middle" fill="#58a6ff" font-family="'JetBrains Mono', monospace" font-size="13" font-weight="700">Implementation V2</text>
+      <text x="620" y="250" text-anchor="middle" fill="#8b949e" font-family="'JetBrains Mono', monospace" font-size="10">NFTMarketV2.sol</text>
+      <line x1="540" y1="265" x2="700" y2="265" stroke="#30363d" stroke-width="1"/>
+      <text x="620" y="288" text-anchor="middle" fill="#e6edf3" font-family="'JetBrains Mono', monospace" font-size="11">listNFT / buyNFT</text>
+      <text x="620" y="308" text-anchor="middle" fill="#3fb950" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="500">+ auctionNFT() 新增</text>
+      <text x="620" y="324" text-anchor="middle" fill="#f0883e" font-family="'JetBrains Mono', monospace" font-size="10">upgradeToAndCall() 必须保留</text>
+
+      <!-- 箭头：Safe -> Proxy -->
+      <line x1="180" y1="190" x2="255" y2="190" stroke="#3fb950" stroke-width="2" marker-end="url(#arr-green)"/>
+      <text x="217" y="180" text-anchor="middle" fill="#3fb950" font-family="'JetBrains Mono', monospace" font-size="10">execTransaction</text>
+
+      <!-- 箭头：Proxy 指向从 V1 切换到 V2 -->
+      <path d="M 440 175 Q 480 120 515 95" stroke="#6e7681" stroke-width="1.5" stroke-dasharray="4,3" fill="none"/>
+      <path d="M 440 205 Q 480 240 515 265" stroke="#58a6ff" stroke-width="2.5" fill="none" marker-end="url(#arr3)"/>
+      <text x="475" y="240" fill="#58a6ff" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="500">delegatecall</text>
+      <text x="475" y="255" fill="#58a6ff" font-family="'JetBrains Mono', monospace" font-size="10">(新指向)</text>
+
+      <!-- 存储不变标注 -->
+      <rect x="260" y="280" width="180" height="50" rx="6" fill="rgba(163,113,247,0.06)" stroke="#a371f7" stroke-width="1" stroke-dasharray="4,3"/>
+      <text x="350" y="305" text-anchor="middle" fill="#a371f7" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="500">Proxy 存储不变</text>
+      <text x="350" y="322" text-anchor="middle" fill="#8b949e" font-family="'JetBrains Mono', monospace" font-size="10">listings / feeBps 等数据保留</text>
+    </svg>
+  </div>
+
+  <!-- 升级详细步骤 -->
+  <div class="flow-steps">
+    <div class="flow-step">
+      <div class="step-number deploy">1</div>
+      <div class="step-content">
+        <h3>编写新实现合约 NFTMarketV2 <span class="tag mandatory">存储兼容</span></h3>
+        <p>新合约必须继承旧合约的存储布局，只能在末尾追加新状态变量。必须继续继承 <code style="font-family:var(--font-mono);font-size:12px;color:var(--proxy);">UUPSUpgradeable</code> 并实现 <code style="font-family:var(--font-mono);font-size:12px;">_authorizeUpgrade</code>。</p>
+        <div class="callout danger">
+          <div class="callout-icon">!</div>
+          <div class="callout-body">
+            <div class="callout-text">
+              如果 V2 不再提供兼容的 UUPS 升级机制，OpenZeppelin 5.x 的 UUPS 实现会在升级时通过 ERC-1822 <code>proxiableUUID()</code> 做兼容性校验，通常会<strong>直接拒绝这次升级</strong>，因此代理仍停留在 V1。真正危险的是绕过这些检查的自定义升级机制，或部署了错误但仍满足接口的实现。
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="step-number verify">2</div>
+      <div class="step-content">
+        <h3>存储布局兼容性检查 <span class="tag mandatory">必须</span></h3>
+        <p>使用 OpenZeppelin upgrades 插件的 <code style="font-family:var(--font-mono);font-size:12px;">validateUpgrade()</code> 或 <code style="font-family:var(--font-mono);font-size:12px;">hardhat upgrade:validate</code> 检查新旧合约的存储布局是否兼容。</p>
+        <ul>
+          <li><strong>检查项</strong>：变量类型变更、变量顺序变更、变量删除、结构体/枚举修改</li>
+          <li><strong>通过标准</strong>：旧变量的存储布局必须保持兼容；传统线性 storage 中新增变量通常追加在末尾</li>
+          <li>使用 <code style="font-family:var(--font-mono);font-size:12px;">@openzeppelin/upgrades-core</code> 的 <code>storageLayout</code> 对比工具</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="step-number deploy">3</div>
+      <div class="step-content">
+        <h3>部署新实现合约 V2 <span class="tag eoa">EOA 或 Safe 发起</span></h3>
+        <p>将 NFTMarketV2 部署到链上。这一步只部署实现合约，不影响代理。部署者可以是任意有 Gas 的账户，不要求是 owner。</p>
+        <ul>
+          <li>记录新实现合约地址</li>
+          <li>在区块浏览器验证新合约源码</li>
+          <li>（可选）在测试网先完整演练升级流程</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="step-number safe">4</div>
+      <div class="step-content">
+        <h3>Safe 多签发起升级交易 <span class="tag safe">多签确认</span> <span class="tag mandatory">核心</span></h3>
+        <p>在 Gnosis Safe 界面中，创建一笔交易调用代理合约的 <code style="font-family:var(--font-mono);font-size:12px;color:var(--proxy);">upgradeToAndCall(newImplementation, bytes)</code> 函数；如果不需要额外初始化，第二个参数传 <code>0x</code>。需要达到签名阈值（如 3/5）后才能执行。</p>
+        <ul>
+          <li><strong>目标地址</strong>：Proxy 合约地址（不是实现合约）</li>
+          <li><strong>调用函数</strong>：<code style="font-family:var(--font-mono);font-size:12px;">upgradeToAndCall(address newImplementation, bytes data)</code></li>
+          <li><strong>参数</strong>：新部署的 V2 实现合约地址</li>
+          <li>如果需要同时执行初始化（如设置新变量的初始值），使用 <code style="font-family:var(--font-mono);font-size:12px;">upgradeToAndCall(newImpl, data)</code></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="step-number verify">5</div>
+      <div class="step-content">
+        <h3>验证升级成功 <span class="tag mandatory">必须</span></h3>
+        <p>升级交易上链后，立即验证代理合约的实现地址已更新，且新功能正常工作。</p>
+        <ul>
+          <li>读取代理的实现槽位：<code style="font-family:var(--font-mono);font-size:12px;">ethers.getStorageAt(proxyAddress, IMPLEMENTATION_SLOT)</code></li>
+          <li>确认返回值等于 V2 实现合约地址</li>
+          <li>调用新函数（如 <code style="font-family:var(--font-mono);font-size:12px;">auctionNFT()</code>）确认可执行</li>
+          <li>确认旧数据完好：读取已有 listing、feeBps 等状态</li>
+          <li>在区块浏览器确认代理已识别新实现（"Read as Proxy" 显示 V2 的 ABI）</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 升级脚本 -->
+  <h3 style="font-size:18px;font-weight:700;margin:40px 0 16px;">升级脚本（准备 + 验证）</h3>
+  <div class="code-block">
+    <div class="code-header">
+      <span class="filename">scripts/prepare-upgrade.ts</span>
+      <span class="lang">TypeScript / Hardhat</span>
+    </div>
+    <div class="code-body">
+<pre><span class="tok-kw">import</span> hre <span class="tok-kw">from</span> <span class="tok-str">"hardhat"</span>;
+<span class="tok-kw">import</span> { upgrades } <span class="tok-kw">from</span> <span class="tok-str">"@openzeppelin/hardhat-upgrades"</span>;
+
+<span class="tok-kw">async function</span> <span class="tok-fn">main</span>() {
+  <span class="tok-kw">const</span> connection = <span class="tok-kw">await</span> hre.network.<span class="tok-fn">create</span>();
+  <span class="tok-kw">const</span> { ethers } = connection;
+  <span class="tok-kw">const</span> upgradesApi = <span class="tok-kw">await</span> upgrades(hre, connection);
+  <span class="tok-kw">const</span> PROXY_ADDRESS = <span class="tok-str">"0x9f1...a4b7"</span>;  <span class="tok-comment">// 代理合约地址</span>
+
+  <span class="tok-comment">// ===== Step 1: 存储布局兼容性检查 =====</span>
+  console.<span class="tok-fn">log</span>(<span class="tok-str">"[1/4] Validating storage layout compatibility..."</span>);
+  <span class="tok-kw">const</span> NFTMarketV2 = <span class="tok-kw">await</span> ethers.<span class="tok-fn">getContractFactory</span>(<span class="tok-str">"NFTMarketV2"</span>);
+  <span class="tok-comment">// validateUpgrade 会检查 V1 -&gt; V2 的存储兼容性</span>
+  <span class="tok-kw">await</span> upgrades.<span class="tok-fn">validateUpgrade</span>(PROXY_ADDRESS, NFTMarketV2);
+  console.<span class="tok-fn">log</span>(<span class="tok-str">"  ✓ Storage layout compatible"</span>);
+
+  <span class="tok-comment">// ===== Step 2: 部署新实现合约 =====</span>
+  console.<span class="tok-fn">log</span>(<span class="tok-str">"\n[2/4] Deploying NFTMarketV2 implementation..."</span>);
+  <span class="tok-kw">const</span> newImpl = <span class="tok-kw">await</span> upgrades.<span class="tok-fn">prepareUpgrade</span>(PROXY_ADDRESS, NFTMarketV2);
+  <span class="tok-kw">const</span> newImplAddress = <span class="tok-kw">await</span> newImpl.<span class="tok-fn">getAddress</span>();
+  console.<span class="tok-fn">log</span>(<span class="tok-str">`  New implementation: ${newImplAddress}`</span>);
+
+  <span class="tok-comment">// ===== Step 3: 输出 Safe 交易参数 =====</span>
+  console.<span class="tok-fn">log</span>(<span class="tok-str">"\n[3/4] Gnosis Safe transaction parameters:"</span>);
+  console.<span class="tok-fn">log</span>(<span class="tok-str">`  To:             ${PROXY_ADDRESS}`</span>);
+  console.<span class="tok-fn">log</span>(<span class="tok-str">`  Function:       upgradeToAndCall(address, bytes)`</span>);
+  console.<span class="tok-fn">log</span>(<span class="tok-str">`  newImplementation: ${newImplAddress}`</span>);
+
+  <span class="tok-comment">// 编码 calldata（可直接在 Safe 中使用）</span>
+  <span class="tok-kw">const</span> upgradeCalldata = NFTMarketV2.<span class="tok-fn">interface</span>.<span class="tok-fn">encodeFunctionData</span>(
+    <span class="tok-str">"upgradeTo"</span>,
+    [newImplAddress]
+  );
+  console.<span class="tok-fn">log</span>(<span class="tok-str">`  Calldata:       ${upgradeCalldata}`</span>);
+
+  <span class="tok-comment">// ===== Step 4: 升级后验证（在 Safe 执行后运行）=====</span>
+  console.<span class="tok-fn">log</span>(<span class="tok-str">"\n[4/4] After Safe execution, verify with:"</span>);
+  console.<span class="tok-fn">log</span>(<span class="tok-str">`  const marketV2 = NFTMarketV2.attach("${PROXY_ADDRESS}");`</span>);
+  console.<span class="tok-fn">log</span>(<span class="tok-str">`  console.log(await marketV2.owner());        // 应为 Safe 地址`</span>);
+  console.<span class="tok-fn">log</span>(<span class="tok-str">`  console.log(await marketV2.feeBps());       // 旧数据应保留`</span>);
+  console.<span class="tok-fn">log</span>(<span class="tok-str">`  // 调用新函数确认升级成功`</span>);
+}
+
+<span class="tok-fn">main</span>().<span class="tok-fn">catch</span>((error) =&gt; {
+  console.<span class="tok-fn">error</span>(error);
+  process.<span class="tok-fn">exit</span>(<span class="tok-num">1</span>);
+});</pre>
+    </div>
+  </div>
+
+  <div class="callout info">
+    <div class="callout-icon">i</div>
+    <div class="callout-body">
+      <div class="callout-title">upgradeTo vs upgradeToAndCall</div>
+      <div class="callout-text">
+        <code>upgradeToAndCall(newImpl, 0x)</code>：仅切换实现地址，不执行额外调用。适用于新变量有默认值或不需要初始化的场景。<br>
+        <code>upgradeToAndCall(newImpl, data)</code>：切换实现并在同一笔交易中 delegatecall 执行指定数据。若不需要迁移初始化，传 <code>0x</code>；若需要初始化新增状态，应在 V2 中提供版本化的迁移函数，例如 <code>initializeV2()</code> + <code>reinitializer(2)</code>。当前 OpenZeppelin 5.x 的接口本身没有单独的 <code>forceCall</code> 参数。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 第六部分：安全清单 ===== -->
+<section class="section" id="security">
+  <div class="section-header">
+    <div class="section-number">06 / SECURITY</div>
+    <h2 class="section-title">安全检查清单与常见陷阱</h2>
+    <p class="section-desc">
+      可升级合约引入了额外的攻击面。以下清单覆盖部署、迁移和升级全流程的关键安全点。
+    </p>
+  </div>
+
+  <div class="two-col">
+    <div class="checklist">
+      <h4>部署阶段检查</h4>
+      <ul>
+        <li><span class="check-icon">+</span><span>实现合约 constructor 中调用 <code>_disableInitializers()</code></span></li>
+        <li><span class="check-icon">+</span><span>initialize() 使用 <code>initializer</code> 修饰器，且只调用一次</span></li>
+        <li><span class="check-icon">+</span><span>显式调用需要初始化的父合约 initializer，并避免同一父初始化函数被重复调用</span></li>
+        <li><span class="check-icon">+</span><span>_authorizeUpgrade 使用 <code>onlyOwner</code> 限制</span></li>
+        <li><span class="check-icon">+</span><span>部署后立即验证 owner()、各状态变量初始值</span></li>
+        <li><span class="check-icon">+</span><span>代理和实现合约均在区块浏览器验证源码</span></li>
+      </ul>
+    </div>
+
+    <div class="checklist">
+      <h4>多签迁移检查</h4>
+      <ul>
+        <li><span class="check-icon">+</span><span>Safe 钱包已在正确的链上创建</span></li>
+        <li><span class="check-icon">+</span><span>签名者使用硬件钱包，阈值设为多数</span></li>
+        <li><span class="check-icon">+</span><span>迁移前确认 EOA 是当前 owner</span></li>
+        <li><span class="check-icon">+</span><span>迁移后验证 owner() == Safe 地址</span></li>
+        <li><span class="check-icon">+</span><span>检查并迁移其他角色（Pauser、Minter 等）</span></li>
+        <li><span class="check-icon">+</span><span>原 EOA 私钥冷存储，不丢弃</span></li>
+      </ul>
+    </div>
+
+    <div class="checklist">
+      <h4>升级阶段检查</h4>
+      <ul>
+        <li><span class="check-icon">+</span><span>新合约保留兼容的 UUPS 升级机制，并通过 OpenZeppelin 校验工具检查</span></li>
+        <li><span class="check-icon">+</span><span>存储布局兼容性检查通过</span></li>
+        <li><span class="check-icon">+</span><span>自定义线性 storage 变量按兼容规则追加；ERC-7201 namespace 按其 namespace 规则演进</span></li>
+        <li><span class="check-icon">+</span><span>新合约通过完整测试套件（含升级测试）</span></li>
+        <li><span class="check-icon">+</span><span>在测试网/主网 fork 演练完整升级</span></li>
+        <li><span class="check-icon">+</span><span>升级后验证实现地址、旧数据、新功能</span></li>
+      </ul>
+    </div>
+
+    <div class="checklist">
+      <h4>持续安全运营</h4>
+      <ul>
+        <li><span class="check-icon">+</span><span>监控 ERC-1967 Implementation 变更及对应的 <code>Upgraded</code> 事件</span></li>
+        <li><span class="check-icon">+</span><span>建立升级的 Timelock（时间锁）延迟</span></li>
+        <li><span class="check-icon">+</span><span>升级前公开审计报告和变更说明</span></li>
+        <li><span class="check-icon">+</span><span>保留紧急暂停（Pausable）能力</span></li>
+        <li><span class="check-icon">+</span><span>定期轮换 Safe 签名者</span></li>
+        <li><span class="check-icon">+</span><span>保留旧实现地址、源码、构建产物和审计记录；不要把“旧实现不销毁”当作回滚机制</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 常见陷阱 -->
+  <h3 style="font-size:18px;font-weight:700;margin:40px 0 20px;">常见致命陷阱</h3>
+
+  <div class="callout danger">
+    <div class="callout-icon">1</div>
+    <div class="callout-body">
+      <div class="callout-title">新实现忘记继承 UUPSUpgradeable</div>
+      <div class="callout-text">
+        UUPS 的升级机制位于实现合约中。当前 OpenZeppelin 5.x 使用 <code>upgradeToAndCall()</code>，并在升级时校验新实现的 ERC-1822 UUID；如果 V2 不兼容，升级交易会回滚，而不是让代理先切换到一个不可升级实现。因此不要把“缺少 UUPS”描述成升级成功后的必然永久锁死。
+      </div>
+    </div>
+  </div>
+
+  <div class="callout danger">
+    <div class="callout-icon">2</div>
+    <div class="callout-body">
+      <div class="callout-title">存储布局错乱</div>
+      <div class="callout-text">
+        在旧变量中间插入新变量、修改变量类型、删除变量、重排结构体字段，都会导致存储槽位错位。例如在传统线性 storage 中，如果 V1 的自定义变量已经占据前部槽位，V2 却在这些变量之前插入新变量，就会改变后续变量的槽位解释，导致已有数据被错误读取。具体槽位应通过编译器和 storage layout 工具确认，不应硬编码“feeBps 一定在 slot 2”。使用 <code>storage gap</code> 预留空间，用工具自动检查。
+      </div>
+    </div>
+  </div>
+
+  <div class="callout danger">
+    <div class="callout-icon">3</div>
+    <div class="callout-body">
+      <div class="callout-title">实现合约自身被初始化攻击</div>
+      <div class="callout-text">
+        实现合约本身也在链上，如果不在 constructor 中调用 <code>_disableInitializers()</code>，攻击者可能直接调用实现合约的 <code>initialize()</code>，在实现合约自己的存储中取得 owner；但 UUPS 的 <code>onlyProxy</code> 检查会阻止从实现合约自身直接执行升级。仍然应使用 <code>_disableInitializers()</code> 锁定实现合约，避免不必要的初始化状态和与其他逻辑组合产生风险。
+      </div>
+    </div>
+  </div>
+
+  <div class="callout warning">
+    <div class="callout-icon">4</div>
+    <div class="callout-body">
+      <div class="callout-title">constructor 中的逻辑不会执行</div>
+      <div class="callout-text">
+        代理合约通过 delegatecall 调用实现合约，但实现合约的 constructor 只在部署实现合约时执行一次，且是在实现合约自己的存储上下文中执行。因此 <strong>所有初始化逻辑必须放在 initialize() 中</strong>，不能依赖 constructor 设置状态变量。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 总结 ===== -->
+<section class="section" id="summary">
+  <div class="section-header">
+    <div class="section-number">07 / SUMMARY</div>
+    <h2 class="section-title">流程速查表</h2>
+  </div>
+
+  <div style="overflow-x:auto;">
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th>阶段</th>
+          <th>动作</th>
+          <th>发起者</th>
+          <th>关键函数/命令</th>
+          <th>验证点</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>首次部署</td>
+          <td>部署实现合约</td>
+          <td>EOA</td>
+          <td><code style="font-family:var(--font-mono);font-size:12px;">NFTMarket.deploy()</code></td>
+          <td>实现地址上链</td>
+        </tr>
+        <tr>
+          <td>首次部署</td>
+          <td>部署代理并初始化</td>
+          <td>EOA</td>
+          <td><code style="font-family:var(--font-mono);font-size:12px;">ERC1967Proxy.deploy(impl, initData)</code></td>
+          <td>owner() = EOA, 状态变量正确</td>
+        </tr>
+        <tr>
+          <td>所有权迁移</td>
+          <td>转移 owner 到 Safe</td>
+          <td>EOA (当前 owner)</td>
+          <td><code style="font-family:var(--font-mono);font-size:12px;">transferOwnership(safeAddr)</code></td>
+          <td>owner() = Safe 地址</td>
+        </tr>
+        <tr>
+          <td>升级准备</td>
+          <td>存储兼容性检查</td>
+          <td>任意</td>
+          <td><code style="font-family:var(--font-mono);font-size:12px;">validateUpgrade(proxy, V2)</code></td>
+          <td>无存储冲突</td>
+        </tr>
+        <tr>
+          <td>升级准备</td>
+          <td>部署新实现 V2</td>
+          <td>EOA (任意)</td>
+          <td><code style="font-family:var(--font-mono);font-size:12px;">prepareUpgrade(proxy, V2)</code></td>
+          <td>V2 地址上链并验证</td>
+        </tr>
+        <tr>
+          <td>执行升级</td>
+          <td>切换代理实现地址</td>
+          <td>Safe 多签</td>
+          <td><code style="font-family:var(--font-mono);font-size:12px;">upgradeToAndCall(newImpl, "0x")</code></td>
+          <td>Implementation slot = V2</td>
+        </tr>
+        <tr>
+          <td>升级验证</td>
+          <td>确认数据和功能</td>
+          <td>任意</td>
+          <td>读取状态 + 调用新函数</td>
+          <td>旧数据保留, 新功能可用</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ===== Footer ===== -->
+<footer class="footer">
+  <div class="footer-brand">UUPS Upgrade Guide</div>
+  <p>基于 EIP-1822 / ERC-1967 / OpenZeppelin Contracts Upgradeable</p>
+  <p style="margin-top:8px;">本文按 OpenZeppelin Contracts 5.x / Hardhat 3 API 编写；实际项目应固定依赖版本并以对应版本文档、编译器和 storage layout 检查结果为准。</p>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chainlink CRE 与 VRF 技术报告</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-secondary: #161b22;
+    --bg-card: #1c2128;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-secondary: #8b949e;
+    --accent: #58a6ff;
+    --accent-green: #3fb950;
+    --accent-orange: #d29922;
+    --accent-purple: #bc8cff;
+    --accent-red: #f85149;
+    --code-bg: #0d1117;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    font-size: 15px;
+  }
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+  /* Hero */
+  .hero {
+    padding: 80px 0 60px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #161b22 0%, #0d1117 100%);
+  }
+  .hero .tag {
+    display: inline-block;
+    padding: 4px 12px;
+    border: 1px solid var(--accent);
+    border-radius: 20px;
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    margin-bottom: 20px;
+  }
+  .hero h1 {
+    font-size: 42px;
+    font-weight: 800;
+    line-height: 1.2;
+    margin-bottom: 16px;
+    background: linear-gradient(135deg, #58a6ff, #bc8cff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero .subtitle {
+    font-size: 18px;
+    color: var(--text-secondary);
+    max-width: 700px;
+  }
+  .hero .meta {
+    margin-top: 32px;
+    display: flex;
+    gap: 32px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    flex-wrap: wrap;
+  }
+  .hero .meta span strong { color: var(--text); }
+
+  /* Nav */
+  .toc {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(13,17,23,0.95);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 0;
+  }
+  .toc-inner {
+    display: flex;
+    gap: 24px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .toc-inner::-webkit-scrollbar { display: none; }
+  .toc a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 13px;
+    white-space: nowrap;
+    padding: 4px 0;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+  }
+  .toc a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* Sections */
+  section { padding: 56px 0; border-bottom: 1px solid var(--border); }
+  section:last-child { border-bottom: none; }
+  h2 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  h2 .num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #0d1117;
+    font-size: 16px;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+  h2.green .num { background: var(--accent-green); }
+  h2.orange .num { background: var(--accent-orange); }
+  h2.purple .num { background: var(--accent-purple); }
+  .section-desc {
+    color: var(--text-secondary);
+    font-size: 15px;
+    margin-bottom: 32px;
+    padding-left: 48px;
+  }
+  h3 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 36px 0 16px;
+    color: var(--text);
+  }
+  h4 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 24px 0 12px;
+    color: var(--accent);
+  }
+  p { margin-bottom: 14px; }
+  ul, ol { margin: 12px 0 16px 24px; }
+  li { margin-bottom: 8px; }
+  strong { color: var(--text); }
+  code {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: "SF Mono", "Fira Code", Consolas, monospace;
+    color: var(--accent-green);
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    overflow-x: auto;
+    margin: 16px 0;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  pre code { background: none; border: none; padding: 0; color: var(--text); }
+
+  /* Cards */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+    margin: 20px 0;
+  }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card .card-title {
+    font-weight: 700;
+    font-size: 15px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card .card-title .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+  }
+  .card.green .dot { background: var(--accent-green); }
+  .card.orange .dot { background: var(--accent-orange); }
+  .card.purple .dot { background: var(--accent-purple); }
+  .card.red .dot { background: var(--accent-red); }
+  .card p { font-size: 13.5px; color: var(--text-secondary); margin: 0; }
+
+  /* Tables */
+  .table-wrap { overflow-x: auto; margin: 20px 0; border-radius: 8px; border: 1px solid var(--border); }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  th {
+    background: var(--bg-secondary);
+    padding: 12px 16px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(88,166,255,0.04); }
+  td strong { color: var(--text); }
+
+  /* ===== CSS Diagrams ===== */
+  .diagram {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 28px 24px;
+    margin: 20px 0;
+    overflow-x: auto;
+  }
+
+  /* Flow chain (horizontal) */
+  .flow-chain {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    flex-wrap: wrap;
+  }
+  .flow-node {
+    background: var(--bg-secondary);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 12px 16px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    min-width: 120px;
+    flex-shrink: 0;
+  }
+  .flow-node.green { border-color: var(--accent-green); }
+  .flow-node.orange { border-color: var(--accent-orange); }
+  .flow-node.purple { border-color: var(--accent-purple); }
+  .flow-node .sub { display: block; font-size: 11px; font-weight: 400; color: var(--text-secondary); margin-top: 2px; }
+  .flow-arrow {
+    color: var(--text-secondary);
+    font-size: 20px;
+    padding: 0 8px;
+    flex-shrink: 0;
+  }
+
+  /* Architecture nested boxes */
+  .arch-layer {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 16px;
+    position: relative;
+  }
+  .arch-layer:last-child { margin-bottom: 0; }
+  .arch-layer-label {
+    position: absolute;
+    top: -11px;
+    left: 16px;
+    background: var(--bg-card);
+    padding: 0 10px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.5px;
+  }
+  .arch-layer.green .arch-layer-label { color: var(--accent-green); }
+  .arch-layer.purple .arch-layer-label { color: var(--accent-purple); }
+  .arch-nodes {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .arch-node {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    text-align: center;
+  }
+  .arch-node strong { color: var(--text); display: block; margin-bottom: 2px; }
+  .arch-connector {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 16px;
+    padding: 6px 0;
+  }
+
+  /* Sequence diagram */
+  .seq-diagram { font-size: 13px; }
+  .seq-actors {
+    display: flex;
+    justify-content: space-around;
+    margin-bottom: 16px;
+  }
+  .seq-actor {
+    background: var(--bg-secondary);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-weight: 600;
+    font-size: 12.5px;
+    text-align: center;
+  }
+  .seq-actor.green { border-color: var(--accent-green); }
+  .seq-actor.orange { border-color: var(--accent-orange); }
+  .seq-steps { position: relative; }
+  .seq-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 10px 0;
+    border-bottom: 1px dashed var(--border);
+  }
+  .seq-step:last-child { border-bottom: none; }
+  .seq-step-num {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #0d1117;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 800;
+    flex-shrink: 0;
+  }
+  .seq-step.orange .seq-step-num { background: var(--accent-orange); }
+  .seq-step.green .seq-step-num { background: var(--accent-green); }
+  .seq-step.purple .seq-step-num { background: var(--accent-purple); }
+  .seq-step-content { flex: 1; }
+  .seq-step-title { font-weight: 600; font-size: 13.5px; margin-bottom: 2px; }
+  .seq-step-desc { font-size: 12.5px; color: var(--text-secondary); }
+  .seq-step-tag {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 8px;
+  }
+  .tag-onchain { background: rgba(88,166,255,0.15); color: var(--accent); }
+  .tag-offchain { background: rgba(63,185,80,0.15); color: var(--accent-green); }
+  .tag-verify { background: rgba(210,153,34,0.15); color: var(--accent-orange); }
+
+  /* Callout */
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: rgba(88,166,255,0.06);
+    padding: 14px 18px;
+    border-radius: 0 8px 8px 0;
+    margin: 18px 0;
+    font-size: 14px;
+  }
+  .callout.green { border-color: var(--accent-green); background: rgba(63,185,80,0.06); }
+  .callout.orange { border-color: var(--accent-orange); background: rgba(210,153,34,0.06); }
+  .callout.purple { border-color: var(--accent-purple); background: rgba(188,140,255,0.06); }
+  .callout strong { display: block; margin-bottom: 4px; }
+
+  /* Scenario list */
+  .scenario {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin: 16px 0;
+  }
+  .scenario-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .scenario-num {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #0d1117;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 14px;
+    flex-shrink: 0;
+  }
+  .scenario.green .scenario-num { background: var(--accent-green); }
+  .scenario.orange .scenario-num { background: var(--accent-orange); }
+  .scenario.purple .scenario-num { background: var(--accent-purple); }
+  .scenario-title { font-size: 17px; font-weight: 700; }
+  .scenario p { font-size: 14px; color: var(--text-secondary); }
+  .scenario .flow {
+    margin-top: 14px;
+    padding: 12px 16px;
+    background: var(--bg);
+    border-radius: 6px;
+    font-family: "SF Mono", Consolas, monospace;
+    font-size: 12.5px;
+    color: var(--accent-green);
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  /* Footer */
+  footer {
+    padding: 40px 0;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 13px;
+  }
+  footer .sources { margin-top: 16px; font-size: 12px; }
+  footer .sources a { color: var(--accent); text-decoration: none; }
+
+  @media (max-width: 768px) {
+    .hero h1 { font-size: 28px; }
+    .hero .meta { flex-direction: column; gap: 8px; }
+    h2 { font-size: 22px; }
+    .section-desc { padding-left: 0; }
+    .flow-chain { flex-direction: column; }
+    .flow-arrow { transform: rotate(90deg); padding: 4px 0; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Hero -->
+<div class="hero">
+  <div class="container">
+    <span class="tag">TECHNICAL REPORT · 2026</span>
+    <h1>Chainlink CRE 与 VRF<br>深度解析与使用场景</h1>
+    <p class="subtitle">系统梳理 Chainlink 运行时环境（CRE）的编排架构与可验证随机函数（VRF）的密码学原理，聚焦两者在 DeFi、RWA、游戏、AI Agent 等领域的实际落地场景。</p>
+    <div class="meta">
+      <span><strong>产品：</strong>Chainlink Runtime Environment (CRE) · Verifiable Random Function (VRF)</span>
+      <span><strong>发布：</strong>CRE — 首次在 SmartCon 2024 介绍，2025 年进入更完整的生产化阶段 · VRF — 2019 起持续演进至 v2.5</span>
+    </div>
+  </div>
+</div>
+
+<!-- TOC -->
+<nav class="toc">
+  <div class="container">
+    <div class="toc-inner">
+      <a href="#overview">总览</a>
+      <a href="#cre">CRE 架构</a>
+      <a href="#cre-scenarios">CRE 使用场景</a>
+      <a href="#vrf">VRF 原理</a>
+      <a href="#vrf-scenarios">VRF 使用场景</a>
+      <a href="#comparison">对比与协同</a>
+      <a href="#summary">总结</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+
+<!-- Section 1: Overview -->
+<section id="overview">
+  <h2><span class="num">0</span>产品总览</h2>
+  <p class="section-desc">CRE 与 VRF 的定位不同：CRE 是面向机构级智能合约的全栈编排层；VRF 是提供可验证随机性的专用服务。二者都属于 Chainlink 平台能力，但不应理解为同一层级的产品。</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>CRE — Runtime Environment</div>
+      <p>CRE 是 Chainlink 的全栈编排层。开发者使用 TypeScript 或 Go SDK 编写 Workflow，由 CRE CLI 编译为 WASM 二进制并部署到 DON；Workflow 可组合链上/链下数据、API、计算、合规、隐私及跨链等能力。</p>
+    </div>
+    <div class="card green">
+      <div class="card-title"><span class="dot"></span>VRF — Verifiable Random Function</div>
+      <p>可验证随机函数，Chainlink 的核心随机性服务之一（2019 年上线）。它利用密码学证明生成可验证随机数，使消费者合约能够在链上验证结果与指定请求输入及预言机密钥相符；它是许多区块链游戏、NFT 和其他需要可验证随机性的应用的重要基础设施。</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>一句话区分</strong>
+    CRE 解决的是「智能合约如何与真实世界系统安全协作」的编排问题；VRF 解决的是「链上如何获得可信随机数」的密码学问题。两者可以独立使用，也可以在 CRE 工作流中调用 VRF 能力。
+  </div>
+</section>
+
+<!-- Section 2: CRE Architecture -->
+<section id="cre">
+  <h2 class="green"><span class="num">1</span>CRE 核心架构</h2>
+  <p class="section-desc">CRE 将 Automation、Functions 等历史上独立的能力升级为统一的 Workflow 模型，并提供更丰富的触发器、Capability、共识与隐私能力；因此更准确地说，CRE 是其后继/统一编排层，而不是严格意义上的“超集”。</p>
+
+  <h3>1.1 定位与设计哲学</h3>
+  <p>CRE 的全称是 <strong>Chainlink Runtime Environment</strong>，官方定义为「解锁机构级智能合约的全栈编排层」。机构级智能合约需要同时满足四个条件：</p>
+  <ul>
+    <li><strong>数据连接（Data-connected）</strong>——能安全读取外部 API、链上状态和专有数据</li>
+    <li><strong>合规就绪（Compliance-ready）</strong>——可集成 KYC/AML、地址黑名单、额度策略等合规检查</li>
+    <li><strong>隐私保护（Privacy-preserving）</strong>——支持 TEE 飞地执行，敏感逻辑和密钥不暴露给节点运营商</li>
+    <li><strong>跨链互操作（Interoperable）</strong>——原生集成 CCIP，可跨公有链、私有链和传统系统执行</li>
+  </ul>
+
+  <h3>1.2 Trigger-and-Callback 编程模型</h3>
+  <p>CRE 采用「触发器 + 回调」的代码优先开发模式，这是 CRE 工作流的核心架构模式：</p>
+
+  <div class="diagram">
+    <div class="flow-chain">
+      <div class="flow-node">Trigger 触发器<span class="sub">事件源 · 何时执行</span></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node green">Handler 处理器<span class="sub">连接 Trigger 与 Callback</span></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node orange">Callback 回调函数<span class="sub">业务逻辑 · 做什么</span></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node purple">Capability 能力调用<span class="sub">HTTP / EVM / 签名</span></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node">DON 共识验证<span class="sub">BFT 聚合结果</span></div>
+    </div>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>Trigger（触发器）</div>
+      <p>工作流的「何时」。当前文档列出的核心触发器包括 <strong>Cron</strong>（定时调度）、<strong>HTTP</strong>（外部请求触发）和 <strong>EVM Log</strong>（监听链上事件触发）。具体调度限制与配额应以当前 CRE 文档为准，不宜写死一个通用的“最小 30 秒”。</p>
+    </div>
+    <div class="card green">
+      <div class="card-title"><span class="dot"></span>Callback（回调）</div>
+      <p>工作流的「做什么」。包含核心业务逻辑的函数，每次触发器触发时独立、无状态地执行。在回调中通过 SDK 客户端调用各种 Capability。</p>
+    </div>
+    <div class="card orange">
+      <div class="card-title"><span class="dot"></span>Handler（处理器）</div>
+      <p>连接单个 Trigger 与单个 Callback 的胶水。一个工作流可定义多个 Handler，也可将同一个 Callback 挂载到多个 Trigger 上实现复用。</p>
+    </div>
+  </div>
+
+  <div class="callout green">
+    <strong>无状态执行模型</strong>
+    每次触发器触发 = 一次全新的独立执行。回调函数是无状态的，执行间不保留持久状态，返回值仅代表本次执行的结果。这确保了工作流的可重入性和可验证性。
+  </div>
+
+  <h3>1.3 双层 DON 架构</h3>
+  <p>CRE 的执行由两类去中心化预言机网络（DON）协同完成：</p>
+
+  <div class="diagram">
+    <div class="arch-layer">
+      <span class="arch-layer-label">Workflow DON（编排层）</span>
+      <div class="arch-nodes">
+        <div class="arch-node"><strong>节点 1</strong>监听触发器</div>
+        <div class="arch-node"><strong>节点 2</strong>协调执行</div>
+        <div class="arch-node"><strong>节点 ...</strong>运行业务逻辑</div>
+        <div class="arch-node"><strong>节点 N</strong>聚合结果</div>
+      </div>
+    </div>
+    <div class="arch-connector">↕ 调用能力 / 返回共识结果</div>
+    <div class="arch-layer green">
+      <span class="arch-layer-label">Capability DONs（执行层）</span>
+      <div class="arch-nodes">
+        <div class="arch-node"><strong>HTTP Fetch DON</strong>外部 API 数据获取</div>
+        <div class="arch-node"><strong>EVM Read/Write DON</strong>链上状态读写</div>
+        <div class="arch-node"><strong>Confidential HTTP DON</strong>隐私保护 API 调用</div>
+        <div class="arch-node"><strong>Solana Write DON</strong>Solana 程序写入</div>
+      </div>
+    </div>
+  </div>
+
+  <ul>
+    <li><strong>Workflow DON</strong>——负责编排整个工作流，监听触发器、协调执行、聚合结果。工作流被编译为 WASM 二进制后部署到 Workflow DON 上运行。</li>
+    <li><strong>Capability DON</strong>——专门执行特定任务的能力网络，如 HTTP 数据获取、EVM 链上读写、机密 HTTP 调用等。每个能力由独立的 DON 提供，结果经过 BFT 共识聚合。</li>
+  </ul>
+
+  <div class="callout purple">
+    <strong>内置共识是 CRE 的核心安全保证</strong>
+    能力执行会由 DON 中的多个独立节点执行，并通过 BFT 共识对结果进行验证与聚合，以降低单点故障和单节点作恶带来的风险。这里的“正确”应理解为在给定信任假设和共识规则下得到一致、经过验证的结果，而不是对外部数据真实性的绝对保证。
+  </div>
+
+  <h3>1.4 可用 Capability 一览</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Capability</th><th>功能</th><th>典型用途</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Triggers</strong></td><td>Cron / HTTP / EVM Log 触发器</td><td>定时任务、外部系统调用、链上事件响应</td></tr>
+        <tr><td><strong>HTTP</strong></td><td>带共识的外部 API 调用（GET/POST）</td><td>获取市场数据、合规检查、AI 服务调用</td></tr>
+        <tr><td><strong>Confidential HTTP</strong></td><td>TEE 飞地内的隐私保护 API 调用</td><td>携带敏感密钥的请求、响应加密</td></tr>
+        <tr><td><strong>EVM Read</strong></td><td>读取 EVM 合约 view/pure 函数</td><td>查询合约状态、持仓、价格</td></tr>
+        <tr><td><strong>EVM Write</strong></td><td>通过签名报告写入 EVM 合约</td><td>执行交易、更新状态、触发合约函数</td></tr>
+        <tr><td><strong>Solana Write</strong></td><td>通过 Keystone Forwarder 写入 Solana</td><td>跨 EVM-Solana 的工作流</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>1.5 机密工作流（Confidential Workflows）</h3>
+  <p>CRE 提供 Confidential Workflows、Confidential HTTP 等隐私能力，可结合门限加密与 TEE，在支持的场景中保护敏感工作流、数据和密钥材料，降低节点运营商直接看到明文的风险。隐私保证取决于具体 Confidential Compute 架构、加密流程与 TEE 及其证明机制，不宜概括为“所有节点都完全不可见”。</p>
+
+  <div class="card-grid">
+    <div class="card purple">
+      <div class="card-title"><span class="dot"></span>何时需要机密执行</div>
+      <p>钱包私钥、交易所 API 密钥、支付网络凭证、LLM 付费密钥、专有评分模型、交易策略、风险阈值——任何泄露会造成经济损失或策略被抢跑的场景。</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>普通 DON 执行即可</div>
+      <p>公开数据 API 密钥（天气、行情、体育数据）、公开钱包地址、公共 RPC 凭证等低敏感度信息，常规 DON 执行已足够安全。</p>
+    </div>
+  </div>
+
+  <h3>1.6 CRE 与 Chainlink Automation (CLA) 的关系</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>维度</th><th>Chainlink Automation (CLA)</th><th>Chainlink CRE</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>执行单元</strong></td><td>Upkeep（checkUpkeep + performUpkeep）</td><td>Workflow（TypeScript/Go → WASM）</td></tr>
+        <tr><td><strong>触发方式</strong></td><td>时间 / 日志 / 自定义逻辑</td><td>Cron / HTTP / EVM Log（一等公民）</td></tr>
+        <tr><td><strong>链下逻辑</strong></td><td>仅 checkUpkeep 模拟</td><td>完整业务逻辑 + 多步能力调用</td></tr>
+        <tr><td><strong>外部 API</strong></td><td>核心定位不是通用外部 API 编排</td><td>原生 HTTP / Confidential HTTP Capability</td></tr>
+        <tr><td><strong>机密计算</strong></td><td>不支持</td><td>TEE 飞地执行</td></tr>
+        <tr><td><strong>AI 集成</strong></td><td>无统一内置 LLM 能力</td><td>可通过 HTTP / Confidential HTTP 等能力接入 AI 服务，并在 Workflow 中施加规则</td></tr>
+        <tr><td><strong>关系</strong></td><td colspan="2"><strong>CRE 是 Automation 的后继/统一编排层</strong>。Chainlink 已将 Automation 与 Functions 的能力升级到 CRE Workflow；2026 年 Automation 正在弃用并迁移到 CRE。</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- Section 3: CRE Scenarios -->
+<section id="cre-scenarios">
+  <h2 class="green"><span class="num">2</span>CRE 重点使用场景</h2>
+  <p class="section-desc">CRE 的价值在于将「链上智能合约」与「链下真实世界系统」编织成可验证、可审计、可合规的端到端工作流。以下是官方资料中已有展示或明确可由 CRE 构建的代表性场景；其中部分属于演示、试点或可构建模式，不应一律表述为已规模化商用。</p>
+
+  <div class="scenario green">
+    <div class="scenario-header">
+      <div class="scenario-num">1</div>
+      <div class="scenario-title">稳定币发行（Stablecoin Issuance）</div>
+    </div>
+    <p>金融机构和稳定币发行方利用 CRE 编排端到端的跨链稳定币发行流程，涵盖存款捕获、储备证明（PoR）验证、合规检查（ACE）、链上铸造和跨链交付。整个流程分为「验证与铸造」和「合规与发行」两个阶段。</p>
+    <div class="flow">银行/托管人 → 外部事件/HTTP → 储备与合规检查 → 链上 Mint → CCIP 跨链交付 → 目标链接收方</div>
+    <p style="margin-top:12px;"><strong>关键价值：</strong>将传统金融系统、合规策略、链上铸造与跨链流程连接起来。CRE 可作为这些系统之间的编排层，但具体消息标准、合规流程和发行基础设施取决于机构方案，不能概括为一个固定的“SWIFT MT103 → Mint”标准流程。</p>
+  </div>
+
+  <div class="scenario">
+    <div class="scenario-header">
+      <div class="scenario-num">2</div>
+      <div class="scenario-title">通证化资产服务（Tokenized Asset Servicing）</div>
+    </div>
+    <p>CRE 可以作为链下系统、外部 API 与链上智能合约之间的编排层，实现事件驱动的数据同步和状态更新。具体数据库、云服务和资产标准应根据实际项目确定，并非 CRE 固定绑定某一种数据库或 NFT 标准。</p>
+    <div class="flow">链上事件 → CRE EVM Log Trigger → 数据处理/校验 → 链下系统 ｜ 链下状态变化 → HTTP Trigger → CRE Workflow → 生成报告 → 链上合约更新</div>
+    <p style="margin-top:12px;"><strong>关键价值：</strong>消除链上链下状态不一致的运营瓶颈，事件驱动替代手动轮询，发行方、托管人、过户代理人和合规工具始终保持同步。</p>
+  </div>
+
+  <div class="scenario orange">
+    <div class="scenario-header">
+      <div class="scenario-num">3</div>
+      <div class="scenario-title">AI 驱动的预测市场结算</div>
+    </div>
+    <p>CRE 结合 LLM（如 AI 模型 + 外部搜索/数据源）实现预测市场的自动化、可审计结算。当市场合约发出 SettlementRequested 事件时，CRE 自动触发工作流，调用 AI 判定结果（含置信度和引用来源），生成经过 DON 共识验证的结果/报告后写入链上合约完成结算。低置信度案例自动升级人工复核。</p>
+    <div class="flow">链上 SettlementRequested 事件 → CRE LogTrigger → Gemini AI（搜索接地）→ 结构化判定结果 → 加密签名报告 → 链上 onReport() → Firestore 审计留痕</div>
+    <p style="margin-top:12px;"><strong>关键价值：</strong>将 AI 的概率推理与区块链的确定性保证结合，减少人工干预、缩短结算时间、支持依赖多源证据的复杂市场，全程可审计。</p>
+  </div>
+
+  <div class="scenario purple">
+    <div class="scenario-header">
+      <div class="scenario-num">4</div>
+      <div class="scenario-title">AI Agent + x402 微支付触发可验证工作流</div>
+    </div>
+    <p>Chainlink 已展示 x402 与 CRE 的组合方式：AI Agent/客户端可以通过 x402 支付并调用 CRE 工作流，Workflow 对输入、规则和执行结果进行验证与编排。这里的 x402 是支付/调用模式，不是 CRE 本身的支付系统。Agent 决定做什么，但验证和执行在 CRE 中完成，确保 Agent 的行为受规则约束、结果可审计。</p>
+    <div class="flow">AI Agent 决策 → x402 支付凭证 + 请求 → CRE 验证支付 → 策略/合规检查 → 链上写入结果 → 可验证审计轨迹</div>
+    <p style="margin-top:12px;"><strong>关键价值：</strong>解决 AI Agent「黑箱操作」的信任问题。Agent 可以自主行动，但每一步都经过共识验证和策略约束，为 AI 驱动的链上经济提供安全基础设施。</p>
+  </div>
+
+  <div class="scenario">
+    <div class="scenario-header">
+      <div class="scenario-num">5</div>
+      <div class="scenario-title">自定义储备证明（PoR）数据馈送</div>
+    </div>
+    <p>开发者用 CRE 构建自定义的链下数据到链上的数据管道。工作流定时（Cron）或按需（HTTP/Log Trigger）获取外部 API 数据（如储备余额），读取链上代币总供应量，计算对比后生成签名报告写入链上。支持主动（定时/HTTP）和被动（事件驱动）两种执行路径。</p>
+    <div class="flow">Cron/HTTP/Log Trigger → HTTP 获取储备数据 → EVM Read 读取供应量 → 计算/格式化 → 签名报告 → EVM Write 写入链上</div>
+    <p style="margin-top:12px;"><strong>关键价值：</strong>无需管理独立的中间件或基础设施，即可构建类似 Chainlink PoR 的自定义数据馈送，支持本地模拟和测试网验证。</p>
+  </div>
+
+  <h3>2.6 机密工作流专属场景</h3>
+  <p>以下场景的核心逻辑或数据必须在 TEE 飞地内执行，以防止被节点运营商或外部观察者预测、抢跑或复制：</p>
+  <div class="card-grid">
+    <div class="card purple">
+      <div class="card-title"><span class="dot"></span>自动清算保护</div>
+      <p>监控杠杆头寸的抵押品健康度，在清算前自动平仓或调整。风险阈值和防御策略在飞地内执行，防止被预测和抢跑。</p>
+    </div>
+    <div class="card purple">
+      <div class="card-title"><span class="dot"></span>自动投资组合再平衡</div>
+      <p>当投资组合偏离目标配置超过阈值时自动再平衡。配置策略和交易规模在飞地内决策，防止被对手方预判和交易。</p>
+    </div>
+    <div class="card purple">
+      <div class="card-title"><span class="dot"></span>AI 驱动的交易/合约审查</div>
+      <p>在交易执行前用两个独立 LLM 审计拟议交易/合约，合并风险标记后输出 ALLOW/DENY/MANUAL_REVIEW 判定。评估标准和 API 密钥在飞地内保密。</p>
+    </div>
+    <div class="card purple">
+      <div class="card-title"><span class="dot"></span>自动交易策略</div>
+      <p>基于私有策略执行交易逻辑。策略本身在飞地内运行，即使最终交易上链公开，策略逻辑也不会被复制或被抢跑。</p>
+    </div>
+    <div class="card purple">
+      <div class="card-title"><span class="dot"></span>自动支付编排</div>
+      <p>生成银行转账、支付网络、私有链代币化存款的支付指令。路由逻辑和账户详情在飞地内保护，不暴露给节点运营商。</p>
+    </div>
+    <div class="card purple">
+      <div class="card-title"><span class="dot"></span>自动风险管理</div>
+      <p>持续评估风险敞口并触发保护动作。定义何时采取行动的阈值和参数在飞地内保密，防止被逆向工程或博弈。</p>
+    </div>
+  </div>
+
+  <h3>2.7 机构落地案例</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>机构</th><th>场景</th><th>CRE 角色</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>ANZ 银行</strong></td><td>跨链通证化资产购买，单笔交易完成不同链上资产的购买和本币结算</td><td>CCIP 私有交易 + CRE 编排，支持 GDPR/MiFID II 合规</td></tr>
+        <tr><td><strong>摩根大通 Kinexys</strong></td><td>与 Ondo Finance 实现跨链券款对付（DvP）结算，资产为 OUSG（通证化短期美债基金）</td><td>CRE 作为安全链下计算层，实现资产与支付的原子化交换，降低对手方风险</td></tr>
+        <tr><td><strong>SWIFT</strong></td><td>11,500 家成员银行可通过标准 ISO 20022 消息触发通证化基金认购</td><td>CRE 处理传统金融消息到链上执行的自动转换和编排</td></tr>
+        <tr><td><strong>Visa / 香港金管局 e-HKD</strong></td><td>e-HKD 计划第二阶段，澳元稳定币（A$DC）与数字港元（e-HKD）的 PvP 结算</td><td>Chainlink 预言机 + CRE 实现跨链互操作、合规验证和传统系统集成</td></tr>
+        <tr><td><strong>Mastercard / Swapper Finance</strong></td><td>将 35 亿+ Mastercard 用户接入 DeFi</td><td>CRE 连接支付网络与区块链，实现端到端可验证的金融流程编排</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- Section 4: VRF -->
+<section id="vrf">
+  <h2 class="orange"><span class="num">3</span>VRF 核心原理</h2>
+  <p class="section-desc">Chainlink VRF（Verifiable Random Function）是 Chainlink 提供的可验证随机性服务，通过密码学证明让消费者合约能够验证随机结果的正确性。它解决了区块链原生无法产生安全随机数的根本问题——链上执行本身是确定性的。区块哈希、时间戳等链上值虽然带有一定不可预测性，但出块者在协议约束下对部分值拥有影响空间，应用若直接依赖单一区块属性作为高价值随机源，可能遭受操纵、选择性不发布或重组等风险。</p>
+
+  <h3>3.1 为什么链上需要 VRF</h3>
+  <div class="card-grid">
+    <div class="card red">
+      <div class="card-title"><span class="dot"></span>链上随机数的困境</div>
+      <p>区块链是确定性状态机。区块哈希、时间戳、区块难度等「看似随机」的值都可被出块者操纵或预测。直接使用这些值作为随机数，在博彩、抽奖、NFT 盲盒等高价值场景中会被恶意利用。</p>
+    </div>
+    <div class="card green">
+      <div class="card-title"><span class="dot"></span>VRF 的解决方案</div>
+      <p>将随机数生成移到链下（预言机节点用私钥 + 不可预测的种子计算），但结果附带密码学证明，任何人都可以在链上验证结果确实由指定节点按指定种子正确生成，无法篡改。</p>
+    </div>
+  </div>
+
+  <h3>3.2 两步工作流程</h3>
+  <p>VRF 的核心是「请求-履行」两步异步流程：</p>
+
+  <div class="diagram">
+    <div class="seq-actors">
+      <div class="seq-actor">消费者合约</div>
+      <div class="seq-actor orange">VRF Coordinator</div>
+      <div class="seq-actor green">Chainlink 预言机节点</div>
+    </div>
+    <div class="seq-steps">
+      <div class="seq-step">
+        <div class="seq-step-num">1</div>
+        <div class="seq-step-content">
+          <div class="seq-step-title">请求随机数 <span class="seq-step-tag tag-onchain">链上</span></div>
+          <div class="seq-step-desc">消费者合约调用 Coordinator 的 requestRandomWords，提交 keyHash、订阅/支付信息、确认数、callbackGasLimit、numWords 等请求参数；Coordinator 为请求建立记录。最终随机输入会结合请求相关信息以及稍后确定的区块哈希，而不是简单地由用户直接提供一个“未知 seed”。</div>
+        </div>
+      </div>
+      <div class="seq-step green">
+        <div class="seq-step-num">2</div>
+        <div class="seq-step-content">
+          <div class="seq-step-title">链下生成随机数 + 证明 <span class="seq-step-tag tag-offchain">链下</span></div>
+          <div class="seq-step-desc">VRF 节点使用其私钥及协议规定的请求输入执行 VRF 计算并生成输出和证明；节点不能在证明仍有效的前提下任意替换输出。计算是确定性的，节点无法自由选择输出值，唯一作恶方式是不响应。</div>
+        </div>
+      </div>
+      <div class="seq-step orange">
+        <div class="seq-step-num">3</div>
+        <div class="seq-step-content">
+          <div class="seq-step-title">提交结果到链上 <span class="seq-step-tag tag-onchain">链上</span></div>
+          <div class="seq-step-desc">节点将随机数和密码学证明（proof）提交到 VRF Coordinator 合约。</div>
+        </div>
+      </div>
+      <div class="seq-step orange">
+        <div class="seq-step-num">4</div>
+        <div class="seq-step-content">
+          <div class="seq-step-title">链上验证证明 <span class="seq-step-tag tag-verify">验证</span></div>
+          <div class="seq-step-desc">Coordinator 在链上验证 VRF 证明，确认输出与请求输入及对应公钥匹配；验证失败时该履约不会按正常流程完成。</div>
+        </div>
+      </div>
+      <div class="seq-step green">
+        <div class="seq-step-num">5</div>
+        <div class="seq-step-content">
+          <div class="seq-step-title">回调消费随机数 <span class="seq-step-tag tag-onchain">链上</span></div>
+          <div class="seq-step-desc">验证通过后，Coordinator 调用消费者合约的 fulfillRandomWords(requestId, randomness[]) 回调，将随机数传递给业务逻辑（如 mint NFT、选 winner、掷骰子）。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout orange">
+    <strong>密码学保证的核心</strong>
+    VRF 输出由预言机私钥和请求输入确定。节点不能在保持有效证明的同时任意挑选另一个输出；如果节点选择不履行请求，则表现为可用性问题。关键安全点在于请求输入包含请求后才能确定的区块哈希等信息，使节点在生成证明时不能事先自由选择最终输出。
+  </div>
+
+  <h3>3.3 版本演进：v1 → v2 → v2.5</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>特性</th><th>VRF v1</th><th>VRF v2</th><th>VRF v2.5（当前推荐）</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>发布时间</strong></td><td>2019</td><td>2022</td><td>2024</td></tr>
+        <tr><td><strong>支付代币</strong></td><td>LINK</td><td>LINK</td><td>支持 LINK 或原生代币支付</td></tr>
+        <tr><td><strong>Coordinator</strong></td><td>按网络部署</td><td>按网络部署</td><td>仍按网络使用相应部署，不应理解为一个跨所有网络的单一地址</td></tr>
+        <tr><td><strong>资助模式</strong></td><td>直接资助</td><td>订阅 + 直接资助</td><td>订阅 + 直接资助</td></tr>
+        <tr><td><strong>Gas 效率</strong></td><td>基础</td><td>优化</td><td>进一步优化履行流程</td></tr>
+        <tr><td><strong>请求接口</strong></td><td>旧版接口</td><td>VRF v2 请求接口</td><td>使用 <code>VRFV2PlusClient.RandomWordsRequest</code> 等 v2.5 结构，支持 LINK 或原生代币支付</td></tr>
+        <tr><td><strong>状态</strong></td><td>部分网络仍可用</td><td>广泛使用</td><td><strong>新集成推荐目标</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>3.4 两种资助模式</h3>
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>订阅模式（Subscription）</div>
+      <p>创建 VRF 订阅账户并预充值（LINK 或原生代币），多个消费者合约共享同一订阅余额。请求履行后根据 VRF 服务的计费规则从订阅余额中扣费，实际费用还与网络 gas、服务费等因素有关；无需每次请求前单独为消费者合约准备付款余额。<br><br><strong>适合：</strong>高频请求、多合约项目、企业集中计费和成本控制。<strong>优势：</strong>降低总 gas 成本，简化资金管理。</p>
+    </div>
+    <div class="card green">
+      <div class="card-title"><span class="dot"></span>直接资助（Direct Funding）</div>
+      <p>消费者使用 v2.5 Direct Funding wrapper 机制，以请求时提供的支付资产承担该次随机数请求的费用；具体可用支付资产和计费方式取决于目标网络与对应部署。需要确保合约有足够资金支付随机数请求。<br><br><strong>适合：</strong>低频请求、单个合约、简单集成。<strong>优势：</strong>无需管理订阅，集成更简单，合约自包含。</p>
+    </div>
+  </div>
+
+  <h3>3.5 关键安全参数</h3>
+  <ul>
+    <li><strong>keyHash / gas lane</strong>：用于选择 VRF Coordinator 支持的 gas lane（对应一组服务配置），而不是简单地指定某一个预言机节点。不同 gas lane 对应不同的最大 gas price / 服务配置。</li>
+    <li><strong>minimumRequestConfirmations</strong>：请求被节点处理前需要等待的区块确认数。确认数越高，抗重组攻击能力越强，但延迟越高。高价值场景建议设置较高值。</li>
+    <li><strong>callbackGasLimit</strong>：消费者回调可使用的 gas 上限。必须足够执行业务逻辑；若回调耗尽 gas，随机数履约并不等于你的业务逻辑一定成功，消费者需要正确处理这种情况。</li>
+    <li><strong>numWords</strong>：单次请求的随机数数量（v2/v2.5 支持一次请求多个 uint256 随机数），减少请求次数和 gas 成本。</li>
+  </ul>
+</section>
+
+<!-- Section 5: VRF Scenarios -->
+<section id="vrf-scenarios">
+  <h2 class="orange"><span class="num">4</span>VRF 重点使用场景</h2>
+  <p class="section-desc">Chainlink 官方列出了 35+ 种 VRF 使用场景。以下按领域分类，聚焦最具代表性和商业价值的落地场景。</p>
+
+  <h3>4.1 区块链游戏</h3>
+  <p>游戏是 VRF 的重要应用领域。区块链游戏的核心特征是生成稀缺的游戏物品（多为 NFT），物品的稀缺性需要客观证明，且开发者和外部人员都无法操纵生成结果。</p>
+  <div class="card-grid">
+    <div class="card orange">
+      <div class="card-title"><span class="dot"></span>随机战利品掉落</div>
+      <p>击败 Boss 或完成任务后，用 VRF 决定掉落物品的种类和稀有度。确保稀有装备的掉落概率公开可验证，开发者无法暗改掉率。</p>
+    </div>
+    <div class="card orange">
+      <div class="card-title"><span class="dot"></span>角色属性生成</div>
+      <p>创建角色时随机生成力量、敏捷、智力等属性值，或决定角色的职业、天赋、初始技能。每个角色的属性都是唯一且可验证的。</p>
+    </div>
+    <div class="card orange">
+      <div class="card-title"><span class="dot"></span>战斗结果判定</div>
+      <p>回合制战斗中的暴击、闪避、命中判定，或卡牌游戏中的抽牌顺序、随机事件触发。确保战斗公平，双方都无法操纵随机性。</p>
+    </div>
+    <div class="card orange">
+      <div class="card-title"><span class="dot"></span>随机地图/关卡生成</div>
+      <p>Roguelike 类游戏中用 VRF 生成随机地图布局、敌人分布、宝箱位置。每局游戏的地图都是唯一的，且种子可复现。</p>
+    </div>
+  </div>
+
+  <h3>4.2 NFT 与数字藏品</h3>
+  <div class="card-grid">
+    <div class="card purple">
+      <div class="card-title"><span class="dot"></span>盲盒 / Reveal 机制</div>
+      <p>NFT 铸造时不暴露属性，购买后用 VRF 随机分配属性并 reveal。降低在随机结果生成前提前挑选稀有属性的空间；具体防作弊效果仍取决于 mint、reveal 和随机数消费的整体设计。</p>
+    </div>
+    <div class="card purple">
+      <div class="card-title"><span class="dot"></span>稀有 NFT 分发</div>
+      <p>在空投或公售中，用 VRF 随机决定哪些地址获得稀有版本 NFT。分发过程完全透明，项目方无法偏袒特定地址。</p>
+    </div>
+    <div class="card purple">
+      <div class="card-title"><span class="dot"></span>随机属性组合</div>
+      <p>为 PFP（头像类）NFT 随机组合背景、服装、配饰、表情等特征，生成独一无二的 NFT。属性分布和稀有度可链上验证。</p>
+    </div>
+    <div class="card purple">
+      <div class="card-title"><span class="dot"></span>NFT 抽奖铸造</div>
+      <p>热门 NFT 项目供不应求时，用 VRF 从白名单中随机抽取获胜者获得铸造资格。公平分配，杜绝科学家抢跑和机器人垄断。</p>
+    </div>
+  </div>
+
+  <h3>4.3 DeFi 与链上金融</h3>
+  <div class="card-grid">
+    <div class="card green">
+      <div class="card-title"><span class="dot"></span>公平发射 / 随机空投</div>
+      <p>代币公平发射（Fair Launch）中，用 VRF 从符合条件的地址中随机选择早期参与者或分配额外奖励。可用于随机抽取或分配，但 VRF 本身不能解决巨鲸或女巫问题；资格集合、身份和额度规则仍需要应用层设计。</p>
+    </div>
+    <div class="card green">
+      <div class="card-title"><span class="dot"></span>随机清算选择</div>
+      <p>在借贷协议中，当多个清算人同时竞争同一笔清算时，用 VRF 随机选择清算人。可用于设计随机选择机制，但 VRF 本身不会自动消除 MEV；随机选择何时发生以及候选集合如何确定仍需协议设计。</p>
+    </div>
+    <div class="card green">
+      <div class="card-title"><span class="dot"></span>流动性挖矿随机奖励</div>
+      <p>为流动性提供者设计随机奖励机制，如每隔一段时间随机抽取部分 LP 获得额外代币奖励。增加挖矿趣味性和用户粘性。</p>
+    </div>
+    <div class="card green">
+      <div class="card-title"><span class="dot"></span>预测市场随机事件</div>
+      <p>部分预测市场需要模拟随机事件（如体育比赛中的随机因素），或在结果争议时用 VRF 选择仲裁委员会成员。</p>
+    </div>
+  </div>
+
+  <h3>4.4 DAO 治理与社交</h3>
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>随机委员会选择</div>
+      <p>DAO 治理中用 VRF 随机选择委员会成员（如 Grants 评审委员会、仲裁委员会），防止权力集中和游说腐败。被选中者可验证自己是公平选出的。</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>随机验证者/排序</div>
+      <p>在需要多签验证或排序的场景中，用 VRF 随机选择验证者或随机排列提案投票顺序，减少投票策略行为和羊群效应。</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>社区抽奖活动</div>
+      <p>项目方举办社区活动（如转发抽奖、AMA 抽奖）时，用 VRF 从参与者中公平抽取获奖者。抽奖过程链上可验证，杜绝「内定」嫌疑。</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>随机配对/匹配</div>
+      <p>社交类 dApp 中用 VRF 实现随机配对（如匿名聊天、导师匹配、交易对手匹配）。确保配对公平，无法被算法操纵。</p>
+    </div>
+  </div>
+
+  <h3>4.5 博彩与竞猜类 dApp</h3>
+  <div class="callout orange">
+    <strong>这是 VRF 最直接的应用场景，但也是合规风险最高的领域。</strong>
+    掷骰子、硬币翻转、轮盘、老虎机、彩票等纯随机博彩类 dApp 是 VRF 的经典用例——随机结果可由 VRF 生成并被链上验证，从而降低运营方操纵随机结果的空间；但公平性仍取决于应用本身如何设计请求、结果消费和奖池/赔率逻辑。但在中国大陆等司法管辖区，线上博彩属于非法活动，开发者需严格遵守当地法律法规。
+  </div>
+</section>
+
+<!-- Section 6: Comparison -->
+<section id="comparison">
+  <h2 class="purple"><span class="num">5</span>CRE 与 VRF 的对比与协同</h2>
+  <p class="section-desc">两者定位不同但可以互补：CRE 是编排层，VRF 是密码学原语。在 CRE 工作流中可以通过 EVM Write 触发 VRF 请求，或将 VRF 作为工作流的一个能力节点。</p>
+
+  <h3>5.1 全方位对比</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>维度</th><th>CRE（Runtime Environment）</th><th>VRF（Verifiable Random Function）</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>本质</strong></td><td>全栈编排层 / 工作流引擎</td><td>密码学随机数生成服务</td></tr>
+        <tr><td><strong>解决的问题</strong></td><td>智能合约如何与真实世界系统安全协作</td><td>链上如何获得可信、可验证的随机数</td></tr>
+        <tr><td><strong>开发语言</strong></td><td>TypeScript / Go（编译为 WASM）</td><td>Solidity（消费者合约继承 VRF 接口）</td></tr>
+        <tr><td><strong>执行位置</strong></td><td>链下 DON（Workflow DON + Capability DON）</td><td>链下预言机节点生成 + 链上验证</td></tr>
+        <tr><td><strong>核心机制</strong></td><td>Trigger-and-Callback + BFT 共识</td><td>VRF(私钥, 种子) + 链上 proof 验证</td></tr>
+        <tr><td><strong>隐私支持</strong></td><td>TEE 飞地机密执行</td><td>不涉及（随机数本身公开）</td></tr>
+        <tr><td><strong>支付方式</strong></td><td>CRE 平台计费（按工作流/执行）</td><td>LINK 或原生代币（订阅/直接资助）</td></tr>
+        <tr><td><strong>典型用户</strong></td><td>金融机构、稳定币发行方、RWA 平台、AI Agent 开发者</td><td>游戏开发者、NFT 项目、DeFi 协议、DAO、博彩 dApp</td></tr>
+        <tr><td><strong>成熟度</strong></td><td>2025 年发布，快速迭代中</td><td>2019 年上线，经过多年实战验证</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>5.2 协同使用模式</h3>
+  <p>CRE 和 VRF 可以在同一个应用中协同工作，典型模式包括：</p>
+
+  <div class="diagram">
+    <div class="arch-layer">
+      <span class="arch-layer-label">CRE 工作流（编排层）</span>
+      <div class="flow-chain" style="margin-top:8px;">
+        <div class="flow-node">Trigger<span class="sub">Cron/HTTP/Log</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node green">业务逻辑</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node orange">EVM Write<span class="sub">触发 VRF 请求</span></div>
+      </div>
+    </div>
+    <div class="arch-connector">↕ 触发请求 / 回调结果</div>
+    <div class="arch-layer orange">
+      <span class="arch-layer-label">VRF 服务（随机数原语）</span>
+      <div class="flow-chain" style="margin-top:8px;">
+        <div class="flow-node orange">requestRandomWords</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">Coordinator 验证</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node green">fulfillRandomWords<span class="sub">回调业务合约</span></div>
+      </div>
+    </div>
+  </div>
+
+  <ul>
+    <li><strong>CRE 编排 + VRF 提供随机性</strong>：CRE 工作流在执行业务逻辑时，通过 EVM Write 调用链上合约触发 VRF 请求，VRF 生成随机数后回调业务合约。CRE 负责整体流程编排；VRF 作为独立随机性服务，为需要可验证随机性的环节提供随机数。二者可以通过链上合约或其他受支持的工作流方式组合。（如随机选择清算人、随机分配 NFT 属性）。</li>
+    <li><strong>CRE 机密工作流 + VRF</strong>：机密 CRE Workflow 可以保护工作流本身及敏感输入，但 VRF 输出一旦用于公开链上业务，通常最终会成为可验证的链上数据。因此“随机结果不提前暴露”不能单靠 VRF 或 TEE 保证，需要从请求、等待、揭示和结算时序整体设计。</li>
+    <li><strong>AI Agent + CRE + VRF</strong>：AI Agent 可通过 x402 调用 CRE Workflow；Workflow 再组合其他受支持的能力。若业务还需要可验证随机性，可把 VRF 作为独立随机性组件加入整体架构，但不要把 VRF 描述成 CRE 内置的通用 Capability。</li>
+  </ul>
+</section>
+
+<!-- Section 7: Summary -->
+<section id="summary">
+  <h2 class="purple"><span class="num">6</span>总结</h2>
+  <p class="section-desc">CRE 和 VRF 分别代表了 Chainlink 预言机网络的两个发展方向：CRE 向「机构级全栈编排」演进，VRF 向「公平随机性密码学原语」深耕。</p>
+
+  <div class="card-grid">
+    <div class="card green">
+      <div class="card-title"><span class="dot"></span>CRE 的核心价值</div>
+      <p>将传统金融系统、合规框架、AI 服务和多链生态编织成可验证、可审计、可合规的端到端工作流。它是 Chainlink 从「数据预言机」向「链上金融操作系统」演进的关键产品，已获得 SWIFT、摩根大通、ANZ、Visa、Mastercard 等顶级机构的采用。</p>
+    </div>
+    <div class="card orange">
+      <div class="card-title"><span class="dot"></span>VRF 的核心价值</div>
+      <p>为区块链提供了第一个可公开验证的公平随机数源，是链上游戏、NFT、DeFi、DAO 治理等场景的公平性基石。经过 v1→v2→v2.5 的持续迭代，已支持原生代币支付、统一 Coordinator 地址和优化的 gas 效率，是 Chainlink 最成熟、使用最广泛的服务之一。</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>选型建议</strong>
+    <ul style="margin-top:8px;">
+      <li>需要连接传统系统、编排多步流程、集成合规/AI/跨链 → <strong>使用 CRE</strong></li>
+      <li>只需要链上公平随机数（游戏、NFT、抽奖、治理） → <strong>使用 VRF v2.5</strong></li>
+      <li>复杂应用中两者可以同时使用：CRE 做编排，VRF 做随机数原语</li>
+      <li>现有 Chainlink Automation 用户应按官方迁移指南迁移到 CRE；截至 2026 年，Automation 正在弃用</li>
+      <li>新的 VRF 集成应优先采用当前推荐的 v2.5；v1/v2 主要涉及已有集成的维护与迁移。</li>
+    </ul>
+  </div>
+</section>
+
+</div>
+
+<!-- Footer -->
+<footer>
+  <div class="container">
+    <p>Chainlink CRE 与 VRF 技术报告 · 生成于 2026 年 8 月</p>
+    <div class="sources">
+      主要参考来源：
+      <a href="https://docs.chain.link/cre" target="_blank">Chainlink CRE 官方文档</a> ·
+      <a href="https://blog.chain.link/5-ways-to-build-with-cre/" target="_blank">5 Ways to Build with CRE</a> ·
+      <a href="https://docs.chain.link/vrf" target="_blank">Chainlink VRF 官方文档</a> ·
+      <a href="https://chain.link/education-hub/rng-in-blockchain-use-cases" target="_blank">35+ Blockchain RNG Use Cases</a> ·
+      <a href="https://chain.link/blog/smartcon-2025-recap" target="_blank">SmartCon 2025 回顾</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
