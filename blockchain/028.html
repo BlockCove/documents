@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>以太坊 Gas Fee 计算方法完全指南（2026 最新版）</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+  :root {
+    --bg: #f7f7f5;
+    --card: #ffffff;
+    --text: #1a1b1e;
+    --text2: #5c6370;
+    --border: #e4e4e0;
+    --accent: #627eea;
+    --accent-light: #eef1fc;
+    --green: #2e9e5b;
+    --red: #d94f4f;
+    --orange: #e08a3c;
+    --code-bg: #f0f0ec;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    font-size: 15px;
+  }
+  .container { max-width: 960px; margin: 0 auto; padding: 32px 20px 60px; }
+
+  /* Header */
+  .header {
+    text-align: center;
+    padding: 40px 20px 32px;
+    margin-bottom: 28px;
+    background: linear-gradient(135deg, #627eea 0%, #8b6fe8 100%);
+    border-radius: 16px;
+    color: #fff;
+  }
+  .header h1 { font-size: 26px; font-weight: 700; margin-bottom: 8px; letter-spacing: 0.5px; }
+  .header .subtitle { font-size: 14px; opacity: 0.9; }
+  .header .meta { margin-top: 14px; font-size: 12px; opacity: 0.75; }
+
+  /* Section */
+  .section {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 28px 28px 24px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border);
+  }
+  .section h2 {
+    font-size: 19px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--accent-light);
+    color: var(--text);
+  }
+  .section h2 .num {
+    display: inline-block;
+    width: 28px; height: 28px;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 28px;
+    font-size: 14px;
+    margin-right: 10px;
+    vertical-align: middle;
+  }
+  .section h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 20px 0 10px;
+    color: var(--text);
+  }
+  .section p { margin-bottom: 12px; color: var(--text); }
+  .section ul, .section ol { margin: 8px 0 14px 22px; }
+  .section li { margin-bottom: 6px; }
+
+  /* Formula box */
+  .formula {
+    background: var(--code-bg);
+    border-left: 4px solid var(--accent);
+    padding: 14px 18px;
+    margin: 14px 0;
+    border-radius: 0 8px 8px 0;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 14px;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .formula .comment { color: var(--text2); font-size: 12px; }
+
+  /* Info card */
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+  }
+  .info-card {
+    background: var(--accent-light);
+    border-radius: 8px;
+    padding: 14px 16px;
+    border: 1px solid #dce3f8;
+  }
+  .info-card .label { font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+  .info-card .value { font-size: 18px; font-weight: 700; color: var(--accent); }
+  .info-card .desc { font-size: 11px; color: var(--text2); margin-top: 4px; }
+
+  /* Chart container */
+  .chart-box {
+    width: 100%;
+    height: 360px;
+    margin: 16px 0;
+  }
+  .chart-note {
+    font-size: 12px;
+    color: var(--text2);
+    text-align: center;
+    margin-top: -8px;
+    margin-bottom: 12px;
+  }
+
+  /* SVG diagram */
+  .svg-wrap {
+    width: 100%;
+    overflow-x: auto;
+    margin: 16px 0;
+    text-align: center;
+  }
+  .svg-wrap svg { max-width: 100%; height: auto; }
+
+  /* Table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+    font-size: 13.5px;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 10px 12px;
+    text-align: left;
+  }
+  th {
+    background: var(--accent-light);
+    font-weight: 600;
+    color: var(--text);
+  }
+  tr:nth-child(even) { background: #fafaf9; }
+  td code {
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12.5px;
+  }
+
+  /* Calculator */
+  .calc {
+    background: #fafaf9;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin: 16px 0;
+  }
+  .calc-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  .calc-field { flex: 1; min-width: 140px; }
+  .calc-field label {
+    display: block;
+    font-size: 12px;
+    color: var(--text2);
+    margin-bottom: 4px;
+    font-weight: 500;
+  }
+  .calc-field input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  .calc-field input:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+  .calc-result {
+    background: var(--accent-light);
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 10px;
+  }
+  .calc-result .row {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+    font-size: 14px;
+  }
+  .calc-result .row.total {
+    border-top: 1px solid #d0d8f0;
+    margin-top: 6px;
+    padding-top: 10px;
+    font-weight: 700;
+    font-size: 16px;
+  }
+  .calc-result .row .label { color: var(--text2); }
+  .calc-result .row .val { color: var(--text); font-family: 'SF Mono', monospace; }
+
+  /* Tag */
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-right: 6px;
+  }
+  .tag-burn { background: #fde8e8; color: var(--red); }
+  .tag-validator { background: #e6f4ec; color: var(--green); }
+  .tag-refund { background: #fff3e6; color: var(--orange); }
+
+  /* Timeline */
+  .timeline { position: relative; padding-left: 28px; margin: 16px 0; }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 8px; top: 4px; bottom: 4px;
+    width: 2px;
+    background: var(--accent);
+  }
+  .tl-item { position: relative; margin-bottom: 18px; }
+  .tl-item::before {
+    content: '';
+    position: absolute;
+    left: -24px; top: 6px;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: #fff;
+    border: 3px solid var(--accent);
+  }
+  .tl-item.active::before { background: var(--accent); }
+  .tl-date { font-size: 12px; color: var(--accent); font-weight: 600; }
+  .tl-title { font-size: 15px; font-weight: 600; margin: 2px 0; }
+  .tl-desc { font-size: 13px; color: var(--text2); }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    padding: 24px;
+    font-size: 12px;
+    color: var(--text2);
+  }
+  .footer a { color: var(--accent); text-decoration: none; }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    .container { padding: 16px 12px 40px; }
+    .section { padding: 20px 16px; }
+    .header h1 { font-size: 20px; }
+    .chart-box { height: 300px; }
+    .info-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>以太坊 Gas Fee 计算方法完全指南</h1>
+    <div class="subtitle">EIP-1559 · EIP-4844 · EIP-7691 · EIP-7918 — 涵盖 Fusaka 升级后最新机制</div>
+    <div class="meta">更新日期：2026 年 9 月 · 基于以太坊主网当前协议规范</div>
+  </div>
+
+  <!-- 1. 核心概念 -->
+  <div class="section">
+    <h2><span class="num">1</span>核心概念：Gas、Gwei 与 ETH</h2>
+    <p><strong>Gas</strong> 是以太坊虚拟机（EVM）衡量计算工作量的单位。每一条 EVM 指令（加法、存储、合约调用等）消耗固定数量的 Gas。交易费用 = 实际消耗的 Gas × 每单位 Gas 的价格。</p>
+    <div class="info-grid">
+      <div class="info-card">
+        <div class="label">单位换算</div>
+        <div class="value">1 ETH = 10⁹ Gwei</div>
+        <div class="desc">1 Gwei = 10⁹ wei（最小单位）</div>
+      </div>
+      <div class="info-card">
+        <div class="label">简单转账 Gas</div>
+        <div class="value">21,000</div>
+        <div class="desc">ETH 转账固定消耗</div>
+      </div>
+      <div class="info-card">
+        <div class="label">区块 Gas 目标</div>
+        <div class="value">15,000,000</div>
+        <div class="desc">最大 30,000,000（2×）</div>
+      </div>
+      <div class="info-card">
+        <div class="label">出块间隔</div>
+        <div class="value">12 秒</div>
+        <div class="desc">每个 slot 一个区块</div>
+      </div>
+    </div>
+    <p>当前以太坊存在<strong>两个独立的 Gas 市场</strong>：</p>
+    <ul>
+      <li><strong>执行层 Gas（Execution Gas）</strong>：由 EIP-1559 定义，支付给验证者 + 销毁，用于 EVM 计算和状态变更。</li>
+      <li><strong>Blob Gas（数据可用性 Gas）</strong>：由 EIP-4844 定义，全部销毁，用于 Layer2 等场景的大块数据发布。</li>
+    </ul>
+  </div>
+
+  <!-- 2. EIP-1559 之前的旧版模型 -->
+  <div class="section">
+    <h2><span class="num">2</span>EIP-1559 之前：首价拍卖模型及其弊端</h2>
+    <p>在 2021 年 8 月 London 升级之前，以太坊使用简单的<strong>首价拍卖（First-Price Auction）</strong>模型计算交易费用。用户直接为每单位 gas 出价，矿工按出价从高到低选择交易打包，出价者支付 exactly 自己的报价。</p>
+
+    <h3>2.1 旧版费用公式</h3>
+    <div class="formula">交易费 = gas_used × gasPrice
+
+参数：
+  gasPrice — 用户为每单位 gas 出价的价格（Gwei）
+  gasLimit — 用户愿意支付的最大 gas 量
+  gas_used — 交易实际消耗的 gas（未用完不收费）</div>
+    <p>所有交易费<strong>全部支付给矿工</strong>，没有销毁机制。区块有固定的 gas 上限（由矿工投票逐步调整，如 8M → 12.5M），不存在"目标使用率"或弹性扩容的概念。</p>
+
+    <h3>2.2 旧版模型的核心弊端</h3>
+    <table>
+      <tr><th style="width:140px;">弊端</th><th>具体表现</th></tr>
+      <tr>
+        <td><strong>首价拍卖低效</strong></td>
+        <td>用户支付 exactly 其出价，而非市场出清价。理性用户会策略性隐藏真实估价、出价高于必要水平，导致<strong>系统性多付</strong>。这是机制设计文献中公认的首价拍卖固有缺陷。</td>
+      </tr>
+      <tr>
+        <td><strong>费用不可预测</strong></td>
+        <td>用户必须猜测合适的 gasPrice：出价太低交易卡在内存池数小时甚至数天不被打包；出价太高则显著浪费 ETH。没有协议级的价格参考。</td>
+      </tr>
+      <tr>
+        <td><strong>钱包估算不准</strong></td>
+        <td>钱包基于近期区块的 gasPrice 中位数/百分位估算，但拥堵快速变化时估算迅速过时，导致频繁多付或确认延迟，复杂的估算算法效果有限。</td>
+      </tr>
+      <tr>
+        <td><strong>价格剧烈波动</strong></td>
+        <td>gasPrice 可在区块间剧烈波动（拥堵时可能翻倍），缺乏平滑调整机制，用户难以规划交易成本。</td>
+      </tr>
+      <tr>
+        <td><strong>矿工可操纵</strong></td>
+        <td>矿工可用自己的交易塞满区块、人为推高 gasPrice，因为所有费用直接归矿工，操纵动机强烈且无约束机制。</td>
+      </tr>
+      <tr>
+        <td><strong>无通缩机制</strong></td>
+        <td>所有交易费都支付给矿工，ETH 没有销毁途径，无法通过网络高活跃度产生通缩压力。</td>
+      </tr>
+      <tr>
+        <td><strong>固定区块大小</strong></td>
+        <td>区块 gas 上限固定，没有弹性扩容能力。突发需求只能通过 gasPrice 暴涨来调节，无法临时增加区块容量吸收短期拥堵。</td>
+      </tr>
+    </table>
+
+    <h3>2.3 EIP-1559 如何解决这些问题</h3>
+    <div class="svg-wrap">
+      <svg viewBox="0 0 720 290" xmlns="http://www.w3.org/2000/svg" style="max-width:720px;">
+        <rect x="20" y="16" width="300" height="258" rx="10" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5"/>
+        <text x="170" y="44" text-anchor="middle" font-size="15" font-weight="700" fill="#991b1b">旧版：首价拍卖（2021.08 前）</text>
+        <text x="40" y="72" font-size="12" fill="#7f1d1d">• 用户出价 gasPrice，支付 exactly 出价</text>
+        <text x="40" y="92" font-size="12" fill="#7f1d1d">• 矿工按出价从高到低选择打包</text>
+        <text x="40" y="112" font-size="12" fill="#7f1d1d">• 全部费用归矿工，无销毁</text>
+        <text x="40" y="132" font-size="12" fill="#7f1d1d">• 固定区块大小，无 target 概念</text>
+        <text x="40" y="152" font-size="12" fill="#7f1d1d">• 费用不可预测，系统性多付</text>
+        <text x="40" y="172" font-size="12" fill="#7f1d1d">• 矿工可操纵 gasPrice 获利</text>
+        <text x="40" y="192" font-size="12" fill="#7f1d1d">• 无通缩，突发拥堵只能涨价</text>
+        <rect x="40" y="210" width="260" height="48" rx="6" fill="#fee2e2"/>
+        <text x="170" y="232" text-anchor="middle" font-size="12" font-weight="600" fill="#991b1b">交易费 = gas_used × gasPrice</text>
+        <text x="170" y="250" text-anchor="middle" font-size="11" fill="#991b1b">（全部支付给矿工）</text>
+        <path d="M328 145 L392 145" stroke="#627eea" stroke-width="2.5" marker-end="url(#arr2)"/>
+        <text x="360" y="134" text-anchor="middle" font-size="11" fill="#627eea" font-weight="700">London 升级</text>
+        <text x="360" y="162" text-anchor="middle" font-size="10" fill="#627eea">EIP-1559</text>
+        <defs><marker id="arr2" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#627eea"/></marker></defs>
+        <rect x="400" y="16" width="300" height="258" rx="10" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+        <text x="550" y="44" text-anchor="middle" font-size="15" font-weight="700" fill="#166534">EIP-1559：双轨定价（2021.08 后）</text>
+        <text x="420" y="72" font-size="12" fill="#14532d">• Base Fee 协议自动定价，可预测</text>
+        <text x="420" y="92" font-size="12" fill="#14532d">• Priority Fee 给验证者的可选小费</text>
+        <text x="420" y="112" font-size="12" fill="#14532d">• Base Fee 全部销毁，防操纵</text>
+        <text x="420" y="132" font-size="12" fill="#14532d">• 弹性区块：target 50%，max 2x</text>
+        <text x="420" y="152" font-size="12" fill="#14532d">• maxFee 上限保护，超出自动退款</text>
+        <text x="420" y="172" font-size="12" fill="#14532d">• 验证者无法操纵 Base Fee</text>
+        <text x="420" y="192" font-size="12" fill="#14532d">• 高活跃期 Base Fee 销毁→净通缩</text>
+        <rect x="420" y="210" width="260" height="48" rx="6" fill="#dcfce7"/>
+        <text x="550" y="232" text-anchor="middle" font-size="12" font-weight="600" fill="#166534">交易费 = gas_used × (Base + Priority)</text>
+        <text x="550" y="250" text-anchor="middle" font-size="11" fill="#166534">（Base 销毁，Priority 给验证者）</text>
+      </svg>
+    </div>
+
+    <h3>2.4 新旧模型关键对比</h3>
+    <table>
+      <tr><th>维度</th><th>旧版（EIP-1559 前）</th><th>EIP-1559 后</th></tr>
+      <tr><td>定价方式</td><td>用户出价 gasPrice（首价拍卖）</td><td>Base Fee（协议定价）+ Priority Fee（用户小费）</td></tr>
+      <tr><td>费用去向</td><td>全部给矿工</td><td>Base Fee 销毁 + Priority Fee 给验证者</td></tr>
+      <tr><td>可预测性</td><td>低，需自行猜测 gasPrice</td><td>高，Base Fee 由公式精确计算，可预估</td></tr>
+      <tr><td>区块容量</td><td>固定上限（矿工投票调整）</td><td>弹性：target 15M / max 30M（2×）</td></tr>
+      <tr><td>操纵风险</td><td>矿工可推高 gasPrice 直接获利</td><td>Base Fee 销毁，验证者无操纵动机</td></tr>
+      <tr><td>多付问题</td><td>系统性多付（首价拍卖固有缺陷）</td><td>maxFee 上限 + 自动退款，显著减少多付</td></tr>
+      <tr><td>通缩效应</td><td>无</td><td>Base Fee 销毁，高活跃期 ETH 净通缩</td></tr>
+      <tr><td>用户参数</td><td>gasPrice + gasLimit</td><td>maxFeePerGas + maxPriorityFeePerGas + gasLimit</td></tr>
+    </table>
+  </div>
+
+  <!-- 3. EIP-1559 执行层 -->
+  <div class="section">
+    <h2><span class="num">3</span>执行层 Gas：EIP-1559 机制</h2>
+    <p>自 2021 年 8 月 London 升级以来，以太坊执行层交易费由 <strong>Base Fee（基础费）</strong>和 <strong>Priority Fee（优先费/小费）</strong>两部分构成。用户在交易中设置两个上限参数：<code>maxFeePerGas</code> 和 <code>maxPriorityFeePerGas</code>。</p>
+
+    <h3>3.1 实际 Gas 价格与费用公式</h3>
+    <div class="formula">effective_gas_price = min(maxFeePerGas, base_fee + maxPriorityFeePerGas)
+
+交易费 = gas_used × effective_gas_price
+
+退款 = (maxFeePerGas − effective_gas_price) × gas_used</div>
+    <p>其中 <code>gas_used</code> 是交易实际消耗的 Gas（未用完的 Gas 不收费）。Base Fee 部分被<strong>销毁</strong>，Priority Fee 部分支付给<strong>验证者</strong>。</p>
+
+    <div class="svg-wrap">
+      <svg viewBox="0 0 720 200" xmlns="http://www.w3.org/2000/svg" style="max-width:720px;">
+        <!-- maxFee bar -->
+        <rect x="60" y="30" width="600" height="44" rx="6" fill="#eef1fc" stroke="#627eea" stroke-width="1.5"/>
+        <text x="360" y="57" text-anchor="middle" font-size="14" font-weight="600" fill="#1a1b1e">maxFeePerGas（用户设定的每 Gas 最高单价）</text>
+        <!-- base fee -->
+        <rect x="60" y="90" width="360" height="44" rx="6" fill="#fde8e8"/>
+        <text x="240" y="117" text-anchor="middle" font-size="13" font-weight="600" fill="#d94f4f">Base Fee（销毁）</text>
+        <!-- priority fee -->
+        <rect x="420" y="90" width="120" height="44" rx="6" fill="#e6f4ec"/>
+        <text x="480" y="117" text-anchor="middle" font-size="13" font-weight="600" fill="#2e9e5b">Priority Fee</text>
+        <!-- refund -->
+        <rect x="540" y="90" width="120" height="44" rx="6" fill="#fff3e6"/>
+        <text x="600" y="117" text-anchor="middle" font-size="13" font-weight="600" fill="#e08a3c">退款</text>
+        <!-- arrows -->
+        <line x1="240" y1="74" x2="240" y2="88" stroke="#999" stroke-width="1" marker-end="url(#arr)"/>
+        <line x1="480" y1="74" x2="480" y2="88" stroke="#999" stroke-width="1" marker-end="url(#arr)"/>
+        <line x1="600" y1="74" x2="600" y2="88" stroke="#999" stroke-width="1" marker-end="url(#arr)"/>
+        <defs><marker id="arr" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#999"/></marker></defs>
+        <!-- bottom note -->
+        <text x="360" y="165" text-anchor="middle" font-size="12" fill="#5c6370">实际支付 = Base Fee + Priority Fee；超出部分（maxFee − 实际价）按 gas_used 原路退回</text>
+        <text x="360" y="185" text-anchor="middle" font-size="11" fill="#999">示意图（比例不代表真实数值）</text>
+      </svg>
+    </div>
+
+    <h3>3.2 Base Fee 的区块间调整公式</h3>
+    <p>Base Fee 由协议根据上一区块的拥堵程度自动调整，目标是将区块 Gas 使用率维持在 50%（即 target_gas = 15,000,000）。</p>
+    <div class="formula">base_fee_new = base_fee_parent × ( 1 + (gas_used_parent − target_gas) / target_gas / 8 )
+
+其中：
+  target_gas = 15,000,000
+  单区块最大变化幅度 = ±12.5%（满块或空块时达到极值）</div>
+    <ul>
+      <li>上一区块 Gas 用量 &gt; 目标 → Base Fee 上涨（最多 +12.5%）</li>
+      <li>上一区块 Gas 用量 &lt; 目标 → Base Fee 下跌（最多 −12.5%）</li>
+      <li>恰好等于目标 → Base Fee 不变</li>
+    </ul>
+
+    <div class="chart-box" id="chart-basefee"></div>
+    <div class="chart-note">图：连续满块（gas_used=30M）时 Base Fee 的指数级上涨轨迹（起始 20 Gwei，示例数据）</div>
+
+    <h3>3.3 Priority Fee 与交易打包</h3>
+    <p>Priority Fee（小费）是用户支付给验证者的额外费用，用于激励验证者优先打包该交易。验证者在内存池中按 <code>effective_priority_fee = min(maxPriorityFeePerGas, maxFeePerGas − base_fee)</code> 排序，优先选择小费高的交易。</p>
+    <ul>
+      <li>网络空闲时，1–2 Gwei 的小费通常足够；</li>
+      <li>拥堵时需要提高小费才能在目标区块内被打包；</li>
+      <li>若 <code>maxFeePerGas &lt; base_fee</code>，交易无法被打包（会一直等待直到 base_fee 下降）。</li>
+    </ul>
+  </div>
+
+  <!-- 4. Blob Gas -->
+  <div class="section">
+    <h2><span class="num">4</span>Blob Gas：EIP-4844 数据可用性市场</h2>
+    <p>2024 年 3 月 Dencun 升级引入 EIP-4844，为以太坊增加了独立的 Blob Gas 市场。Blob（二进制大对象）是一种临时数据载体，主要供 Layer2 Rollup 发布交易数据使用，成本远低于将数据写入合约存储。</p>
+
+    <div class="info-grid">
+      <div class="info-card">
+        <div class="label">每 Blob 大小</div>
+        <div class="value">128 KB</div>
+        <div class="desc">= 131,072 (2¹⁷) blob gas</div>
+      </div>
+      <div class="info-card">
+        <div class="label">每区块目标（Pectra 后）</div>
+        <div class="value">6 blobs</div>
+        <div class="desc">target_blob_gas = 786,432</div>
+      </div>
+      <div class="info-card">
+        <div class="label">每区块上限</div>
+        <div class="value">9 blobs</div>
+        <div class="desc">max_blob_gas = 1,179,648</div>
+      </div>
+      <div class="info-card">
+        <div class="label">Blob 保留期</div>
+        <div class="value">约 18 天</div>
+        <div class="desc">4096 个 epoch 后可被修剪</div>
+      </div>
+    </div>
+
+    <h3>4.1 Blob Base Fee 指数定价公式</h3>
+    <p>与执行层的线性调整不同，Blob Base Fee 采用<strong>指数定价</strong>，基于累计的 <code>excess_blob_gas</code>（超出目标的累计 Blob Gas）计算：</p>
+    <div class="formula">blob_base_fee = MIN_BASE_FEE_PER_BLOB_GAS × exp( excess_blob_gas / BLOB_BASE_FEE_UPDATE_FRACTION )
+
+其中：
+  MIN_BASE_FEE_PER_BLOB_GAS = 1 wei
+  excess_blob_gas 每区块更新：
+    excess_new = max(0, excess_parent + blob_used_parent − target_blob_gas)</div>
+    <p>excess_blob_gas 是一个"拥堵累积器"：当区块持续超过目标时累积增长，Blob Base Fee 随之指数上升；当需求回落时逐渐衰减。</p>
+
+    <div class="chart-box" id="chart-blobfee"></div>
+    <div class="chart-note">图：Blob Base Fee 随 excess_blob_gas 增长的指数曲线（纵轴为 Gwei，示例数据）</div>
+
+    <h3>4.2 Blob 交易总费用</h3>
+    <div class="formula">blob_fee = blob_gas_used × blob_base_fee
+
+其中 blob_gas_used = blob_count × 131,072
+
+Type 3 交易总费用 = 执行层费用 + Blob 费用
+（Blob 费用全部销毁，无 priority fee 组件）</div>
+    <p>用户在 Type 3 交易中设置 <code>maxFeePerBlobGas</code> 作为 Blob Gas 单价上限。实际支付 = min(maxFeePerBlobGas, blob_base_fee)，超出部分退款。</p>
+  </div>
+
+  <!-- 5. 升级演进 -->
+  <div class="section">
+    <h2><span class="num">5</span>Gas 机制演进：从 London 到 Fusaka</h2>
+    <div class="timeline">
+      <div class="tl-item">
+        <div class="tl-date">2021 年 8 月 · London</div>
+        <div class="tl-title">EIP-1559：执行层 Gas 改革</div>
+        <div class="tl-desc">引入 Base Fee + Priority Fee 双轨制，Base Fee 销毁，区块目标 15M / 最大 30M。</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-date">2022 年 9 月 · The Merge</div>
+        <div class="tl-title">共识层转为 PoS</div>
+        <div class="tl-desc">矿工变为验证者，Priority Fee 支付对象从矿工变为验证者，Gas 计算逻辑不变。</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-date">2024 年 3 月 · Dencun</div>
+        <div class="tl-title">EIP-4844：Blob Gas 市场诞生</div>
+        <div class="tl-desc">引入 Type 3 交易和 Blob Gas，目标 3 blobs / 最大 6 blobs，指数定价，费用全销毁。</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-date">2025 年 5 月 · Pectra</div>
+        <div class="tl-title">EIP-7691：Blob 吞吐量翻倍 + EIP-7702</div>
+        <div class="tl-desc">Blob 目标 3→6、最大 6→9；调整 UPDATE_FRACTION 使满块涨幅降至约 8.2%、空块降幅约 14.5%。EIP-7702 支持 EOA 临时合约功能（含 gas 赞助）。</div>
+      </div>
+      <div class="tl-item active">
+        <div class="tl-date">2025 年 12 月 · Fusaka（当前）</div>
+        <div class="tl-title">EIP-7918：Blob Base Fee 下限 + EIP-7594 PeerDAS</div>
+        <div class="tl-desc">EIP-7918 为 Blob Base Fee 引入与执行层 Base Fee 挂钩的储备价格下限（约为执行 Base Fee 的 1/15.258，BLOB_BASE_COST = 2¹³），防止 Blob 费用在低需求时坍缩到 1 wei 而失去价格信号；EIP-7594 引入 PeerDAS 数据可用性采样；BPO forks 用于后续安全扩容。</div>
+      </div>
+    </div>
+
+    <h3>关键参数对比</h3>
+    <table>
+      <tr>
+        <th>参数</th>
+        <th>执行层 Gas（EIP-1559）</th>
+        <th>Blob Gas（EIP-4844 + 7691 + 7918）</th>
+      </tr>
+      <tr>
+        <td>定价方式</td>
+        <td>线性调整（每区块 ±12.5%）</td>
+        <td>指数定价（基于 excess 累积器）</td>
+      </tr>
+      <tr>
+        <td>每区块目标</td>
+        <td>15,000,000 gas</td>
+        <td>6 blobs = 786,432 blob gas</td>
+      </tr>
+      <tr>
+        <td>每区块上限</td>
+        <td>30,000,000 gas（2×）</td>
+        <td>9 blobs = 1,179,648 blob gas（1.5×）</td>
+      </tr>
+      <tr>
+        <td>费用去向</td>
+        <td>Base Fee 销毁 + Priority Fee 给验证者</td>
+        <td>全部销毁</td>
+      </tr>
+      <tr>
+        <td>最低价格</td>
+        <td>无硬下限（可趋近 0）</td>
+        <td>EIP-7918 后设储备下限 ≈ 执行 Base Fee / 15.258</td>
+      </tr>
+      <tr>
+        <td>用户设置参数</td>
+        <td><code>maxFeePerGas</code>, <code>maxPriorityFeePerGas</code></td>
+        <td><code>maxFeePerBlobGas</code></td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- 6. 计算示例 -->
+  <div class="section">
+    <h2><span class="num">6</span>完整计算示例</h2>
+
+    <h3>示例 A：普通 ETH 转账（Type 2 交易）</h3>
+    <table>
+      <tr><th>参数</th><th>值</th><th>说明</th></tr>
+      <tr><td>base_fee</td><td>20 Gwei</td><td>当前区块基础费</td></tr>
+      <tr><td>maxPriorityFeePerGas</td><td>2 Gwei</td><td>用户设定的小费上限</td></tr>
+      <tr><td>maxFeePerGas</td><td>25 Gwei</td><td>用户设定的总单价上限</td></tr>
+      <tr><td>gas_used</td><td>21,000</td><td>简单转账固定消耗</td></tr>
+    </table>
+    <div class="formula">effective_gas_price = min(25, 20 + 2) = 22 Gwei
+
+交易费 = 21,000 × 22 Gwei = 462,000 Gwei = 0.000462 ETH
+  其中销毁 = 21,000 × 20 = 420,000 Gwei = 0.000420 ETH
+  其中给验证者 = 21,000 × 2 = 42,000 Gwei = 0.000042 ETH
+
+退款 = (25 − 22) × 21,000 = 63,000 Gwei = 0.000063 ETH</div>
+
+    <h3>示例 B：带 Blob 的 Layer2 数据发布（Type 3 交易）</h3>
+    <table>
+      <tr><th>参数</th><th>值</th><th>说明</th></tr>
+      <tr><td>执行层 base_fee</td><td>15 Gwei</td><td>当前区块基础费</td></tr>
+      <tr><td>执行层 maxPriorityFee</td><td>1 Gwei</td><td>小费</td></tr>
+      <tr><td>执行层 maxFeePerGas</td><td>20 Gwei</td><td>执行单价上限</td></tr>
+      <tr><td>执行 gas_used</td><td>100,000</td><td>合约调用消耗</td></tr>
+      <tr><td>blob_base_fee</td><td>0.5 Gwei</td><td>当前 blob 基础费</td></tr>
+      <tr><td>maxFeePerBlobGas</td><td>1 Gwei</td><td>blob 单价上限</td></tr>
+      <tr><td>blob_count</td><td>2</td><td>携带 2 个 blob</td></tr>
+    </table>
+    <div class="formula">执行层：
+  effective_price = min(20, 15 + 1) = 16 Gwei
+  执行费 = 100,000 × 16 = 1,600,000 Gwei = 0.0016 ETH
+
+Blob 层：
+  blob_gas_used = 2 × 131,072 = 262,144
+  actual_blob_price = min(1, 0.5) = 0.5 Gwei
+  blob_fee = 262,144 × 0.5 = 131,072 Gwei = 0.000131072 ETH
+
+总费用 = 0.0016 + 0.000131072 = 0.001731072 ETH</div>
+  </div>
+
+  <!-- 7. 交互式计算器 -->
+  <div class="section">
+    <h2><span class="num">7</span>交互式 Gas 费用计算器</h2>
+    <p>输入参数，实时计算执行层交易费用（含销毁、验证者奖励和退款）。</p>
+    <div class="calc">
+      <div class="calc-row">
+        <div class="calc-field">
+          <label>Base Fee（Gwei）</label>
+          <input type="number" id="c-base" value="20" min="0" step="0.1">
+        </div>
+        <div class="calc-field">
+          <label>Max Priority Fee（Gwei）</label>
+          <input type="number" id="c-prio" value="2" min="0" step="0.1">
+        </div>
+        <div class="calc-field">
+          <label>Max Fee Per Gas（Gwei）</label>
+          <input type="number" id="c-max" value="25" min="0" step="0.1">
+        </div>
+        <div class="calc-field">
+          <label>Gas Used</label>
+          <input type="number" id="c-gas" value="21000" min="21000" step="1000">
+        </div>
+      </div>
+      <div class="calc-result" id="c-result"></div>
+    </div>
+
+    <h3 style="margin-top:24px;">Blob 费用计算器</h3>
+    <div class="calc">
+      <div class="calc-row">
+        <div class="calc-field">
+          <label>Blob Base Fee（Gwei）</label>
+          <input type="number" id="b-base" value="0.5" min="0" step="0.01">
+        </div>
+        <div class="calc-field">
+          <label>Max Fee Per Blob Gas（Gwei）</label>
+          <input type="number" id="b-max" value="1" min="0" step="0.01">
+        </div>
+        <div class="calc-field">
+          <label>Blob 数量</label>
+          <input type="number" id="b-count" value="2" min="1" max="9" step="1">
+        </div>
+      </div>
+      <div class="calc-result" id="b-result"></div>
+    </div>
+  </div>
+
+  <!-- 8. 费用构成图 -->
+  <div class="section">
+    <h2><span class="num">8</span>交易费用构成与销毁机制</h2>
+    <p>以示例 A（21,000 gas，base 20 Gwei，tip 2 Gwei，max 25 Gwei）为例，展示用户设定上限、实际支付和退款的关系：</p>
+    <div class="chart-box" id="chart-feecomp"></div>
+    <div class="chart-note">图：用户 maxFee 上限的分配（示例数据，单位：Gwei × gas_used）</div>
+
+    <h3>为什么 Base Fee 要销毁？</h3>
+    <ul>
+      <li><strong>防止验证者操纵</strong>：若 Base Fee 归验证者，验证者有动机通过塞满区块推高 Base Fee；销毁后验证者只能从 Priority Fee 获利，与区块填充度脱钩。</li>
+      <li><strong>通缩效应</strong>：销毁的 ETH 永久退出流通，在高活跃度时期以太坊可能进入净通缩。</li>
+      <li><strong>可预测性</strong>：Base Fee 由协议公式确定，用户可精确预估下几个区块的费用区间。</li>
+    </ul>
+  </div>
+
+  <!-- 9. 实践建议 -->
+  <div class="section">
+    <h2><span class="num">9</span>实践建议与常见误区</h2>
+    <table>
+      <tr><th>场景</th><th>建议</th></tr>
+      <tr>
+        <td>普通转账不着急</td>
+        <td>maxPriorityFee 设 1–2 Gwei，maxFee 设 base_fee 的 1.5–2 倍即可；交易可能等 1–数个区块。</td>
+      </tr>
+      <tr>
+        <td>需要快速确认（如 DeFi 交易）</td>
+        <td>提高 maxPriorityFee 到 3–5 Gwei 或更高；maxFee 给足余量避免 base_fee 上涨导致交易卡住。</td>
+      </tr>
+      <tr>
+        <td>maxFee 设太低会怎样？</td>
+        <td>若 maxFee &lt; 当前 base_fee，交易无法打包，会一直停留在内存池直到 base_fee 降到 maxFee 以下。可通过替换交易（相同 nonce，更高 gas）加速或取消。</td>
+      </tr>
+      <tr>
+        <td>gasLimit 设太高浪费吗？</td>
+        <td>不浪费。只按实际 gas_used 收费，未使用部分不收费。但设太低会导致交易失败（out of gas）且已消耗的 gas 不退。</td>
+      </tr>
+      <tr>
+        <td>Layer2 发布数据</td>
+        <td>使用 Type 3 交易携带 blob，成本远低于 calldata；关注 blob_base_fee，在低峰期发布可显著降低成本。</td>
+      </tr>
+      <tr>
+        <td>EIP-7702 gas 赞助</td>
+        <td>Pectra 后 EOA 可临时附加合约代码，允许第三方支付 gas（gas sponsorship），用户无需持有 ETH 也能交易。</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <p>本报告基于以太坊官方文档（ethereum.org）、EIP 规范（eips.ethereum.org）及以太坊基金会公告整理。</p>
+    <p>涵盖 EIP-1559 / EIP-4844 / EIP-7691 / EIP-7918 / EIP-7702，更新至 Fusaka 升级后状态。</p>
+    <p style="margin-top:8px;">生成日期：2026-09-02</p>
+  </div>
+
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ===== Chart 1: Base Fee growth under full blocks =====
+  try {
+    var chart1 = echarts.init(document.getElementById('chart-basefee'));
+    var blocks = [];
+    var fees = [];
+    var fee = 20;
+    for (var i = 0; i <= 20; i++) {
+      blocks.push('+' + i + ' 区块');
+      fees.push(Number(fee.toFixed(2)));
+      fee = fee * 1.125; // 满块 +12.5%
+    }
+    chart1.setOption({
+      backgroundColor: 'transparent',
+      title: { text: '连续满块时 Base Fee 上涨轨迹', left: 'center', textStyle: { fontSize: 14, fontWeight: 600 } },
+      tooltip: { trigger: 'axis', triggerOn: 'click', renderMode: 'richText', confine: true, textStyle: { fontSize: 11 }, valueFormatter: function(v) { return v + ' Gwei'; } },
+      grid: { left: 60, right: 30, top: 56, bottom: 40, containLabel: true },
+      xAxis: { type: 'category', data: blocks, axisLabel: { fontSize: 10, rotate: 30 }, name: '区块数' },
+      yAxis: { type: 'value', name: 'Base Fee (Gwei)', axisLabel: { fontSize: 10 }, nameTextStyle: { fontSize: 11 } },
+      series: [{
+        name: 'Base Fee',
+        type: 'line',
+        data: fees,
+        smooth: true,
+        itemStyle: { color: '#627eea' },
+        lineStyle: { width: 2.5 },
+        areaStyle: { color: 'rgba(98,126,234,0.12)' },
+        label: { show: true, position: 'top', fontSize: 9, formatter: function(p) { return p.dataIndex % 5 === 0 ? p.value : ''; } }
+      }]
+    });
+    window.addEventListener('resize', function() { chart1.resize(); });
+  } catch(e) { console.error('Chart1 error:', e); }
+
+  // ===== Chart 2: Blob Base Fee exponential curve =====
+  try {
+    var chart2 = echarts.init(document.getElementById('chart-blobfee'));
+    var excessVals = [];
+    var blobFees = [];
+    var UPDATE_FRACTION = 5007716; // EIP-7691 (Pectra) 官方值
+    var points = [0, 20, 40, 60, 80, 100, 110, 120, 130, 140, 150];
+    for (var i = 0; i < points.length; i++) {
+      var excess = points[i] * 1e6;
+      excessVals.push(points[i] + 'M');
+      var feeWei = Math.exp(excess / UPDATE_FRACTION);
+      blobFees.push(Number((feeWei / 1e9).toFixed(8)));
+    }
+    chart2.setOption({
+      backgroundColor: 'transparent',
+      title: { text: 'Blob Base Fee 随 excess_blob_gas 指数增长', left: 'center', textStyle: { fontSize: 14, fontWeight: 600 }, subtext: 'Pectra 后 UPDATE_FRACTION = 5,007,716（纵轴对数刻度）', subtextStyle: { fontSize: 11 } },
+      tooltip: { trigger: 'axis', triggerOn: 'click', renderMode: 'richText', confine: true, textStyle: { fontSize: 11 }, valueFormatter: function(v) { return v < 0.001 ? (v * 1e9).toFixed(2) + ' wei' : v.toFixed(4) + ' Gwei'; } },
+      grid: { left: 70, right: 30, top: 72, bottom: 40, containLabel: true },
+      xAxis: { type: 'category', data: excessVals, axisLabel: { fontSize: 10 }, name: 'excess_blob_gas' },
+      yAxis: { type: 'log', name: 'Blob Base Fee', axisLabel: { fontSize: 10, formatter: function(v) { return v < 1e-6 ? (v*1e9).toFixed(0)+'wei' : v.toFixed(v<1?4:0)+'G'; } }, nameTextStyle: { fontSize: 11 }, min: 1e-9 },
+      series: [{
+        name: 'Blob Base Fee',
+        type: 'line',
+        data: blobFees,
+        smooth: true,
+        itemStyle: { color: '#2e9e5b' },
+        lineStyle: { width: 2.5 },
+        areaStyle: { color: 'rgba(46,158,91,0.12)' }
+      }]
+    });
+    window.addEventListener('resize', function() { chart2.resize(); });
+  } catch(e) { console.error('Chart2 error:', e); }
+
+  // ===== Chart 3: Fee composition =====
+  try {
+    var chart3 = echarts.init(document.getElementById('chart-feecomp'));
+    var gasUsed = 21000;
+    chart3.setOption({
+      backgroundColor: 'transparent',
+      title: { text: '交易费用构成（21,000 gas 示例）', left: 'center', textStyle: { fontSize: 14, fontWeight: 600 } },
+      tooltip: { trigger: 'item', triggerOn: 'click', renderMode: 'richText', confine: true, textStyle: { fontSize: 11 }, formatter: function(p) { return p.name + ': ' + p.value + ' Gwei (' + p.percent + '%)'; } },
+      legend: { bottom: 0, type: 'scroll', textStyle: { fontSize: 11 }, itemWidth: 14, itemHeight: 8 },
+      series: [{
+        name: '费用构成',
+        type: 'pie',
+        radius: ['38%', '65%'],
+        center: ['50%', '48%'],
+        avoidLabelOverlap: true,
+        label: { formatter: '{b}\n{d}%', fontSize: 11, color: '#1a1b1e' },
+        labelLine: { length: 8, length2: 8 },
+        data: [
+          { value: 20 * gasUsed, name: 'Base Fee（销毁）', itemStyle: { color: '#d94f4f' } },
+          { value: 2 * gasUsed, name: 'Priority Fee（验证者）', itemStyle: { color: '#2e9e5b' } },
+          { value: 3 * gasUsed, name: '退款', itemStyle: { color: '#e08a3c' } }
+        ]
+      }]
+    });
+    window.addEventListener('resize', function() { chart3.resize(); });
+  } catch(e) { console.error('Chart3 error:', e); }
+
+  // ===== Execution Gas Calculator =====
+  function calcExec() {
+    var base = parseFloat(document.getElementById('c-base').value) || 0;
+    var prio = parseFloat(document.getElementById('c-prio').value) || 0;
+    var max = parseFloat(document.getElementById('c-max').value) || 0;
+    var gas = parseInt(document.getElementById('c-gas').value) || 0;
+
+    if (max < base) {
+      document.getElementById('c-result').innerHTML =
+        '<div style="color:#d94f4f;font-size:14px;font-weight:600;padding:10px 0;">' +
+        '⚠️ maxFeePerGas（' + max.toFixed(2) + ' Gwei）低于当前 baseFee（' + base.toFixed(2) + ' Gwei），' +
+        '交易无法被打包。请将 maxFeePerGas 提高至 baseFee + priorityFee 以上。</div>';
+      return;
+    }
+
+    var effective = Math.min(max, base + prio);
+    var totalGwei = gas * effective;
+    var burnGwei = gas * base;
+    var validatorGwei = gas * (effective - base);
+    var refundGwei = gas * (max - effective);
+    var html = '';
+    html += '<div class="row"><span class="label">实际 Gas 单价 (effective)</span><span class="val">' + effective.toFixed(2) + ' Gwei</span></div>';
+    html += '<div class="row"><span class="label">Base Fee（销毁）</span><span class="val">' + (burnGwei / 1e9).toFixed(8) + ' ETH</span></div>';
+    html += '<div class="row"><span class="label">Priority Fee（验证者）</span><span class="val">' + (validatorGwei / 1e9).toFixed(8) + ' ETH</span></div>';
+    html += '<div class="row"><span class="label">退款</span><span class="val">' + (refundGwei / 1e9).toFixed(8) + ' ETH</span></div>';
+    html += '<div class="row total"><span class="label">实际支付总费用</span><span class="val">' + (totalGwei / 1e9).toFixed(8) + ' ETH</span></div>';
+    document.getElementById('c-result').innerHTML = html;
+  }
+
+  // ===== Blob Calculator =====
+  function calcBlob() {
+    var base = parseFloat(document.getElementById('b-base').value) || 0;
+    var max = parseFloat(document.getElementById('b-max').value) || 0;
+    var count = parseInt(document.getElementById('b-count').value) || 0;
+    var GAS_PER_BLOB = 131072;
+    var actual = Math.min(max, base);
+    var blobGas = count * GAS_PER_BLOB;
+    var feeGwei = blobGas * actual;
+    var refundGwei = blobGas * (max - actual);
+    var html = '';
+    html += '<div class="row"><span class="label">Blob Gas 总量</span><span class="val">' + blobGas.toLocaleString() + '</span></div>';
+    html += '<div class="row"><span class="label">实际 Blob 单价</span><span class="val">' + actual.toFixed(4) + ' Gwei</span></div>';
+    html += '<div class="row"><span class="label">Blob 费用（全部销毁）</span><span class="val">' + (feeGwei / 1e9).toFixed(8) + ' ETH</span></div>';
+    html += '<div class="row"><span class="label">退款</span><span class="val">' + (refundGwei / 1e9).toFixed(8) + ' ETH</span></div>';
+    html += '<div class="row total"><span class="label">Blob 实际支付</span><span class="val">' + (feeGwei / 1e9).toFixed(8) + ' ETH</span></div>';
+    document.getElementById('b-result').innerHTML = html;
+  }
+
+  // Bind events
+  ['c-base','c-prio','c-max','c-gas'].forEach(function(id) {
+    document.getElementById(id).addEventListener('input', calcExec);
+  });
+  ['b-base','b-max','b-count'].forEach(function(id) {
+    document.getElementById(id).addEventListener('input', calcBlob);
+  });
+  calcExec();
+  calcBlob();
+})();
+</script>
+</body>
+</html>

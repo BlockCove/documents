@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>以太坊 PoW 与 PoS 运行机制对比报告</title>
+<style>
+  :root {
+    --primary: #2962ff;
+    --primary-light: #e8efff;
+    --pow-color: #f59e0b;
+    --pos-color: #10b981;
+    --text: #1a1b1e;
+    --text-secondary: #5b6472;
+    --border: #e4e7ec;
+    --bg: #f7f8fa;
+    --card: #ffffff;
+    --danger: #dc2626;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    font-size: 15px;
+  }
+  .container { max-width: 960px; margin: 0 auto; padding: 32px 20px 64px; }
+
+  /* Header */
+  .report-header {
+    background: linear-gradient(135deg, #1a237e 0%, #2962ff 100%);
+    color: #fff;
+    border-radius: 16px;
+    padding: 40px 36px;
+    margin-bottom: 28px;
+  }
+  .report-header h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+  .report-header .subtitle { font-size: 15px; opacity: 0.85; }
+  .report-header .meta { margin-top: 16px; font-size: 13px; opacity: 0.7; }
+
+  /* TOC */
+  .toc {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 28px;
+  }
+  .toc h3 { font-size: 15px; margin-bottom: 10px; color: var(--text); }
+  .toc ol { padding-left: 20px; }
+  .toc li { margin: 4px 0; font-size: 14px; }
+  .toc a { color: var(--primary); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+
+  /* Section */
+  section { margin-bottom: 36px; }
+  h2 {
+    font-size: 22px;
+    font-weight: 700;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--primary);
+    margin-bottom: 18px;
+    color: var(--text);
+  }
+  h3 {
+    font-size: 17px;
+    font-weight: 600;
+    margin: 22px 0 10px;
+    color: var(--text);
+  }
+  h4 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 16px 0 8px;
+    color: var(--text);
+  }
+  p { margin-bottom: 12px; }
+  ul, ol { padding-left: 22px; margin-bottom: 12px; }
+  li { margin-bottom: 6px; }
+
+  /* Card */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+  }
+  .card-pow { border-left: 4px solid var(--pow-color); }
+  .card-pos { border-left: 4px solid var(--pos-color); }
+
+  /* Tag */
+  .tag {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-right: 6px;
+  }
+  .tag-pow { background: #fef3c7; color: #92400e; }
+  .tag-pos { background: #d1fae5; color: #065f46; }
+
+  /* Table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+    font-size: 14px;
+    background: var(--card);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  th, td {
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    background: var(--primary-light);
+    font-weight: 600;
+    color: var(--text);
+  }
+  tr:last-child td { border-bottom: none; }
+  td.pow-col { color: #92400e; }
+  td.pos-col { color: #065f46; }
+
+  /* Code */
+  code {
+    background: #f0f2f5;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: "SF Mono", "Fira Code", Consolas, monospace;
+  }
+  pre {
+    background: #1e293b;
+    color: #e2e8f0;
+    padding: 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.6;
+    margin: 12px 0;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+
+  /* Figure */
+  .figure {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 18px 0;
+    text-align: center;
+  }
+  .figure svg { max-width: 100%; height: auto; }
+  .figure-caption {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 10px;
+    text-align: center;
+  }
+
+  /* Chart container */
+  .chart-container {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 18px 0;
+  }
+  .chart-box { width: 100%; height: 380px; }
+
+  /* Highlight box */
+  .highlight {
+    background: var(--primary-light);
+    border-left: 4px solid var(--primary);
+    padding: 14px 18px;
+    border-radius: 0 8px 8px 0;
+    margin: 14px 0;
+    font-size: 14px;
+  }
+  .highlight strong { color: var(--primary); }
+
+  /* Two col */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 14px 0;
+  }
+  @media (max-width: 640px) {
+    .two-col { grid-template-columns: 1fr; }
+    .report-header { padding: 28px 20px; }
+    .report-header h1 { font-size: 22px; }
+  }
+
+  /* Flow steps */
+  .flow-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .flow-num {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .flow-text { font-size: 14px; padding-top: 3px; }
+
+  .footer {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="report-header">
+    <h1>以太坊 PoW 与 PoS 运行机制对比报告</h1>
+    <div class="subtitle">工作量证明 vs 权益证明：原理、流程、安全性与演进</div>
+    <div class="meta">报告日期：2026-09-02 ｜ 技术深度：面向开发者 ｜ 覆盖：合并前 PoW / 合并后 PoS</div>
+  </div>
+
+  <!-- TOC -->
+  <div class="toc">
+    <h3>目录</h3>
+    <ol>
+      <li><a href="#summary">摘要</a></li>
+      <li><a href="#pow">PoW 运行机制</a></li>
+      <li><a href="#pos">PoS 运行机制（详解）</a></li>
+      <li><a href="#pos-deep">PoS 核心流程深度拆解：分组 → 提议者 → 验证 → 下一轮</a></li>
+      <li><a href="#compare">PoW 与 PoS 全面对比</a></li>
+      <li><a href="#merge">合并（The Merge）与后续影响</a></li>
+      <li><a href="#conclusion">总结</a></li>
+    </ol>
+  </div>
+
+  <!-- 1. Summary -->
+  <section id="summary">
+    <h2>1. 摘要</h2>
+    <p>以太坊在 2022 年 9 月 15 日完成 <strong>The Merge（合并）</strong>，共识机制从工作量证明（Proof of Work, PoW）切换为权益证明（Proof of Stake, PoS）。这是区块链历史上最大规模的共识层迁移之一。</p>
+    <div class="highlight">
+      <strong>核心结论：</strong>PoW 靠算力竞争出块，安全性来自能源消耗的经济壁垒；PoS 靠质押 ETH 选举验证者，安全性来自罚没（slashing）质押金的经济约束。PoS 将以太坊能耗降低约 <strong>99.95%</strong>，出块时间从约 13 秒的概率性分布固定为 12 秒一个 slot，并引入了经济最终性（economic finality）。
+    </div>
+    <div class="two-col">
+      <div class="card card-pow">
+        <h4><span class="tag tag-pow">PoW</span>关键特征</h4>
+        <ul>
+          <li>矿工通过算力解哈希谜题竞争出块权</li>
+          <li>出块时间概率分布，目标约 13 秒</li>
+          <li>最长/最重链原则，无最终性</li>
+          <li>高能耗，ASIC 矿机专业化</li>
+          <li>叔块（ommer）机制减少算力浪费</li>
+        </ul>
+      </div>
+      <div class="card card-pos">
+        <h4><span class="tag tag-pos">PoS</span>关键特征</h4>
+        <ul>
+          <li>验证者质押 32 ETH 获得参与资格</li>
+          <li>每个 slot（12 秒）伪随机选 1 个提议者</li>
+          <li>委员会投票 + BLS 聚合签名</li>
+          <li>Casper FFG 提供经济最终性（约 12.8 分钟）</li>
+          <li>低能耗，罚没机制威慑恶意行为</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. PoW -->
+  <section id="pow">
+    <h2>2. PoW 运行机制</h2>
+
+    <h3>2.1 基本原理</h3>
+    <p>工作量证明的核心思想是：<strong>谁先解出一道难以计算但易于验证的数学题，谁就获得出块权</strong>。以太坊使用的 PoW 算法名为 <code>Ethash</code>（前身为 Dagger-Hashimoto）。</p>
+    <p>矿工需要不断改变区块头中的 <code>nonce</code>（随机数），对整个区块头进行哈希计算，直到结果小于当前难度目标值。这个过程没有捷径，只能靠暴力枚举。</p>
+
+    <h3>2.2 Ethash 算法与 DAG</h3>
+    <p>Ethash 是一个<strong>内存硬（memory-hard）</strong>算法，设计目的是抵抗 ASIC 专业化（虽然最终 ASIC 仍出现了）。它依赖一个随时间增长的数据集：</p>
+    <ul>
+      <li><strong>DAG（Directed Acyclic Graph）</strong>：每 30000 个区块（约 5.2 天）生成一个新的 DAG，合并时大小已超过 5GB。</li>
+      <li>挖矿时需要将 DAG 载入显存（VRAM），因此显卡显存大小是挖矿门槛。</li>
+      <li>哈希过程：<code>keccak512(seed + nonce) → mix hash → keccak256(final)</code>，最终结果与难度目标比较。</li>
+    </ul>
+
+    <h3>2.3 难度调整</h3>
+    <p>以太坊的难度<strong>每个区块都调整一次</strong>（比特币每 2016 个区块调整一次），公式核心逻辑：</p>
+    <pre><code>新难度 = 父难度 + 父难度 / 2048 × max(1 - (出块时间差 / 9), -99) + 难度炸弹</code></pre>
+    <ul>
+      <li>出块快于目标 → 难度上升；出块慢于目标 → 难度下降。</li>
+      <li>目标出块时间约 13-15 秒（实际合并前稳定在约 13 秒）。</li>
+      <li><strong>难度炸弹（ice age）</strong>：指数增长项，人为制造难度飙升，强制社区推进向 PoS 迁移。多次通过硬分叉推迟。</li>
+    </ul>
+
+    <h3>2.4 叔块（Ommer / Uncle）机制</h3>
+    <p>由于出块时间短（~13 秒），网络延迟导致频繁出现同时挖出的有效区块。以太坊不像比特币那样直接丢弃孤块，而是设计了叔块机制：</p>
+    <ul>
+      <li>叔块是<strong>有效但未进入主链</strong>的区块。</li>
+      <li>主链区块可以引用最多 2 个叔块，叔块矿工获得部分奖励。</li>
+      <li>叔块奖励公式：<code>((叔块号 + 8 - 当前区块号) × 基础奖励) / 8</code>，最高为基础奖励的 7/8。</li>
+      <li>引用叔块的矿工额外获得 <code>基础奖励 / 32</code> 的奖励。</li>
+      <li>叔块机制提高了安全性（GHOST 协议思想）并减少了算力浪费。</li>
+    </ul>
+
+    <h3>2.5 出块奖励与发行</h3>
+    <table>
+      <tr><th>阶段</th><th>区块奖励</th><th>时间</th></tr>
+      <tr><td>Frontier → Homestead</td><td>5 ETH</td><td>2015.07 - 2017.10</td></tr>
+      <tr><td>Byzantium（拜占庭）</td><td>3 ETH</td><td>2017.10 - 2019.02</td></tr>
+      <tr><td>Constantinople（君士坦丁堡）</td><td>2 ETH</td><td>2019.02 - 2022.09（合并）</td></tr>
+    </table>
+    <p>合并前每个区块平均发行约 2.08 ETH（含叔块奖励），年化发行率约 4%。</p>
+
+    <h3>2.6 PoW 出块流程图</h3>
+    <div class="figure">
+      <svg viewBox="0 0 880 320" xmlns="http://www.w3.org/2000/svg" font-family="sans-serif">
+        <!-- 背景 -->
+        <rect width="880" height="320" fill="#fff" rx="8"/>
+        <!-- 标题 -->
+        <text x="440" y="28" text-anchor="middle" font-size="15" font-weight="700" fill="#1a1b1e">以太坊 PoW 出块流程</text>
+
+        <!-- 矿工节点 -->
+        <g>
+          <rect x="30" y="60" width="140" height="80" rx="8" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+          <text x="100" y="90" text-anchor="middle" font-size="13" font-weight="600" fill="#92400e">矿工 A</text>
+          <text x="100" y="110" text-anchor="middle" font-size="11" fill="#92400e">GPU/ASIC 算力</text>
+          <text x="100" y="126" text-anchor="middle" font-size="11" fill="#92400e">加载 DAG</text>
+        </g>
+        <g>
+          <rect x="30" y="170" width="140" height="80" rx="8" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+          <text x="100" y="200" text-anchor="middle" font-size="13" font-weight="600" fill="#92400e">矿工 B</text>
+          <text x="100" y="220" text-anchor="middle" font-size="11" fill="#92400e">GPU/ASIC 算力</text>
+          <text x="100" y="236" text-anchor="middle" font-size="11" fill="#92400e">加载 DAG</text>
+        </g>
+        <g>
+          <rect x="30" y="250" width="140" height="50" rx="8" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5" opacity="0.5"/>
+          <text x="100" y="280" text-anchor="middle" font-size="12" fill="#92400e">... 更多矿工</text>
+        </g>
+
+        <!-- 竞争哈希 -->
+        <g>
+          <rect x="230" y="110" width="160" height="100" rx="8" fill="#fff7ed" stroke="#fb923c" stroke-width="1.5"/>
+          <text x="310" y="140" text-anchor="middle" font-size="13" font-weight="600" fill="#9a3412">哈希谜题竞争</text>
+          <text x="310" y="162" text-anchor="middle" font-size="11" fill="#9a3412">枚举 nonce</text>
+          <text x="310" y="178" text-anchor="middle" font-size="11" fill="#9a3412">Ethash(DAG, header)</text>
+          <text x="310" y="194" text-anchor="middle" font-size="11" fill="#9a3412">hash &lt; 目标值?</text>
+        </g>
+
+        <!-- 箭头 矿工→竞争 -->
+        <line x1="170" y1="100" x2="228" y2="140" stroke="#f59e0b" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <line x1="170" y1="210" x2="228" y2="180" stroke="#f59e0b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+        <!-- 获胜 -->
+        <g>
+          <rect x="450" y="110" width="140" height="100" rx="8" fill="#dcfce7" stroke="#22c55e" stroke-width="1.5"/>
+          <text x="520" y="145" text-anchor="middle" font-size="13" font-weight="600" fill="#166534">矿工 A 先解出</text>
+          <text x="520" y="167" text-anchor="middle" font-size="11" fill="#166534">广播区块到网络</text>
+          <text x="520" y="183" text-anchor="middle" font-size="11" fill="#166534">获得 2 ETH 奖励</text>
+        </g>
+        <line x1="390" y1="160" x2="448" y2="160" stroke="#22c55e" stroke-width="2" marker-end="url(#arrow)"/>
+
+        <!-- 验证 -->
+        <g>
+          <rect x="650" y="110" width="180" height="100" rx="8" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+          <text x="740" y="140" text-anchor="middle" font-size="13" font-weight="600" fill="#1e40af">其他节点验证</text>
+          <text x="740" y="160" text-anchor="middle" font-size="11" fill="#1e40af">重算哈希（毫秒级）</text>
+          <text x="740" y="176" text-anchor="middle" font-size="11" fill="#1e40af">验证交易合法性</text>
+          <text x="740" y="192" text-anchor="middle" font-size="11" fill="#1e40af">接受并在其上继续挖矿</text>
+        </g>
+        <line x1="590" y1="160" x2="648" y2="160" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow)"/>
+
+        <!-- 叔块说明 -->
+        <g>
+          <rect x="230" y="250" width="600" height="50" rx="8" fill="#f3f4f6" stroke="#9ca3af" stroke-width="1" stroke-dasharray="4"/>
+          <text x="530" y="272" text-anchor="middle" font-size="12" font-weight="600" fill="#374151">若矿工 B 几乎同时解出 → 成为叔块（ommer），获得部分奖励，不进入主链</text>
+          <text x="530" y="290" text-anchor="middle" font-size="11" fill="#6b7280">主链采用"最重链"（累计难度最大）原则选择分叉</text>
+        </g>
+
+        <defs>
+          <marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#6b7280"/>
+          </marker>
+        </defs>
+      </svg>
+      <div class="figure-caption">图 1：以太坊 PoW 出块流程示意。矿工并行竞争哈希谜题，先解出者广播区块，其余节点验证后接受。</div>
+    </div>
+
+    <h3>2.7 PoW 的特点与局限</h3>
+    <div class="two-col">
+      <div>
+        <h4>优势</h4>
+        <ul>
+          <li>协议简单，经过 10 余年实战检验</li>
+          <li>无需许可，任何人购买矿机即可参与</li>
+          <li>攻击需要控制 51% 算力，成本极高</li>
+          <li>区块概率性产出，天然抗审查（无明确出块者）</li>
+        </ul>
+      </div>
+      <div>
+        <h4>局限</h4>
+        <ul>
+          <li>能耗巨大（合并前年耗电约等同一个中等国家）</li>
+          <li>无最终性，只能靠"确认数"概率性保证</li>
+          <li>算力集中化风险（矿池、ASIC 厂商）</li>
+          <li>硬件门槛高，普通用户难以直接参与</li>
+          <li>通胀压力大（持续发行奖励矿工）</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. PoS -->
+  <section id="pos">
+    <h2>3. PoS 运行机制</h2>
+
+    <h3>3.1 基本概念</h3>
+    <p>权益证明将"算力竞争"替换为"质押选举"。验证者不需要消耗大量电力解题，而是通过锁定（质押）ETH 来获得参与共识的资格。作恶者会被<strong>罚没（slashing）</strong>质押金，从而形成经济约束。</p>
+
+    <div class="card card-pos">
+      <h4>核心角色与概念</h4>
+      <table>
+        <tr><th>概念</th><th>说明</th></tr>
+        <tr><td><strong>验证者（Validator）</strong></td><td>质押 32 ETH 的节点，负责提议区块和投票。一个验证者 = 32 ETH 份额（可运行多个验证者）。</td></tr>
+        <tr><td><strong>Slot（时隙）</strong></td><td>12 秒，是出块的基本时间单位。每个 slot 最多产生 1 个区块（也可能空块/missed）。</td></tr>
+        <tr><td><strong>Epoch（周期）</strong></td><td>32 个 slot = 6.4 分钟。委员会分配、最终性检查、奖励结算都以 epoch 为周期。</td></tr>
+        <tr><td><strong>提议者（Proposer）</strong></td><td>每个 slot 伪随机选出 1 个验证者，负责构建并广播区块。</td></tr>
+        <tr><td><strong>Attestor（证明者/投票者）</strong></td><td>委员会中的验证者，对区块进行签名投票。</td></tr>
+        <tr><td><strong>委员会（Committee）</strong></td><td>每个 slot 随机分配的一组验证者，负责该 slot 的投票。每个 slot 可含多个子委员会。</td></tr>
+        <tr><td><strong>Attestation（证明/投票）</strong></td><td>验证者对链头和检查点的签名投票，包含 LMD-GHOST 投票和 Casper FFG 投票。</td></tr>
+        <tr><td><strong>RANDAO</strong></td><td>以太坊的伪随机数生成协议，用于委员会分配和提议者选择。</td></tr>
+      </table>
+    </div>
+
+    <h3>3.2 节点架构：执行层 + 共识层</h3>
+    <p>合并后，以太坊节点由两个独立但协作的客户端组成：</p>
+    <div class="figure">
+      <svg viewBox="0 0 880 280" xmlns="http://www.w3.org/2000/svg" font-family="sans-serif">
+        <rect width="880" height="280" fill="#fff" rx="8"/>
+        <text x="440" y="28" text-anchor="middle" font-size="15" font-weight="700" fill="#1a1b1e">以太坊 PoS 节点双层架构</text>
+
+        <!-- 执行层 -->
+        <g>
+          <rect x="60" y="60" width="340" height="180" rx="10" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+          <text x="230" y="88" text-anchor="middle" font-size="14" font-weight="700" fill="#1e40af">执行层（Execution Client）</text>
+          <text x="230" y="108" text-anchor="middle" font-size="11" fill="#1e40af">Geth / Nethermind / Besu / Erigon</text>
+          <line x1="80" y1="118" x2="380" y2="118" stroke="#93c5fd" stroke-width="1"/>
+          <text x="80" y="138" font-size="12" fill="#1e3a8a">• 交易池（mempool）管理</text>
+          <text x="80" y="158" font-size="12" fill="#1e3a8a">• EVM 执行智能合约</text>
+          <text x="80" y="178" font-size="12" fill="#1e3a8a">• 状态树（state trie）维护</text>
+          <text x="80" y="198" font-size="12" fill="#1e3a8a">• 接收共识层的区块，执行交易</text>
+          <text x="80" y="218" font-size="12" fill="#1e3a8a">• 通过 Engine API 与共识层通信</text>
+        </g>
+
+        <!-- 共识层 -->
+        <g>
+          <rect x="480" y="60" width="340" height="180" rx="10" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+          <text x="650" y="88" text-anchor="middle" font-size="14" font-weight="700" fill="#065f46">共识层（Consensus Client / Beacon Node）</text>
+          <text x="650" y="108" text-anchor="middle" font-size="11" fill="#065f46">Lighthouse / Prysm / Teku / Nimbus / Lodestar</text>
+          <line x1="500" y1="118" x2="800" y2="118" stroke="#6ee7b7" stroke-width="1"/>
+          <text x="500" y="138" font-size="12" fill="#064e3b">• 信标链（Beacon Chain）状态</text>
+          <text x="500" y="158" font-size="12" fill="#064e3b">• 验证者注册与质押管理</text>
+          <text x="500" y="178" font-size="12" fill="#064e3b">• RANDAO 随机数与委员会分配</text>
+          <text x="500" y="198" font-size="12" fill="#064e3b">• LMD-GHOST 分叉选择</text>
+          <text x="500" y="218" font-size="12" fill="#064e3b">• Casper FFG 最终性 + 罚没</text>
+        </g>
+
+        <!-- 中间通信 -->
+        <g>
+          <rect x="400" y="120" width="80" height="60" rx="8" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+          <text x="440" y="145" text-anchor="middle" font-size="11" font-weight="600" fill="#92400e">Engine</text>
+          <text x="440" y="162" text-anchor="middle" font-size="11" font-weight="600" fill="#92400e">API</text>
+        </g>
+        <line x1="400" y1="150" x2="400" y2="150" stroke="#f59e0b" stroke-width="2"/>
+        <line x1="480" y1="150" x2="480" y2="150" stroke="#f59e0b" stroke-width="2"/>
+
+        <!-- 验证者客户端 -->
+        <g>
+          <rect x="560" y="250" width="180" height="24" rx="6" fill="#f0fdf4" stroke="#86efac" stroke-width="1"/>
+          <text x="650" y="266" text-anchor="middle" font-size="11" fill="#166534">验证者客户端（Validator Client）← 签名密钥</text>
+        </g>
+        <line x1="650" y1="240" x2="650" y2="250" stroke="#10b981" stroke-width="1.5" marker-end="url(#arrow2)"/>
+        <defs>
+          <marker id="arrow2" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#10b981"/>
+          </marker>
+        </defs>
+      </svg>
+      <div class="figure-caption">图 2：合并后以太坊节点架构。执行层处理交易和 EVM，共识层处理 PoS 共识，二者通过 Engine API 通信。</div>
+    </div>
+
+    <h3>3.3 验证者生命周期</h3>
+    <div class="flow-step"><div class="flow-num">1</div><div class="flow-text"><strong>存入质押：</strong>用户向存款合约（Deposit Contract）发送 32 ETH + 验证者公钥 + 签名。交易被打包后，验证者进入激活队列。</div></div>
+    <div class="flow-step"><div class="flow-num">2</div><div class="flow-text"><strong>激活等待：</strong>存款被共识层确认后进入激活队列。队列通过 <strong>churn limit</strong>（当前为 256 ETH/epoch，约 57,600 ETH/天）限制验证者集的变化速率，防止验证者集骤变导致远程攻击。Pectra（EIP-6110）后存款直接在执行层提供，最小激活等待从约 7 小时缩短至约 13 分钟；网络拥挤时队列等待可能长达数天至数十天。</div></div>
+    <div class="flow-step"><div class="flow-num">3</div><div class="flow-text"><strong>参与共识：</strong>激活后，验证者每个 epoch 被分配一次 attestation 职责，偶尔被选为提议者。诚实履行职责获得奖励。</div></div>
+    <div class="flow-step"><div class="flow-num">4</div><div class="flow-text"><strong>自愿退出：</strong>验证者可发起退出（Pectra 后可通过 EIP-7002 在执行层直接触发），经退出队列处理后停止参与共识；此后还需等待 <code>MIN_VALIDATOR_WITHDRAWABILITY_DELAY</code>（256 epoch ≈ 27.3 小时），质押金才能进入提取队列被取出。</div></div>
+    <div class="flow-step"><div class="flow-num">5</div><div class="flow-text"><strong>被罚没（Slashing）：</strong>若验证者做出可罚没行为（双重投票、环绕投票、双重提议），部分质押金被销毁，验证者被强制退出。惩罚力度随同期被罚人数增加而增大（相关性惩罚）。</div></div>
+
+    <h3>3.4 时间单位：Slot 与 Epoch</h3>
+    <div class="figure">
+      <svg viewBox="0 0 880 200" xmlns="http://www.w3.org/2000/svg" font-family="sans-serif">
+        <rect width="880" height="200" fill="#fff" rx="8"/>
+        <text x="440" y="28" text-anchor="middle" font-size="15" font-weight="700" fill="#1a1b1e">Slot 与 Epoch 时间结构</text>
+
+        <!-- Epoch 框 -->
+        <rect x="40" y="60" width="800" height="80" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+        <text x="60" y="82" font-size="12" font-weight="600" fill="#065f46">1 Epoch = 32 Slots = 6.4 分钟</text>
+
+        <!-- 32 个 slot 小方块，画 16 个代表 + 省略 -->
+        <g>
+          <!-- slot 0-7 -->
+          <rect x="60" y="95" width="42" height="30" rx="3" fill="#10b981" opacity="0.7"/>
+          <text x="81" y="114" text-anchor="middle" font-size="10" fill="#fff">0</text>
+          <rect x="106" y="95" width="42" height="30" rx="3" fill="#10b981" opacity="0.5"/>
+          <text x="127" y="114" text-anchor="middle" font-size="10" fill="#fff">1</text>
+          <rect x="152" y="95" width="42" height="30" rx="3" fill="#10b981" opacity="0.7"/>
+          <text x="173" y="114" text-anchor="middle" font-size="10" fill="#fff">2</text>
+          <rect x="198" y="95" width="42" height="30" rx="3" fill="#10b981" opacity="0.5"/>
+          <text x="219" y="114" text-anchor="middle" font-size="10" fill="#fff">3</text>
+          <rect x="244" y="95" width="42" height="30" rx="3" fill="#10b981" opacity="0.7"/>
+          <text x="265" y="114" text-anchor="middle" font-size="10" fill="#fff">4</text>
+          <rect x="290" y="95" width="42" height="30" rx="3" fill="#10b981" opacity="0.5"/>
+          <text x="311" y="114" text-anchor="middle" font-size="10" fill="#fff">5</text>
+          <rect x="336" y="95" width="42" height="30" rx="3" fill="#10b981" opacity="0.7"/>
+          <text x="357" y="114" text-anchor="middle" font-size="10" fill="#fff">6</text>
+          <rect x="382" y="95" width="42" height="30" rx="3" fill="#10b981" opacity="0.5"/>
+          <text x="403" y="114" text-anchor="middle" font-size="10" fill="#fff">7</text>
+          <text x="440" y="114" text-anchor="middle" font-size="14" fill="#065f46">…</text>
+          <rect x="470" y="95" width="42" height="30" rx="3" fill="#10b981" opacity="0.5"/>
+          <text x="491" y="114" text-anchor="middle" font-size="10" fill="#fff">28</text>
+          <rect x="516" y="95" width="42" height="30" rx="3" fill="#10b981" opacity="0.7"/>
+          <text x="537" y="114" text-anchor="middle" font-size="10" fill="#fff">29</text>
+          <rect x="562" y="95" width="42" height="30" rx="3" fill="#10b981" opacity="0.5"/>
+          <text x="583" y="114" text-anchor="middle" font-size="10" fill="#fff">30</text>
+          <rect x="608" y="95" width="42" height="30" rx="3" fill="#f59e0b"/>
+          <text x="629" y="114" text-anchor="middle" font-size="10" fill="#fff" font-weight="700">31</text>
+        </g>
+
+        <!-- 标注 -->
+        <text x="629" y="150" text-anchor="middle" font-size="11" fill="#92400e">↑ 当前 slot（12秒）</text>
+
+        <!-- Slot 放大 -->
+        <g>
+          <rect x="60" y="165" width="760" height="28" rx="6" fill="#fff7ed" stroke="#fdba74" stroke-width="1"/>
+          <text x="80" y="183" font-size="11" fill="#9a3412">每个 Slot：1 个提议者构建区块 → 委员会投票（attestation）→ 聚合签名 → 进入下一 Slot</text>
+        </g>
+      </svg>
+      <div class="figure-caption">图 3：1 个 Epoch 包含 32 个 Slot，每个 Slot 12 秒。委员会在 Epoch 边界重新分配。</div>
+    </div>
+  </section>
+
+  <!-- 4. PoS Deep Dive -->
+  <section id="pos-deep">
+    <h2>4. PoS 核心流程深度拆解</h2>
+    <p>本节详细回答：<strong>验证者如何分组？组内谁发布区块？怎么验证？下一轮如何轮换？</strong></p>
+
+    <h3>4.1 第一步：如何分组（委员会分配）</h3>
+
+    <h4>4.1.1 委员会数量与大小</h4>
+    <p>每个 epoch，所有活跃验证者被打乱并分配到 32 个 slot 中。每个 slot 可包含多个子委员会（committee）。计算公式：</p>
+    <pre><code>// 每个 slot 的子委员会数量（上限 64）
+committees_per_slot = max(1, min(64, floor(N / (32 × TARGET_COMMITTEE_SIZE))))
+                   = max(1, min(64, floor(N / 4096)))
+
+// 其中：
+// N = 当前活跃验证者总数
+// TARGET_COMMITTEE_SIZE = 128（每个子委员会的目标大小）
+// MAX_COMMITTEES_PER_SLOT = 64（子委员会数量上限）
+// SLOTS_PER_EPOCH = 32</code></pre>
+    <p>举例：若活跃验证者 N = 1,000,000，则 <code>floor(1000000 / 4096) = 244</code>，受上限 64 约束，实际 <code>committees_per_slot = 64</code>，每个子委员会约 <code>1000000 / (32 × 64) ≈ 488</code> 人。每个 slot 有约 <code>64 × 488 ≈ 31,250</code> 个验证者参与投票。</p>
+
+    <div class="highlight">
+      <strong>设计意图：</strong>将验证者拆分成委员会，是为了让每个 slot 的签名聚合工作量可控。如果所有验证者每个 slot 都投票，网络和计算开销巨大。每个验证者<strong>每个 epoch 只投票一次</strong>（被分配到某一个 slot 的某一个子委员会），但 32 个 slot 累计覆盖全部验证者。
+    </div>
+
+    <h4>4.1.2 随机洗牌算法：RANDAO + swap-or-not</h4>
+    <p>分组的核心是<strong>随机性</strong>。以太坊使用 RANDAO 协议生成伪随机种子：</p>
+    <ol>
+      <li>每个区块提议者在区块中包含一个 <code>randao_reveal</code>（用其私钥对当前 epoch 号做的 BLS 签名）。</li>
+      <li>信标链将这个 reveal 与历史随机种子混合（<code>xor + hash</code>），更新随机种子。</li>
+      <li>epoch 结束时，该 epoch 的随机种子确定，用于下一个 epoch 的委员会分配。</li>
+    </ol>
+    <p>得到随机种子后，使用 <strong>swap-or-not 洗牌算法</strong>对验证者索引列表进行置换。洗牌后的列表按顺序切分成 32 × committees_per_slot 个组，每组对应一个 slot 的一个子委员会。</p>
+
+    <h4>4.1.3 分组流程图</h4>
+    <div class="figure">
+      <svg viewBox="0 0 880 340" xmlns="http://www.w3.org/2000/svg" font-family="sans-serif">
+        <rect width="880" height="340" fill="#fff" rx="8"/>
+        <text x="440" y="28" text-anchor="middle" font-size="15" font-weight="700" fill="#1a1b1e">委员会分配流程（每个 Epoch 执行一次）</text>
+
+        <!-- Step 1: 验证者集 -->
+        <g>
+          <rect x="30" y="55" width="160" height="70" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+          <text x="110" y="80" text-anchor="middle" font-size="12" font-weight="600" fill="#1e40af">活跃验证者集</text>
+          <text x="110" y="100" text-anchor="middle" font-size="11" fill="#1e40af">N 个验证者</text>
+          <text x="110" y="116" text-anchor="middle" font-size="11" fill="#1e40af">（按索引排列）</text>
+        </g>
+
+        <!-- Step 2: RANDAO -->
+        <g>
+          <rect x="240" y="55" width="160" height="70" rx="8" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+          <text x="320" y="80" text-anchor="middle" font-size="12" font-weight="600" fill="#92400e">RANDAO 随机种子</text>
+          <text x="320" y="100" text-anchor="middle" font-size="11" fill="#92400e">epoch 内累积</text>
+          <text x="320" y="116" text-anchor="middle" font-size="11" fill="#92400e">randao_reveal 混合</text>
+        </g>
+        <line x1="190" y1="90" x2="238" y2="90" stroke="#6b7280" stroke-width="1.5" marker-end="url(#a3)"/>
+
+        <!-- Step 3: shuffle -->
+        <g>
+          <rect x="450" y="55" width="160" height="70" rx="8" fill="#fce7f3" stroke="#ec4899" stroke-width="1.5"/>
+          <text x="530" y="80" text-anchor="middle" font-size="12" font-weight="600" fill="#9d174d">swap-or-not 洗牌</text>
+          <text x="530" y="100" text-anchor="middle" font-size="11" fill="#9d174d">用种子置换索引</text>
+          <text x="530" y="116" text-anchor="middle" font-size="11" fill="#9d174d">得到乱序列表</text>
+        </g>
+        <line x1="400" y1="90" x2="448" y2="90" stroke="#6b7280" stroke-width="1.5" marker-end="url(#a3)"/>
+
+        <!-- Step 4: 切分 -->
+        <g>
+          <rect x="660" y="55" width="190" height="70" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+          <text x="755" y="80" text-anchor="middle" font-size="12" font-weight="600" fill="#065f46">切分成 32×C 个组</text>
+          <text x="755" y="100" text-anchor="middle" font-size="11" fill="#065f46">每组 ≈ 128 验证者</text>
+          <text x="755" y="116" text-anchor="middle" font-size="11" fill="#065f46">C = committees_per_slot</text>
+        </g>
+        <line x1="610" y1="90" x2="658" y2="90" stroke="#6b7280" stroke-width="1.5" marker-end="url(#a3)"/>
+
+        <!-- 分配到 slot -->
+        <text x="440" y="160" text-anchor="middle" font-size="13" font-weight="600" fill="#374151">↓ 按顺序分配到 32 个 Slot</text>
+
+        <!-- Slot 0 -->
+        <g>
+          <rect x="30" y="180" width="240" height="130" rx="8" fill="#f9fafb" stroke="#d1d5db" stroke-width="1"/>
+          <text x="150" y="202" text-anchor="middle" font-size="12" font-weight="700" fill="#1a1b1e">Slot 0（第 0 个 12 秒）</text>
+          <rect x="50" y="215" width="90" height="36" rx="4" fill="#10b981" opacity="0.7"/>
+          <text x="95" y="237" text-anchor="middle" font-size="10" fill="#fff">委员会 0</text>
+          <rect x="150" y="215" width="90" height="36" rx="4" fill="#10b981" opacity="0.5"/>
+          <text x="195" y="237" text-anchor="middle" font-size="10" fill="#fff">委员会 1</text>
+          <rect x="50" y="258" width="90" height="36" rx="4" fill="#10b981" opacity="0.6"/>
+          <text x="95" y="280" text-anchor="middle" font-size="10" fill="#fff">委员会 2</text>
+          <rect x="150" y="258" width="90" height="36" rx="4" fill="#f3f4f6" stroke="#d1d5db" stroke-width="1" stroke-dasharray="3"/>
+          <text x="195" y="280" text-anchor="middle" font-size="10" fill="#6b7280">... C-1</text>
+        </g>
+
+        <!-- Slot 1 -->
+        <g>
+          <rect x="320" y="180" width="240" height="130" rx="8" fill="#f9fafb" stroke="#d1d5db" stroke-width="1"/>
+          <text x="440" y="202" text-anchor="middle" font-size="12" font-weight="700" fill="#1a1b1e">Slot 1（第 1 个 12 秒）</text>
+          <rect x="340" y="215" width="90" height="36" rx="4" fill="#3b82f6" opacity="0.7"/>
+          <text x="385" y="237" text-anchor="middle" font-size="10" fill="#fff">委员会 0</text>
+          <rect x="440" y="215" width="90" height="36" rx="4" fill="#3b82f6" opacity="0.5"/>
+          <text x="485" y="237" text-anchor="middle" font-size="10" fill="#fff">委员会 1</text>
+          <rect x="340" y="258" width="90" height="36" rx="4" fill="#3b82f6" opacity="0.6"/>
+          <text x="385" y="280" text-anchor="middle" font-size="10" fill="#fff">委员会 2</text>
+          <rect x="440" y="258" width="90" height="36" rx="4" fill="#f3f4f6" stroke="#d1d5db" stroke-width="1" stroke-dasharray="3"/>
+          <text x="485" y="280" text-anchor="middle" font-size="10" fill="#6b7280">... C-1</text>
+        </g>
+
+        <!-- Slot 31 -->
+        <g>
+          <rect x="610" y="180" width="240" height="130" rx="8" fill="#f9fafb" stroke="#d1d5db" stroke-width="1"/>
+          <text x="730" y="202" text-anchor="middle" font-size="12" font-weight="700" fill="#1a1b1e">Slot 31（最后 12 秒）</text>
+          <rect x="630" y="215" width="90" height="36" rx="4" fill="#f59e0b" opacity="0.7"/>
+          <text x="675" y="237" text-anchor="middle" font-size="10" fill="#fff">委员会 0</text>
+          <rect x="730" y="215" width="90" height="36" rx="4" fill="#f59e0b" opacity="0.5"/>
+          <text x="775" y="237" text-anchor="middle" font-size="10" fill="#fff">委员会 1</text>
+          <rect x="630" y="258" width="90" height="36" rx="4" fill="#f59e0b" opacity="0.6"/>
+          <text x="675" y="280" text-anchor="middle" font-size="10" fill="#fff">委员会 2</text>
+          <rect x="730" y="258" width="90" height="36" rx="4" fill="#f3f4f6" stroke="#d1d5db" stroke-width="1" stroke-dasharray="3"/>
+          <text x="775" y="280" text-anchor="middle" font-size="10" fill="#6b7280">... C-1</text>
+        </g>
+
+        <defs>
+          <marker id="a3" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#6b7280"/>
+          </marker>
+        </defs>
+      </svg>
+      <div class="figure-caption">图 4：委员会分配流程。RANDAO 种子驱动洗牌，验证者被切分到 32 个 slot 的多个子委员会中。</div>
+    </div>
+
+    <h3>4.2 第二步：组内谁发布区块（提议者选择）</h3>
+
+    <h4>4.2.1 选择机制</h4>
+    <p>每个 slot，从该 slot 被分配的验证者中<strong>伪随机选出 1 个作为提议者（proposer）</strong>。选择过程：</p>
+    <ol>
+      <li>使用 RANDAO 种子 + slot 号 + <code>DOMAIN_BEACON_PROPOSER</code> 域分隔符生成随机输入。</li>
+      <li>对该 slot 的验证者列表按顺序逐个尝试：计算 <code>hash(seed + uint_to_bytes(i//32))</code> 取一个字节，与验证者的有效余额加权比较。</li>
+      <li>有效余额越大的验证者，被选中的概率越高（但上限为 32 ETH 有效余额，超过部分不增加权重）。</li>
+      <li>第一个满足 <code>effective_balance × 255 ≥ MAX_EFFECTIVE_BALANCE × random_byte</code> 的验证者成为提议者。</li>
+    </ol>
+    <p>这本质上是一个<strong>加权随机抽样</strong>：每个验证者被选中的概率 ∝ 其有效余额。Pectra（EIP-7251）前有效余额上限为 32 ETH，超过部分不增加权重；Pectra 后上限提高至 2048 ETH，大额质押者的提议概率相应增加。在 32 ETH 基准下，所有验证者近似均匀随机。</p>
+
+    <div class="highlight">
+      <strong>关键性质：</strong>提议者身份在 slot 开始前就已确定（所有节点独立计算出相同结果）。这意味着攻击者可以提前知道下一个提议者是谁，从而实施针对提议者的 DoS 攻击或审查。以太坊社区正在研究<strong>秘密领导者选举（Secret Leader Election, SLE）</strong>方案（如 Whisk）来解决这个问题，但目前尚未部署。
+    </div>
+
+    <h4>4.2.2 提议者的职责</h4>
+    <ul>
+      <li>从执行层获取交易池中的交易，构建执行区块。</li>
+      <li>从共识层获取 attestation 投票、罚没证明、退出等，构建信标区块。</li>
+      <li>在区块中包含 <code>randao_reveal</code>（更新随机种子）。</li>
+      <li>用自己的私钥签名区块，在 slot 开始后尽快广播（建议在 4 秒内，给 attestor 留时间）。</li>
+      <li>获得区块提议奖励 + 交易费（小费）+ MEV（若使用 MEV-Boost 则归构建者）。</li>
+    </ul>
+
+    <h4>4.2.3 错过提议（Missed Block）</h4>
+    <p>如果提议者离线或未在 slot 内发布区块，该 slot 成为<strong>空 slot（missed slot / skip slot）</strong>：</p>
+    <ul>
+      <li>没有区块产生，但时间仍推进到下一个 slot。</li>
+      <li>该 slot 的委员会仍对链头（上一个区块）进行 attestation。</li>
+      <li>提议者失去区块奖励，但不会被 slash（离线不罚没，只是不奖励）。</li>
+      <li>空 slot 会轻微延迟最终性。</li>
+    </ul>
+
+    <h3>4.3 第三步：怎么验证（Attestation 与投票）</h3>
+
+    <h4>4.3.1 Attestation 的结构</h4>
+    <p>委员会中除提议者外的所有验证者都是 <strong>attestor</strong>，他们在收到区块后发布 attestation（投票）。一个 attestation 包含两票：</p>
+
+    <div class="two-col">
+      <div class="card">
+        <h4 style="color: #1e40af;">① LMD-GHOST 投票（链头投票）</h4>
+        <p style="font-size: 14px;"><code>beacon_block_root</code>：验证者认为当前链头应该是哪个区块。</p>
+        <p style="font-size: 14px;">用于<strong>分叉选择</strong>：当有多个候选链时，选择 attestation 权重（质押量）最大的那条。</p>
+        <p style="font-size: 14px;">每个 slot 都投，决定哪个区块成为规范链头。</p>
+      </div>
+      <div class="card">
+        <h4 style="color: #065f46;">② Casper FFG 投票（检查点投票）</h4>
+        <p style="font-size: 14px;"><code>source</code> + <code>target</code>：验证者对 epoch 检查点的投票。</p>
+        <p style="font-size: 14px;"><code>source</code> = 当前已 justified 的检查点；<code>target</code> = 当前 epoch 的第一个区块。</p>
+        <p style="font-size: 14px;">用于<strong>最终性</strong>：2/3 多数投票使检查点 justified，连续两个 justified 产生 finalized。</p>
+      </div>
+    </div>
+
+    <h4>4.3.2 投票与聚合流程</h4>
+    <div class="flow-step"><div class="flow-num">1</div><div class="flow-text"><strong>接收区块：</strong>attestor 在 slot 内收到提议者的区块，验证其合法性（交易有效、签名正确、状态转换正确）。</div></div>
+    <div class="flow-step"><div class="flow-num">2</div><div class="flow-text"><strong>独立投票：</strong>每个 attestor 用自己的私钥对 <code>(slot, index, beacon_block_root, source, target)</code> 做 BLS 签名，生成 attestation。</div></div>
+    <div class="flow-step"><div class="flow-num">3</div><div class="flow-text"><strong>聚合（Aggregation）：</strong>每个子委员会中伪随机选出若干个<strong>聚合者（aggregator）</strong>（通过 aggregation_proof 竞争），收集同委员会内相同投票的 attestation，将 BLS 签名聚合成一个签名。</div></div>
+    <div class="flow-step"><div class="flow-num">4</div><div class="flow-text"><strong>广播聚合证明：</strong>聚合者广播 <code>AggregateAndProof</code>，包含聚合签名和参与验证者的位图（bitfield）。</div></div>
+    <div class="flow-step"><div class="flow-num">5</div><div class="flow-text"><strong>打包进区块：</strong>下一个 slot 的提议者将这些聚合 attestation 打包进新区块的 <code>body.attestations</code> 中。</div></div>
+
+    <div class="highlight">
+      <strong>BLS 签名聚合的意义：</strong>如果每个验证者都单独广播签名，网络带宽和区块大小会爆炸。BLS 签名支持聚合：N 个签名可以合并成 1 个（96 字节），验证时只需一次配对运算。配合 bitfield 标记参与者，大幅降低开销。
+    </div>
+
+    <h4>4.3.3 一个 Slot 内的时间线</h4>
+    <div class="figure">
+      <svg viewBox="0 0 880 260" xmlns="http://www.w3.org/2000/svg" font-family="sans-serif">
+        <rect width="880" height="260" fill="#fff" rx="8"/>
+        <text x="440" y="28" text-anchor="middle" font-size="15" font-weight="700" fill="#1a1b1e">一个 Slot（12 秒）内的共识时间线</text>
+
+        <!-- 时间轴 -->
+        <line x1="60" y1="130" x2="820" y2="130" stroke="#9ca3af" stroke-width="2"/>
+        <circle cx="60" cy="130" r="5" fill="#3b82f6"/>
+        <circle cx="250" cy="130" r="5" fill="#f59e0b"/>
+        <circle cx="440" cy="130" r="5" fill="#10b981"/>
+        <circle cx="630" cy="130" r="5" fill="#8b5cf6"/>
+        <circle cx="820" cy="130" r="5" fill="#ef4444"/>
+
+        <text x="60" y="155" text-anchor="middle" font-size="11" fill="#374151">0s</text>
+        <text x="250" y="155" text-anchor="middle" font-size="11" fill="#374151">~4s</text>
+        <text x="440" y="155" text-anchor="middle" font-size="11" fill="#374151">~8s</text>
+        <text x="630" y="155" text-anchor="middle" font-size="11" fill="#374151">~10s</text>
+        <text x="820" y="155" text-anchor="middle" font-size="11" fill="#374151">12s</text>
+
+        <!-- 阶段标注 -->
+        <g>
+          <rect x="80" y="60" width="150" height="50" rx="6" fill="#dbeafe" stroke="#3b82f6" stroke-width="1"/>
+          <text x="155" y="82" text-anchor="middle" font-size="12" font-weight="600" fill="#1e40af">提议者构建区块</text>
+          <text x="155" y="100" text-anchor="middle" font-size="10" fill="#1e40af">打包交易+attestation</text>
+        </g>
+        <line x1="155" y1="110" x2="155" y2="125" stroke="#3b82f6" stroke-width="1" stroke-dasharray="3"/>
+
+        <g>
+          <rect x="270" y="60" width="150" height="50" rx="6" fill="#fef3c7" stroke="#f59e0b" stroke-width="1"/>
+          <text x="345" y="82" text-anchor="middle" font-size="12" font-weight="600" fill="#92400e">广播区块</text>
+          <text x="345" y="100" text-anchor="middle" font-size="10" fill="#92400e">提议者签名后发布</text>
+        </g>
+        <line x1="345" y1="110" x2="345" y2="125" stroke="#f59e0b" stroke-width="1" stroke-dasharray="3"/>
+
+        <g>
+          <rect x="460" y="60" width="150" height="50" rx="6" fill="#d1fae5" stroke="#10b981" stroke-width="1"/>
+          <text x="535" y="82" text-anchor="middle" font-size="12" font-weight="600" fill="#065f46">Attestor 验证+投票</text>
+          <text x="535" y="100" text-anchor="middle" font-size="10" fill="#065f46">BLS 签名 attestation</text>
+        </g>
+        <line x1="535" y1="110" x2="535" y2="125" stroke="#10b981" stroke-width="1" stroke-dasharray="3"/>
+
+        <g>
+          <rect x="650" y="60" width="150" height="50" rx="6" fill="#ede9fe" stroke="#8b5cf6" stroke-width="1"/>
+          <text x="725" y="82" text-anchor="middle" font-size="12" font-weight="600" fill="#5b21b6">聚合者聚合签名</text>
+          <text x="725" y="100" text-anchor="middle" font-size="10" fill="#5b21b6">广播 AggregateAndProof</text>
+        </g>
+        <line x1="725" y1="110" x2="725" y2="125" stroke="#8b5cf6" stroke-width="1" stroke-dasharray="3"/>
+
+        <!-- 下一 slot -->
+        <text x="440" y="200" text-anchor="middle" font-size="13" font-weight="600" fill="#374151">↓ 聚合 attestation 被下一个 Slot 的提议者打包进区块</text>
+        <text x="440" y="222" text-anchor="middle" font-size="12" fill="#6b7280">LMD-GHOST 根据投票权重选链头 ｜ Casper FFG 累计 2/3 投票推进最终性</text>
+        <text x="440" y="242" text-anchor="middle" font-size="12" fill="#ef4444">12 秒结束 → 进入下一个 Slot，提议者轮换</text>
+      </svg>
+      <div class="figure-caption">图 5：一个 slot 内的时间线。提议者在前几秒发布区块，attestor 验证并投票，聚合者在 slot 后半段聚合签名。</div>
+    </div>
+
+    <h3>4.4 第四步：下一轮如何轮换</h3>
+
+    <h4>4.4.1 Slot 级轮换</h4>
+    <p>每个 slot 结束后，时间自动推进到下一个 slot：</p>
+    <ul>
+      <li><strong>提议者轮换：</strong>下一个 slot 的提议者由 RANDAO 种子预先确定，与上一个完全不同。</li>
+      <li><strong>委员会轮换：</strong>下一个 slot 使用该 slot 对应的委员会（在 epoch 开始时已分配好）。</li>
+      <li><strong>投票打包：</strong>上一个 slot 的聚合 attestation 被当前 slot 的提议者打包进新区块。</li>
+      <li><strong>分叉选择更新：</strong>每个节点在收到新 attestation 后重新运行 LMD-GHOST，更新链头视图。</li>
+    </ul>
+
+    <h4>4.4.2 Epoch 级轮换</h4>
+    <p>每 32 个 slot（6.4 分钟）进入新 epoch，发生以下事件：</p>
+    <ol>
+      <li><strong>委员会重新分配：</strong>使用上一个 epoch 累积的 RANDAO 种子，重新洗牌所有验证者，分配到新 epoch 的 32 个 slot 中。验证者在新 epoch 中可能被分配到完全不同的 slot 和子委员会。</li>
+      <li><strong>最终性检查：</strong>检查上一个 epoch 的 target checkpoint 是否获得 ≥2/3 质押权重的投票。若是，则该 checkpoint 被 <strong>justified</strong>；若前一个 epoch 的 checkpoint 已 justified，则它变为 <strong>finalized</strong>。</li>
+      <li><strong>奖励与惩罚结算：</strong>根据验证者在上一个 epoch 的表现（是否及时 attest、是否被选中提议、是否在线）发放奖励或扣除惩罚。</li>
+      <li><strong>验证者集更新：</strong>处理新的存款激活、自愿退出、罚没退出等。</li>
+      <li><strong>同步委员会轮换：</strong>每 256 个 epoch（约 27.3 小时）轮换一次同步委员会（sync committee，512 个验证者，用于轻客户端）。</li>
+    </ol>
+
+    <h4>4.4.3 最终性（Finality）详解</h4>
+    <p>Casper FFG 是以太坊 PoS 的最终性工具。它在 epoch 边界运行：</p>
+    <div class="figure">
+      <svg viewBox="0 0 880 280" xmlns="http://www.w3.org/2000/svg" font-family="sans-serif">
+        <rect width="880" height="280" fill="#fff" rx="8"/>
+        <text x="440" y="28" text-anchor="middle" font-size="15" font-weight="700" fill="#1a1b1e">Casper FFG 最终性推进（Justified → Finalized）</text>
+
+        <!-- 时间轴 -->
+        <line x1="60" y1="140" x2="820" y2="140" stroke="#9ca3af" stroke-width="2"/>
+
+        <!-- Checkpoint 节点 -->
+        <g>
+          <circle cx="120" cy="140" r="14" fill="#9ca3af"/>
+          <text x="120" y="145" text-anchor="middle" font-size="11" fill="#fff" font-weight="700">C0</text>
+          <text x="120" y="175" text-anchor="middle" font-size="11" fill="#374151">Epoch N-2</text>
+          <text x="120" y="192" text-anchor="middle" font-size="10" fill="#065f46" font-weight="600">Finalized</text>
+        </g>
+        <g>
+          <circle cx="290" cy="140" r="14" fill="#10b981"/>
+          <text x="290" y="145" text-anchor="middle" font-size="11" fill="#fff" font-weight="700">C1</text>
+          <text x="290" y="175" text-anchor="middle" font-size="11" fill="#374151">Epoch N-1</text>
+          <text x="290" y="192" text-anchor="middle" font-size="10" fill="#065f46" font-weight="600">Justified</text>
+        </g>
+        <g>
+          <circle cx="460" cy="140" r="14" fill="#f59e0b"/>
+          <text x="460" y="145" text-anchor="middle" font-size="11" fill="#fff" font-weight="700">C2</text>
+          <text x="460" y="175" text-anchor="middle" font-size="11" fill="#374151">Epoch N（当前）</text>
+          <text x="460" y="192" text-anchor="middle" font-size="10" fill="#92400e" font-weight="600">投票中...</text>
+        </g>
+        <g>
+          <circle cx="630" cy="140" r="14" fill="#e5e7eb" stroke="#9ca3af" stroke-width="1.5"/>
+          <text x="630" y="145" text-anchor="middle" font-size="11" fill="#6b7280" font-weight="700">C3</text>
+          <text x="630" y="175" text-anchor="middle" font-size="11" fill="#374151">Epoch N+1</text>
+          <text x="630" y="192" text-anchor="middle" font-size="10" fill="#6b7280">待定</text>
+        </g>
+        <g>
+          <circle cx="800" cy="140" r="14" fill="#e5e7eb" stroke="#9ca3af" stroke-width="1.5"/>
+          <text x="800" y="145" text-anchor="middle" font-size="11" fill="#6b7280" font-weight="700">C4</text>
+          <text x="800" y="175" text-anchor="middle" font-size="11" fill="#374151">Epoch N+2</text>
+          <text x="800" y="192" text-anchor="middle" font-size="10" fill="#6b7280">待定</text>
+        </g>
+
+        <!-- 投票箭头 -->
+        <path d="M 305 130 Q 375 90 445 130" fill="none" stroke="#f59e0b" stroke-width="1.5" marker-end="url(#a4)"/>
+        <text x="375" y="82" text-anchor="middle" font-size="10" fill="#92400e">2/3 投票 → C2 justified</text>
+
+        <path d="M 135 130 Q 205 90 275 130" fill="none" stroke="#10b981" stroke-width="1.5" marker-end="url(#a4)"/>
+        <text x="205" y="82" text-anchor="middle" font-size="10" fill="#065f46">C1 justified 后</text>
+
+        <!-- finalized 标注 -->
+        <rect x="60" y="215" width="760" height="48" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1"/>
+        <text x="440" y="235" text-anchor="middle" font-size="12" font-weight="600" fill="#065f46">当 C2 获得 ≥2/3 质押权重投票 → C2 justified</text>
+        <text x="440" y="253" text-anchor="middle" font-size="12" fill="#065f46">此时 C1（已 justified）+ C2（刚 justified）连续两个 justified → C1 变为 finalized（不可回滚）</text>
+
+        <defs>
+          <marker id="a4" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#6b7280"/>
+          </marker>
+        </defs>
+      </svg>
+      <div class="figure-caption">图 6：Casper FFG 最终性。连续两个 epoch 的 checkpoint 被 justified 后，前一个被 finalized。最终性约需 2 个 epoch（12.8 分钟）。</div>
+    </div>
+
+    <div class="highlight">
+      <strong>最终性的经济意义：</strong>一个被 finalized 的区块在协议层面<strong>不可回滚</strong>。要回滚 finalized 区块，攻击者必须销毁至少 1/3 的总质押 ETH（数十亿美元）。这就是"经济最终性"——不是绝对不可能，而是代价大到不理性。
+    </div>
+
+    <h3>4.5 罚没（Slashing）机制</h3>
+    <p>罚没是 PoS 安全的基石。以下三种行为会触发罚没：</p>
+    <table>
+      <tr><th>违规类型</th><th>行为描述</th><th>检测方式</th></tr>
+      <tr><td><strong>双重提议</strong><br>Proposer Equivocation</td><td>同一 slot 内提议者发布两个不同的冲突区块</td><td>两个相同 slot、相同提议者、不同根的已签名区块</td></tr>
+      <tr><td><strong>双重投票</strong><br>Double Vote</td><td>同一 epoch 内对两个不同的 target checkpoint 投票</td><td>两个相同 source epoch、不同 target 的 attestation</td></tr>
+      <tr><td><strong>环绕投票</strong><br>Surround Vote</td><td>新投票完全包围了旧投票（source 更旧、target 更新）</td><td>attestation A 的 source &lt; B 的 source 且 A 的 target &gt; B 的 target</td></tr>
+    </table>
+    <p>惩罚构成：</p>
+    <ul>
+      <li><strong>基础罚没：</strong>立即销毁部分质押金（Altair 后基础罚没约为有效余额的 1/2048，对 32 ETH 验证者约 0.016 ETH）。</li>
+      <li><strong>相关性惩罚：</strong>被罚后 8192 epoch（约 36 天）结算，若同期大量验证者被罚则惩罚成倍增加。公式为 <code>有效余额 × (同期被罚质押量 / 总质押量) × 3</code>，最坏情况（约 1/3 验证者同时被罚）可销毁几乎全部质押金。这鼓励验证者分散风险（不同客户端、不同机房）。</li>
+      <li><strong>强制退出：</strong>被罚验证者被移出活跃集，进入退出队列。</li>
+      <li><strong>举报者奖励：</strong>提交罚没证明的验证者获得部分奖励（whistleblower reward）。</li>
+    </ul>
+  </section>
+
+  <!-- 5. Compare -->
+  <section id="compare">
+    <h2>5. PoW 与 PoS 全面对比</h2>
+
+    <h3>5.1 多维度对比表</h3>
+    <table>
+      <tr>
+        <th style="width:22%;">维度</th>
+        <th style="width:39%;" class="pow-col">PoW（合并前）</th>
+        <th style="width:39%;" class="pos-col">PoS（合并后）</th>
+      </tr>
+      <tr>
+        <td><strong>出块权来源</strong></td>
+        <td class="pow-col">算力（哈希率）竞争</td>
+        <td class="pos-col">质押 32 ETH，伪随机选举</td>
+      </tr>
+      <tr>
+        <td><strong>出块时间</strong></td>
+        <td class="pow-col">约 13 秒（概率分布，波动大）</td>
+        <td class="pos-col">12 秒 / slot（固定，可能空块）</td>
+      </tr>
+      <tr>
+        <td><strong>最终性</strong></td>
+        <td class="pow-col">无最终性，靠确认数概率保证（通常 12-20 确认）</td>
+        <td class="pos-col">经济最终性，约 12.8 分钟（2 epoch）finalized</td>
+      </tr>
+      <tr>
+        <td><strong>分叉选择</strong></td>
+        <td class="pow-col">最重链（累计难度最大），GHOST 思想</td>
+        <td class="pos-col">LMD-GHOST（最新消息驱动的最重子树）</td>
+      </tr>
+      <tr>
+        <td><strong>能耗</strong></td>
+        <td class="pow-col">极高（合并前年耗电约 73 TWh，等同中等国家）</td>
+        <td class="pos-col">极低（降低约 99.95%，普通服务器即可）</td>
+      </tr>
+      <tr>
+        <td><strong>硬件门槛</strong></td>
+        <td class="pow-col">GPU/ASIC 矿机 + 大显存 + 电力</td>
+        <td class="pos-col">普通服务器/树莓派均可，需稳定在线</td>
+      </tr>
+      <tr>
+        <td><strong>参与门槛</strong></td>
+        <td class="pow-col">无需许可，买矿机即可（但资本密集）</td>
+        <td class="pos-col">需 32 ETH（或通过质押池间接参与）</td>
+      </tr>
+      <tr>
+        <td><strong>恶意行为成本</strong></td>
+        <td class="pow-col">51% 攻击需控制半数算力（持续电力成本）</td>
+        <td class="pos-col">需控制 1/3 质押 ETH，且会被罚没销毁</td>
+      </tr>
+      <tr>
+        <td><strong>区块奖励</strong></td>
+        <td class="pow-col">2 ETH/区块 + 叔块奖励 + 交易费</td>
+        <td class="pos-col">提议奖励 + attestation 奖励（年化约 3-5%）+ 交易费</td>
+      </tr>
+      <tr>
+        <td><strong>通胀率</strong></td>
+        <td class="pow-col">约 4%（合并前）</td>
+        <td class="pos-col">约 0.5-1%（EIP-1559 燃烧后常为通缩）</td>
+      </tr>
+      <tr>
+        <td><strong>抗审查性</strong></td>
+        <td class="pow-col">强（出块者匿名，随时切换）</td>
+        <td class="pos-col">较弱（提议者身份提前公开，可被针对）</td>
+      </tr>
+      <tr>
+        <td><strong>无利害关系</strong></td>
+        <td class="pow-col">不存在（挖矿需真实成本）</td>
+        <td class="pos-col">存在，靠 slashing 和 LMD-GHOST 缓解</td>
+      </tr>
+      <tr>
+        <td><strong>远程攻击</strong></td>
+        <td class="pow-col">不可能（需重放算力）</td>
+        <td class="pos-col">理论存在，靠弱主观性（weak subjectivity）和检查点同步缓解</td>
+      </tr>
+    </table>
+
+    <h3>5.2 对比雷达图</h3>
+    <div class="chart-container">
+      <div id="radar-chart" class="chart-box"></div>
+      <div class="figure-caption">图 7：PoW 与 PoS 多维度对比雷达图（数值为相对评分，1-10 分，基于协议特性定性评估）。</div>
+    </div>
+
+    <h3>5.3 能源消耗对比</h3>
+    <div class="chart-container">
+      <div id="energy-chart" class="chart-box"></div>
+      <div class="figure-caption">图 8：合并前后以太坊年化能耗对比（数据来源：ethereum.org 及剑桥替代金融中心，合并后为估算值）。</div>
+    </div>
+
+    <h3>5.4 安全性模型对比</h3>
+    <div class="two-col">
+      <div class="card card-pow">
+        <h4>PoW 安全模型</h4>
+        <ul>
+          <li><strong>外部成本：</strong>攻击需要持续投入电力和硬件，成本在系统外部。</li>
+          <li><strong>51% 攻击：</strong>控制半数算力可双花，但攻击期间仍在烧钱。</li>
+          <li><strong>自愈能力：</strong>攻击结束后网络自动恢复，无需惩罚机制。</li>
+          <li><strong>算力集中：</strong>矿池和 ASIC 厂商可能形成中心化压力。</li>
+        </ul>
+      </div>
+      <div class="card card-pos">
+        <h4>PoS 安全模型</h4>
+        <ul>
+          <li><strong>内部成本：</strong>攻击需要质押 ETH，作恶会被销毁，成本在系统内部。</li>
+          <li><strong>1/3 攻击：</strong>控制 1/3 质押可阻止最终性；控制 2/3 可最终化冲突链，但会被罚没。</li>
+          <li><strong>罚没威慑：</strong>恶意行为直接导致经济损失，且相关性惩罚放大协同攻击成本。</li>
+          <li><strong>质押集中：</strong>质押池（Lido 等）占比较高，存在治理中心化风险。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. Merge -->
+  <section id="merge">
+    <h2>6. 合并（The Merge）与后续影响</h2>
+
+    <h3>6.1 合并事件</h3>
+    <p>2022 年 9 月 15 日，以太坊执行层（原 PoW 链）与共识层（信标链，已于 2020 年 12 月上线）在区块高度 <code>15537393</code>（TTD = 58750000000000000000000）完成合并。PoW 矿工在达到终端总难度（Terminal Total Difficulty, TTD）后停止出块，此后区块完全由 PoS 验证者生产。</p>
+
+    <h3>6.2 合并的关键变化</h3>
+    <ul>
+      <li><strong>发行骤降：</strong>区块奖励从 2 ETH/区块降至 PoS 奖励，年化发行从约 4% 降至约 0.5-1%。</li>
+      <li><strong>能耗骤降：</strong>不再需要矿机，能耗降低约 99.95%。</li>
+      <li><strong>出块时间固定：</strong>从概率性的约 13 秒变为固定 12 秒 slot。</li>
+      <li><strong>最终性引入：</strong>交易在约 12.8 分钟后获得经济最终性。</li>
+      <li><strong>矿工退出：</strong>大量 GPU 矿机转向其他 PoW 币（如 ETC、RVN）或退役。</li>
+    </ul>
+
+    <h3>6.3 后续升级</h3>
+    <table>
+      <tr><th>升级</th><th>时间</th><th>主要内容</th></tr>
+      <tr><td>Shanghai（上海）</td><td>2023.04</td><td>启用质押 ETH 提取（ withdrawals），之前质押的 ETH 首次可取出</td></tr>
+      <tr><td>Cancun-Deneb（坎昆）</td><td>2024.03</td><td>引入 EIP-4844 Proto-Danksharding（Blob 交易），大幅降低 L2 数据费用</td></tr>
+      <tr><td>Pectra（Prague-Electra）</td><td>2025</td><td>EIP-7251（最大有效余额提至 2048 ETH）、EIP-6110（存款上链，激活等待从约 7 小时缩至约 13 分钟）、EIP-7002（执行层触发退出）、EIP-2537（BLS 预编译）等</td></tr>
+    </table>
+  </section>
+
+  <!-- 7. Conclusion -->
+  <section id="conclusion">
+    <h2>7. 总结</h2>
+    <div class="card">
+      <p><strong>PoW 和 PoS 是两种截然不同的安全范式：</strong></p>
+      <ul>
+        <li>PoW 将安全建立在<strong>外部物理世界的能源消耗</strong>上，简单、稳健、抗审查，但代价是巨大的能源浪费和算力集中化。</li>
+        <li>PoS 将安全建立在<strong>内部经济激励和罚没机制</strong>上，节能、高效、有最终性，但引入了质押集中、提议者可被针对、远程攻击等新问题。</li>
+      </ul>
+      <p>以太坊选择 PoS 不是因为 PoW "不安全"，而是因为 PoS 在<strong>可持续性、可扩展性基础（分片/Danksharding）、经济效率</strong>上更符合长期愿景。合并三年多的运行表明，PoS 在最终性、能耗和发行方面达到了预期目标，但质押池中心化、MEV 提取、秘密领导者选举等仍是持续研究和改进的方向。</p>
+    </div>
+
+    <h3>参考来源</h3>
+    <ul style="font-size: 13px; color: var(--text-secondary);">
+      <li>ethereum.org - Proof of Stake / Block Proposal / The Merge 官方文档</li>
+      <li>Ethereum Consensus Specs（phase0 / altair / bellatrix）</li>
+      <li>Vitalik Buterin - Annotated Ethereum 2.0 Spec</li>
+      <li>Cambridge Centre for Alternative Finance - Ethereum Electricity Consumption Index</li>
+      <li>USENIX Security 24/25 - Ethereum PoS 相关学术论文</li>
+    </ul>
+  </section>
+
+  <div class="footer">
+    以太坊 PoW 与 PoS 运行机制对比报告 ｜ 生成于 2026-09-02 ｜ 仅供技术学习参考
+  </div>
+
+</div>
+
+<!-- ECharts -->
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<script>
+(function() {
+  try {
+    // 雷达图
+    var radarEl = document.getElementById('radar-chart');
+    if (radarEl && typeof echarts !== 'undefined') {
+      var radar = echarts.init(radarEl);
+      radar.setOption({
+        backgroundColor: 'transparent',
+        tooltip: { trigger: 'item' },
+        legend: {
+          data: ['PoW', 'PoS'],
+          bottom: 0,
+          textStyle: { fontSize: 12 }
+        },
+        radar: {
+          indicator: [
+            { name: '能效', max: 10 },
+            { name: '最终性', max: 10 },
+            { name: '抗审查', max: 10 },
+            { name: '去中心化', max: 10 },
+            { name: '安全性', max: 10 },
+            { name: '可扩展性基础', max: 10 },
+            { name: '参与门槛(低=好)', max: 10 }
+          ],
+          radius: '62%',
+          axisName: { fontSize: 12, color: '#374151' },
+          splitArea: { areaStyle: { color: ['#fafafa', '#f3f4f6'] } }
+        },
+        series: [{
+          type: 'radar',
+          data: [
+            {
+              value: [1, 2, 9, 6, 8, 3, 5],
+              name: 'PoW',
+              itemStyle: { color: '#f59e0b' },
+              areaStyle: { color: 'rgba(245,158,11,0.2)' },
+              lineStyle: { color: '#f59e0b', width: 2 }
+            },
+            {
+              value: [10, 9, 6, 7, 9, 8, 4],
+              name: 'PoS',
+              itemStyle: { color: '#10b981' },
+              areaStyle: { color: 'rgba(16,185,129,0.2)' },
+              lineStyle: { color: '#10b981', width: 2 }
+            }
+          ]
+        }]
+      });
+      window.addEventListener('resize', function() { radar.resize(); });
+    }
+
+    // 能耗柱状图
+    var energyEl = document.getElementById('energy-chart');
+    if (energyEl && typeof echarts !== 'undefined') {
+      var energy = echarts.init(energyEl);
+      energy.setOption({
+        backgroundColor: 'transparent',
+        tooltip: {
+          trigger: 'axis',
+          formatter: function(params) {
+            return params[0].name + '<br/>' + params[0].marker + '年化能耗：' + params[0].value + ' TWh';
+          }
+        },
+        grid: { left: 60, right: 30, top: 30, bottom: 40 },
+        xAxis: {
+          type: 'category',
+          data: ['PoW（合并前）', 'PoS（合并后）'],
+          axisLabel: { fontSize: 13, color: '#374151' }
+        },
+        yAxis: {
+          type: 'value',
+          name: '年化能耗（TWh）',
+          nameTextStyle: { fontSize: 11 },
+          axisLabel: { fontSize: 11 }
+        },
+        series: [{
+          type: 'bar',
+          barWidth: '40%',
+          data: [
+            { value: 73, itemStyle: { color: '#f59e0b', borderRadius: [6,6,0,0] } },
+            { value: 0.04, itemStyle: { color: '#10b981', borderRadius: [6,6,0,0] } }
+          ],
+          label: {
+            show: true,
+            position: 'top',
+            fontSize: 13,
+            fontWeight: 600,
+            formatter: function(p) { return p.value + ' TWh'; }
+          }
+        }]
+      });
+      window.addEventListener('resize', function() { energy.resize(); });
+    }
+  } catch (e) {
+    console.error('Chart init failed:', e);
+  }
+})();
+</script>
+</body>
+</html>
