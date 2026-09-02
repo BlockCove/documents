@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智能合约链下数据完整性验证报告</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: #fafafa; color: #1a1a1a; line-height: 1.7; font-size: 15px;
+  }
+  .container { max-width: 860px; margin: 0 auto; padding: 40px 24px 80px; }
+  header { border-bottom: 2px solid #1a1a1a; padding-bottom: 24px; margin-bottom: 40px; }
+  h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+  .subtitle { color: #666; font-size: 14px; margin-top: 8px; }
+  .meta { color: #999; font-size: 13px; margin-top: 12px; }
+  h2 { font-size: 20px; font-weight: 700; margin: 48px 0 16px; padding-left: 12px; border-left: 4px solid #1a1a1a; }
+  h3 { font-size: 16px; font-weight: 600; margin: 28px 0 10px; }
+  p { margin-bottom: 14px; }
+  ul, ol { margin: 10px 0 16px 24px; }
+  li { margin-bottom: 6px; }
+  code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-family: "SF Mono", "Fira Code", Consolas, monospace; font-size: 13px; }
+  pre { background: #1e1e1e; color: #d4d4d4; padding: 18px 20px; border-radius: 6px; overflow-x: auto; margin: 14px 0 20px; font-size: 13px; line-height: 1.6; }
+  pre code { background: none; padding: 0; color: inherit; }
+  .kw { color: #569cd6; } .str { color: #ce9178; } .cm { color: #6a9955; }
+  .fn { color: #dcdcaa; } .type { color: #4ec9b0; } .num { color: #b5cea8; }
+  .callout { background: #fff8e1; border-left: 4px solid #f9a825; padding: 14px 18px; border-radius: 0 4px 4px 0; margin: 16px 0; }
+  .callout-title { font-weight: 600; margin-bottom: 4px; color: #e65100; }
+  .callout.info { background: #e3f2fd; border-left-color: #1976d2; }
+  .callout.info .callout-title { color: #0d47a1; }
+  .callout.danger { background: #ffebee; border-left-color: #c62828; }
+  .callout.danger .callout-title { color: #b71c1c; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: 14px; }
+  th, td { border: 1px solid #ddd; padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #f5f5f5; font-weight: 600; }
+  tr:nth-child(even) { background: #fafafa; }
+  .svg-box { background: #fff; border: 1px solid #e0e0e0; border-radius: 6px; padding: 20px; margin: 20px 0 28px; overflow-x: auto; }
+  .svg-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #333; }
+  .svg-caption { font-size: 12px; color: #888; margin-top: 8px; text-align: center; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 12px; font-weight: 500; margin-right: 4px; }
+  .tag-green { background: #e8f5e9; color: #2e7d32; }
+  .tag-red { background: #ffebee; color: #c62828; }
+  .tag-blue { background: #e3f2fd; color: #1565c0; }
+  .tag-orange { background: #fff3e0; color: #e65100; }
+  .toc { background: #f5f5f5; border-radius: 6px; padding: 20px 24px; margin-bottom: 32px; }
+  .toc-title { font-weight: 600; margin-bottom: 10px; font-size: 15px; }
+  .toc ol { margin-left: 20px; }
+  .toc a { color: #1565c0; text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid #ddd; color: #777; font-size: 13px; }
+  .note { color:#666; font-size:13px; }
+  @media (max-width: 600px) { .container { padding: 24px 16px 60px; } h1 { font-size: 22px; } h2 { font-size: 18px; } pre { font-size: 12px; padding: 14px; } }
+</style>
+</head>
+<body>
+<div class="container">
+<header>
+  <h1>智能合约中链下数据的完整性验证</h1>
+  <div class="subtitle">从内容寻址到链上哈希锚定：如何判断链下数据是否仍是最初版本</div>
+  <div class="meta">技术调研报告 · 2026-09 · 修订版</div>
+</header>
+
+<div class="toc">
+  <div class="toc-title">目录</div>
+  <ol>
+    <li><a href="#problem">问题本质：位置寻址 vs 内容寻址</a></li>
+    <li><a href="#cid">核心机制：CID 到底验证了什么</a></li>
+    <li><a href="#verify">智能合约中的正确验证模式</a></li>
+    <li><a href="#compare">IPFS / Arweave / Filecoin 对比</a></li>
+    <li><a href="#limits">局限性与风险</a></li>
+    <li><a href="#best">最佳实践清单</a></li>
+    <li><a href="#summary">总结</a></li>
+  </ol>
+</div>
+
+<h2 id="problem">1. 问题本质：位置寻址 vs 内容寻址</h2>
+<p>传统 HTTPS URL 主要解决的是“通过某个位置取得资源”。例如 <code>https://example.com/data.json</code> 在 URL 不变的情况下，服务器可以把返回内容替换掉。URL 本身并不承诺响应体的字节内容。</p>
+<p>IPFS 的 CID 则是<strong>内容寻址标识符</strong>：它由内容对应的数据结构的密码学摘要派生而来。IPFS 官方文档明确指出，内容发生变化会产生不同 CID；同一内容只有在使用相同导入/结构化参数时，才会得到相同 CID。<sup>[1]</sup></p>
+
+<div class="svg-box">
+  <div class="svg-title">图 1：位置寻址与内容寻址的核心差异</div>
+  <svg viewBox="0 0 800 340" width="100%" xmlns="http://www.w3.org/2000/svg">
+    <text x="200" y="30" text-anchor="middle" font-size="15" font-weight="700" fill="#c62828">位置寻址（HTTPS）</text>
+    <rect x="60" y="60" width="120" height="50" rx="6" fill="#fff" stroke="#c62828" stroke-width="2"/>
+    <text x="120" y="90" text-anchor="middle" font-size="13" fill="#333">客户端</text>
+    <rect x="40" y="140" width="160" height="36" rx="4" fill="#ffebee" stroke="#c62828"/>
+    <text x="120" y="163" text-anchor="middle" font-size="11" font-family="monospace" fill="#b71c1c">https://server/data.json</text>
+    <line x1="120" y1="110" x2="120" y2="138" stroke="#666" stroke-width="1.5" marker-end="url(#arrow)"/>
+    <rect x="60" y="200" width="120" height="50" rx="6" fill="#fff" stroke="#c62828" stroke-width="2"/>
+    <text x="120" y="230" text-anchor="middle" font-size="13" fill="#333">服务器</text>
+    <line x1="120" y1="176" x2="120" y2="198" stroke="#666" stroke-width="1.5" marker-end="url(#arrow)"/>
+    <rect x="40" y="275" width="160" height="45" rx="4" fill="#fff3e0" stroke="#e65100" stroke-dasharray="4"/>
+    <text x="120" y="295" text-anchor="middle" font-size="11" fill="#e65100">响应内容可被替换</text>
+    <text x="120" y="312" text-anchor="middle" font-size="11" fill="#e65100">URL 本身不会报警</text>
+    <line x1="120" y1="250" x2="120" y2="273" stroke="#e65100" stroke-width="1.5" stroke-dasharray="3"/>
+    <line x1="400" y1="50" x2="400" y2="320" stroke="#ccc" stroke-width="1" stroke-dasharray="6"/>
+    <text x="600" y="30" text-anchor="middle" font-size="15" font-weight="700" fill="#2e7d32">内容寻址（IPFS CID）</text>
+    <rect x="540" y="60" width="120" height="50" rx="6" fill="#fff" stroke="#2e7d32" stroke-width="2"/>
+    <text x="600" y="90" text-anchor="middle" font-size="13" fill="#333">客户端</text>
+    <rect x="460" y="140" width="280" height="36" rx="4" fill="#e8f5e9" stroke="#2e7d32"/>
+    <text x="600" y="163" text-anchor="middle" font-size="10" font-family="monospace" fill="#1b5e20">ipfs://bafy...</text>
+    <line x1="600" y1="110" x2="600" y2="138" stroke="#666" stroke-width="1.5" marker-end="url(#arrow)"/>
+    <rect x="540" y="200" width="120" height="50" rx="6" fill="#fff" stroke="#2e7d32" stroke-width="2"/>
+    <text x="600" y="230" text-anchor="middle" font-size="13" fill="#333">IPFS 网络</text>
+    <line x1="600" y1="176" x2="600" y2="198" stroke="#666" stroke-width="1.5" marker-end="url(#arrow)"/>
+    <rect x="460" y="275" width="280" height="45" rx="4" fill="#e8f5e9" stroke="#2e7d32"/>
+    <text x="600" y="295" text-anchor="middle" font-size="11" fill="#1b5e20">内容/结构发生变化 → CID 通常变化</text>
+    <text x="600" y="312" text-anchor="middle" font-size="11" fill="#1b5e20">客户端可验证 CID 对应的内容结构</text>
+    <line x1="600" y1="250" x2="600" y2="273" stroke="#2e7d32" stroke-width="1.5"/>
+    <defs><marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#666"/></marker></defs>
+  </svg>
+  <div class="svg-caption">关键区别：URL 标识位置；CID 标识特定内容表示（更准确地说，是对其 IPFS 数据结构的内容指纹）。</div>
+</div>
+
+<div class="callout info">
+  <div class="callout-title">必须避免的简化</div>
+  <p style="margin:0">不能把“CID = 原始文件 SHA-256”作为普遍规律。IPFS 文件通常会先经过分块、DAG 组织和 codec 编码；CID 中的 multihash 通常针对 CID 所代表的根 block，而不是简单地对整个原始文件字节做一次 SHA-256。只有特定的单块 <code>raw</code> 情况下，CID 中的摘要才可以直接等同于文件内容的哈希。<sup>[1]</sup></p>
+</div>
+
+<h2 id="cid">2. 核心机制：CID 到底验证了什么</h2>
+<h3>2.1 CIDv1 的结构</h3>
+<p>CIDv1 不是“一个哈希字符串”，而是一个由 multibase、CID version、multicodec 和 multihash 共同构成的自描述标识符。Multicodec 描述目标内容的编码形式，Multihash 记录哈希算法、摘要长度与摘要本身。<sup>[1]</sup></p>
+
+<table>
+<thead><tr><th>组成</th><th>作用</th><th>示例/说明</th></tr></thead>
+<tbody>
+<tr><td>Multibase</td><td>指定 CID 二进制部分采用何种文本编码</td><td>CIDv1 常见前缀 <code>b</code> 表示 base32</td></tr>
+<tr><td>CID Version</td><td>指出 CID 版本</td><td>CIDv1 的版本字段为 <code>1</code></td></tr>
+<tr><td>Multicodec</td><td>指出目标内容/节点的 codec</td><td>例如 <code>raw</code>、<code>dag-pb</code></td></tr>
+<tr><td>Multihash</td><td>记录哈希算法、摘要长度和摘要</td><td>常见为 SHA-256，也支持其他算法</td></tr>
+</tbody>
+</table>
+
+<h3>2.2 为什么“相同文件”不一定天然得到相同 CID</h3>
+<p>IPFS 官方文档特别强调：两个完全相同的文件，也可能因为 <strong>chunking、DAG layout、codec、CID 版本或哈希算法不同</strong>而得到不同 CID。反过来，想在不同工具/环境中稳定复现 CID，就必须固定这些导入参数。<sup>[1]</sup></p>
+
+<h3>2.3 大文件与 Merkle DAG</h3>
+<p>大文件通常会被切分为多个 block，再通过 UnixFS / DAG 结构把这些 block 组织起来。常见 chunk 大小可以是 256 KiB 或 1 MiB，但并不存在一个脱离实现与配置的“IPFS 固定 256 KB 默认值”；chunking 和 layout 都可能影响最终 CID。当前 Kubo 还提供用于跨实现确定性导入的 UnixFS profile，例如 1 MiB chunk 的 <code>unixfs-v1-2025</code>。<sup>[1]</sup> <sup>[2]</sup></p>
+<p>因此，Merkle DAG 的价值不是简单的“每个文件都有一个文件级 SHA-256”，而是把多个内容 block 通过 CID 链接起来，最终由根节点的内容标识代表整个数据结构。</p>
+
+<div class="svg-box">
+  <div class="svg-title">图 2：文件的 DAG 结构与完整性验证</div>
+  <svg viewBox="0 0 800 300" width="100%" xmlns="http://www.w3.org/2000/svg">
+    <rect x="320" y="18" width="160" height="44" rx="6" fill="#1a1a1a"/>
+    <text x="400" y="38" text-anchor="middle" font-size="12" font-weight="600" fill="#fff">Root Block</text>
+    <text x="400" y="54" text-anchor="middle" font-size="10" font-family="monospace" fill="#aaa">Root CID</text>
+    <rect x="130" y="110" width="150" height="48" rx="5" fill="#424242"/>
+    <text x="205" y="132" text-anchor="middle" font-size="11" fill="#fff">UnixFS / DAG 节点 A</text>
+    <text x="205" y="148" text-anchor="middle" font-size="9" fill="#ccc">links → children</text>
+    <rect x="335" y="110" width="130" height="48" rx="5" fill="#424242"/>
+    <text x="400" y="132" text-anchor="middle" font-size="11" fill="#fff">数据 Block 2</text>
+    <text x="400" y="148" text-anchor="middle" font-size="9" fill="#ccc">CID / multihash</text>
+    <rect x="520" y="110" width="150" height="48" rx="5" fill="#424242"/>
+    <text x="595" y="132" text-anchor="middle" font-size="11" fill="#fff">UnixFS / DAG 节点 B</text>
+    <text x="595" y="148" text-anchor="middle" font-size="9" fill="#ccc">links → children</text>
+    <rect x="90" y="215" width="120" height="42" rx="4" fill="#e8f5e9" stroke="#2e7d32"/>
+    <text x="150" y="235" text-anchor="middle" font-size="10" fill="#1b5e20">Block 1 ✓</text>
+    <text x="150" y="249" text-anchor="middle" font-size="9" fill="#666">CID 匹配</text>
+    <rect x="250" y="215" width="120" height="42" rx="4" fill="#ffebee" stroke="#c62828" stroke-width="2"/>
+    <text x="310" y="235" text-anchor="middle" font-size="10" fill="#b71c1c">Block X ✗</text>
+    <text x="310" y="249" text-anchor="middle" font-size="9" fill="#b71c1c">摘要不匹配</text>
+    <rect x="410" y="215" width="120" height="42" rx="4" fill="#e8f5e9" stroke="#2e7d32"/>
+    <text x="470" y="235" text-anchor="middle" font-size="10" fill="#1b5e20">Block 3 ✓</text>
+    <text x="470" y="249" text-anchor="middle" font-size="9" fill="#666">CID 匹配</text>
+    <rect x="570" y="215" width="120" height="42" rx="4" fill="#e8f5e9" stroke="#2e7d32"/>
+    <text x="630" y="235" text-anchor="middle" font-size="10" fill="#1b5e20">Block 4 ✓</text>
+    <text x="630" y="249" text-anchor="middle" font-size="9" fill="#666">CID 匹配</text>
+    <line x1="365" y1="62" x2="205" y2="108" stroke="#666"/>
+    <line x1="400" y1="62" x2="400" y2="108" stroke="#666"/>
+    <line x1="435" y1="62" x2="595" y2="108" stroke="#666"/>
+    <line x1="205" y1="158" x2="150" y2="213" stroke="#666"/>
+    <line x1="245" y1="158" x2="310" y2="213" stroke="#c62828"/>
+    <line x1="555" y1="158" x2="470" y2="213" stroke="#666"/>
+    <line x1="635" y1="158" x2="630" y2="213" stroke="#666"/>
+  </svg>
+  <div class="svg-caption">篡改任一被引用 block，会破坏该 block 的内容标识并沿 DAG 影响上层内容标识。</div>
+</div>
+
+<h2 id="verify">3. 智能合约中的正确验证模式</h2>
+<h3>3.1 最重要的架构边界：智能合约不能直接读取 IPFS</h3>
+<div class="callout danger">
+  <div class="callout-title">原稿中的关键错误已修正</div>
+  <p style="margin:0">EVM 合约执行时并没有“从 IPFS 下载文件”的能力。合约不能像浏览器一样调用 <code>https://ipfs.io/ipfs/...</code> 或直接读取 IPFS 网络。正确模式是：<strong>客户端/后端先从 IPFS 取回数据并完成解析、重构或哈希计算，再把证明材料提交给合约验证</strong>。</p>
+</div>
+
+<div class="svg-box">
+  <div class="svg-title">图 3：正确的链下数据完整性验证流程</div>
+  <svg viewBox="0 0 800 420" width="100%" xmlns="http://www.w3.org/2000/svg">
+    <rect x="35" y="60" width="130" height="52" rx="6" fill="#e3f2fd" stroke="#1565c0"/>
+    <text x="100" y="82" text-anchor="middle" font-size="12" font-weight="600" fill="#0d47a1">原始数据</text>
+    <text x="100" y="99" text-anchor="middle" font-size="10" fill="#555">JSON / 图片 / 文档</text>
+    <rect x="215" y="60" width="150" height="52" rx="6" fill="#fff3e0" stroke="#e65100"/>
+    <text x="290" y="82" text-anchor="middle" font-size="12" font-weight="600" fill="#e65100">IPFS 导入</text>
+    <text x="290" y="99" text-anchor="middle" font-size="10" fill="#555">chunk + DAG + codec</text>
+    <rect x="410" y="60" width="150" height="52" rx="6" fill="#e8f5e9" stroke="#2e7d32"/>
+    <text x="485" y="82" text-anchor="middle" font-size="12" font-weight="600" fill="#1b5e20">得到 CID</text>
+    <text x="485" y="99" text-anchor="middle" font-size="10" fill="#555">作为内容锚点</text>
+    <rect x="610" y="60" width="150" height="52" rx="6" fill="#1a1a1a"/>
+    <text x="685" y="82" text-anchor="middle" font-size="12" font-weight="600" fill="#fff">智能合约</text>
+    <text x="685" y="99" text-anchor="middle" font-size="10" fill="#aaa">保存 CID / digest</text>
+    <path d="M166 86 L213 86" stroke="#666" stroke-width="1.4" marker-end="url(#arr)"/>
+    <path d="M366 86 L408 86" stroke="#666" stroke-width="1.4" marker-end="url(#arr)"/>
+    <path d="M561 86 L608 86" stroke="#666" stroke-width="1.4" marker-end="url(#arr)"/>
+    <line x1="20" y1="150" x2="780" y2="150" stroke="#ddd" stroke-dasharray="5"/>
+    <rect x="35" y="190" width="150" height="52" rx="6" fill="#fff3e0" stroke="#e65100"/>
+    <text x="110" y="212" text-anchor="middle" font-size="12" font-weight="600" fill="#e65100">客户端/后端</text>
+    <text x="110" y="229" text-anchor="middle" font-size="10" fill="#555">通过 IPFS / Gateway 取回</text>
+    <rect x="230" y="190" width="170" height="52" rx="6" fill="#e8f5e9" stroke="#2e7d32"/>
+    <text x="315" y="212" text-anchor="middle" font-size="12" font-weight="600" fill="#1b5e20">重新构建/验证 CID</text>
+    <text x="315" y="229" text-anchor="middle" font-size="10" fill="#555">不能只做“原文件 SHA256”</text>
+    <rect x="445" y="190" width="150" height="52" rx="6" fill="#e3f2fd" stroke="#1565c0"/>
+    <text x="520" y="212" text-anchor="middle" font-size="12" font-weight="600" fill="#0d47a1">生成证明</text>
+    <text x="520" y="229" text-anchor="middle" font-size="10" fill="#555">digest / Merkle proof</text>
+    <rect x="630" y="190" width="130" height="52" rx="6" fill="#1a1a1a"/>
+    <text x="695" y="212" text-anchor="middle" font-size="12" font-weight="600" fill="#fff">合约验证</text>
+    <text x="695" y="229" text-anchor="middle" font-size="10" fill="#aaa">比较链上锚点</text>
+    <path d="M185 216 L228 216" stroke="#666" marker-end="url(#arr)"/>
+    <path d="M400 216 L443 216" stroke="#666" marker-end="url(#arr)"/>
+    <path d="M595 216 L628 216" stroke="#666" marker-end="url(#arr)"/>
+    <rect x="125" y="315" width="220" height="58" rx="6" fill="#e8f5e9" stroke="#2e7d32"/>
+    <text x="235" y="338" text-anchor="middle" font-size="12" font-weight="600" fill="#1b5e20">✓ 验证通过</text>
+    <text x="235" y="356" text-anchor="middle" font-size="10" fill="#333">证明材料与链上锚点一致</text>
+    <rect x="455" y="315" width="220" height="58" rx="6" fill="#ffebee" stroke="#c62828"/>
+    <text x="565" y="338" text-anchor="middle" font-size="12" font-weight="600" fill="#b71c1c">✗ 验证失败</text>
+    <text x="565" y="356" text-anchor="middle" font-size="10" fill="#333">不能证明数据与锚点相符</text>
+    <defs><marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#666"/></marker></defs>
+  </svg>
+  <div class="svg-caption">重点：IPFS 取数发生在链下；链上验证的是客户端提交的可验证摘要或证明，而不是让合约直接“下载 IPFS”。</div>
+</div>
+
+<h3>3.2 Solidity：用链上 Keccak 做简单锚定</h3>
+<p>如果业务场景不要求合约理解 CID 的完整结构，而只是希望锚定一份“规范化后的字节序列”，最简单的做法是直接锚定 <code>keccak256(data)</code>。这样与 IPFS CID 是两条不同但可以并存的完整性链路。</p>
+<pre><code><span class="cm">// SPDX-License-Identifier: MIT</span>
+<span class="kw">pragma solidity</span> ^0.8.20;
+
+<span class="kw">contract</span> <span class="type">DataAnchor</span> {
+    <span class="kw">mapping</span>(<span class="type">bytes32</span> =&gt; <span class="type">bytes32</span>) <span class="kw">public</span> contentHashes;
+
+    <span class="kw">event</span> <span class="type">DataAnchored</span>(
+        <span class="type">bytes32</span> <span class="kw">indexed</span> fileId,
+        <span class="type">bytes32</span> contentHash,
+        <span class="type">address</span> uploader
+    );
+
+    <span class="kw">function</span> <span class="fn">anchor</span>(<span class="type">bytes32</span> fileId, <span class="type">bytes32</span> contentHash) <span class="kw">external</span> {
+        <span class="kw">require</span>(contentHashes[fileId] == <span class="type">bytes32</span>(<span class="num">0</span>), <span class="str">"already anchored"</span>);
+        contentHashes[fileId] = contentHash;
+        <span class="kw">emit</span> <span class="type">DataAnchored</span>(fileId, contentHash, msg.sender);
+    }
+
+    <span class="kw">function</span> <span class="fn">verify</span>(<span class="type">bytes32</span> fileId, <span class="type">bytes32</span> contentHash)
+        <span class="kw">external</span> <span class="kw">view</span> <span class="kw">returns</span> (<span class="type">bool</span>)
+    {
+        <span class="kw">return</span> contentHashes[fileId] == contentHash;
+    }
+
+    <span class="kw">function</span> <span class="fn">verifyRaw</span>(<span class="type">bytes</span> <span class="kw">calldata</span> data, <span class="type">bytes32</span> expected)
+        <span class="kw">external</span> <span class="kw">pure</span> <span class="kw">returns</span> (<span class="type">bool</span>)
+    {
+        <span class="kw">return</span> <span class="fn">keccak256</span>(data) == expected;
+    }
+}</code></pre>
+
+<div class="callout info">
+  <div class="callout-title">关于 SHA-256 与 EVM 的准确说法</div>
+  <p style="margin:0">Solidity 同时提供 <code>keccak256</code> 和 <code>sha256</code> 内建函数；SHA-256 并不是“EVM 不支持、只能靠第三方库”。在 Ethereum 主网等标准 EVM 环境中，<code>sha256</code> 通过预编译合约实现。原稿中的“EIP-198 是 SHA-256 预编译”是错误的：EIP-198 对应的是大整数模幂运算（ModExp）；SHA-256 对应的是预编译地址 <code>0x02</code>。<sup>[3]</sup> <sup>[4]</sup></p>
+</div>
+
+<h3>3.3 IPFS CID 与 Keccak 哈希应该如何配合</h3>
+<p>如果项目既要 IPFS 生态兼容，又要在 EVM 合约里方便验证，可以采用“双锚点”设计：</p>
+<table>
+<thead><tr><th>链上字段</th><th>作用</th><th>注意点</th></tr></thead>
+<tbody>
+<tr><td>CID / CID 编码后的 bytes</td><td>标识 IPFS 数据</td><td>应保留 codec / version / hash algorithm 等信息；不要默认把 CID 等同于文件 SHA-256</td></tr>
+<tr><td>Keccak-256 digest</td><td>便于 EVM 合约直接比较/验证</td><td>必须明确“对什么字节序列计算”——例如规范化 JSON，而不是任意网关响应</td></tr>
+</tbody>
+</table>
+<p class="note">若直接把 CID 字符串作为链上存储内容，成本通常会高于存储固定长度 digest。生产系统常见做法是按业务需求保存完整 CID、CID 的 digest/元数据，或保存更高层的数据承诺，而不是无条件把所有字符串原样写入 storage。</p>
+
+<h3>3.4 Merkle Proof：证明“某条数据属于已锚定集合”</h3>
+<p>当业务不是验证整份文件，而是验证“这条记录属于已经在链上承诺过的数据集”时，Merkle Root 很合适。链上保存 root；用户提交 leaf 与 proof，合约重新计算根并比较。</p>
+<pre><code><span class="kw">function</span> <span class="fn">verifyMerkle</span>(
+    <span class="type">bytes32</span> root,
+    <span class="type">bytes32</span> leaf,
+    <span class="type">bytes32</span>[] <span class="kw">calldata</span> proof,
+    <span class="type">uint256</span> index
+) <span class="kw">external</span> <span class="kw">pure</span> <span class="kw">returns</span> (<span class="type">bool</span>) {
+    <span class="type">bytes32</span> hash = leaf;
+    <span class="kw">for</span> (<span class="type">uint256</span> i = <span class="num">0</span>; i &lt; proof.length; ++i) {
+        <span class="kw">if</span> (index % <span class="num">2</span> == <span class="num">0</span>) {
+            hash = <span class="fn">keccak256</span>(<span class="fn">abi.encodePacked</span>(hash, proof[i]));
+        } <span class="kw">else</span> {
+            hash = <span class="fn">keccak256</span>(<span class="fn">abi.encodePacked</span>(proof[i], hash));
+        }
+        index /= <span class="num">2</span>;
+    }
+    <span class="kw">return</span> hash == root;
+}</code></pre>
+<p class="note">该示例是“位置敏感”的 Merkle 树实现：树的构造规则、叶子编码、奇数节点处理、排序策略都必须与生成 proof 的程序完全一致。生产环境优先使用经过审计的 MerkleProof 实现，避免自定义树规则导致验证不一致。</p>
+
+<h2 id="compare">4. IPFS / Arweave / Filecoin 对比</h2>
+<p>这三者并非单纯的“谁更永久”。它们解决的问题不同：IPFS 主要是内容寻址与点对点分发；Filecoin 把存储作为带期限的市场交易并提供链上存储证明；Arweave 则通过 endowment 机制提供长期存储经济模型。<sup>[1]</sup> <sup>[5]</sup> <sup>[6]</sup></p>
+<table>
+<thead><tr><th>维度</th><th>IPFS</th><th>Arweave</th><th>Filecoin</th></tr></thead>
+<tbody>
+<tr><td><strong>核心定位</strong></td><td>内容寻址、点对点分发</td><td>长期/永久存储经济模型</td><td>可验证去中心化存储市场</td></tr>
+<tr><td><strong>寻址</strong></td><td>CID</td><td>交易/数据寻址体系</td><td>数据 CID + 存储 deal</td></tr>
+<tr><td><strong>持久性</strong></td><td>需要至少一个节点持续保有数据；Pin 可防本地 GC</td><td>基于 endowment 的长期存储模型</td><td>依赖具体 storage deal 的期限，并可续约</td></tr>
+<tr><td><strong>完整性</strong></td><td>内容寻址与 DAG/CID 验证</td><td>数据提交后与链上历史绑定</td><td>PoRep / PoSt 等存储证明</td></tr>
+<tr><td><strong>典型使用场景</strong></td><td>NFT 元数据、内容分发、可验证静态资源</td><td>长期归档、不可变数据</td><td>大数据集、长期但有明确 deal 生命周期的存储</td></tr>
+</tbody>
+</table>
+
+<div class="callout">
+  <div class="callout-title">不要把经济承诺写成绝对物理保证</div>
+  <p style="margin:0">原稿把 Arweave 写成“高（经济激励保证 200+ 年）”、Filecoin 写成“合约期内有保证”。更严谨的表达是：Arweave 的协议经济模型以 endowment 支撑长期存储，并以当前价格模型描述“200 年存储购买力”的设计假设；它不是数学意义上的永久可用承诺。Filecoin 则通过 storage deal + proof-of-storage 约束 provider 在约定期限内持续提供存储证明。<sup>[6]</sup> <sup>[9]</sup></p>
+</div>
+
+<h2 id="limits">5. 局限性与风险</h2>
+<h3>5.1 完整性 ≠ 可用性</h3>
+<p>CID 能帮助验证“拿到的数据是否符合该 CID”，但不负责保证你一定能拿到数据。IPFS 节点有垃圾回收机制，pin 可以使数据免于常规 GC；生产系统应将关键数据保存在一个或多个长期在线的节点、pinning 服务或其他长期存储系统中。<sup>[7]</sup></p>
+<h3>5.2 网关不是信任根</h3>
+<p>HTTP Gateway 只是获取 IPFS 数据的一种方式。恶意或错误配置的网关可能返回错误内容，但如果客户端按 CID 做完整验证，那么“网关返回了什么”与“你最终接受什么”可以被分离。对于高安全场景，优先使用支持 trustless verification 的检索方式或客户端本地验证，而不要把网关当作完整性证明。</p>
+<h3>5.3 IPNS 是可变命名系统，不等于 CID</h3>
+<p>IPNS 的目标就是提供“指向可变数据”的名字；记录包含签名、sequence、validity 和 TTL 等信息。IPNS 记录的 EOL/Validity 与 DHT 的缓存/保留窗口也需要考虑，因此把 IPNS 当成“永久不变的 CID 替代物”是不准确的。<sup>[8]</sup></p>
+<div class="callout danger">
+  <div class="callout-title">工程建议</div>
+  <p style="margin:0"><code>ipfs://CID</code> 适合做不可变内容锚点；<code>ipns://name</code> 适合做可更新指针。需要版本可追溯时，建议把实际 CID 版本写入链上状态，而不是只记录 IPNS name。</p>
+</div>
+<h3>5.4 完整性 ≠ 真实性 ≠ 授权</h3>
+<p>哈希只能回答“内容有没有变”。它不能回答“内容是谁发布的”“内容是否真实”“发布者是否获得授权”。如果业务还要证明来源，应增加数字签名或链上身份/权限校验。</p>
+<h3>5.5 哈希抗碰撞是概率安全假设</h3>
+<p>SHA-256、Keccak-256 等现代密码学哈希在常规攻击模型下提供很强的抗碰撞性，但不要把“不可碰撞”写成绝对数学结论。密码学算法也应保留升级空间，CID/Multihash 的设计本身就考虑了不同哈希算法的并存。<sup>[1]</sup></p>
+
+<h2 id="best">6. 最佳实践清单</h2>
+<table>
+<thead><tr><th>#</th><th>实践</th><th>优先级</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><strong>链上保存实际 CID，而不是把 IPNS 当成不可变锚点。</strong>需要版本管理时，直接记录 CID 版本映射。</td><td><span class="tag tag-red">必须</span></td></tr>
+<tr><td>2</td><td><strong>固定 IPFS 导入参数。</strong>特别是 codec、chunking、layout、hash algorithm；否则同一文件可能得到不同 CID。</td><td><span class="tag tag-red">必须</span></td></tr>
+<tr><td>3</td><td><strong>验证 CID 时不要只对原文件做 SHA-256。</strong>要根据 CID 的 codec、DAG/UnixFS 结构正确验证对应 block/数据结构。</td><td><span class="tag tag-red">必须</span></td></tr>
+<tr><td>4</td><td><strong>不要设计成“智能合约去 IPFS 拉文件”。</strong>IPFS 检索和解析发生在链下，链上验证 proof/digest/root。</td><td><span class="tag tag-red">必须</span></td></tr>
+<tr><td>5</td><td><strong>解决可用性问题。</strong>关键数据应多点 pin，或同时采用 Filecoin / Arweave 等长期存储方案。</td><td><span class="tag tag-orange">重要</span></td></tr>
+<tr><td>6</td><td><strong>明确 hash 输入的规范。</strong>尤其是 JSON 必须先规定 canonicalization / serialization，否则字段顺序、空白等都可能产生不同 digest。</td><td><span class="tag tag-orange">重要</span></td></tr>
+<tr><td>7</td><td><strong>大数据集优先使用 Merkle Root + Proof。</strong>链上只保存 root，单条记录按需证明成员关系。</td><td><span class="tag tag-blue">推荐</span></td></tr>
+<tr><td>8</td><td><strong>需要来源证明时增加数字签名。</strong>完整性解决“没变”，签名解决“谁签的”。</td><td><span class="tag tag-blue">推荐</span></td></tr>
+<tr><td>9</td><td><strong>CIDv1 是新项目的优先选择之一，但不要写成“CIDv0 错误/不可用”。</strong>CIDv0 仍广泛存在，互操作性场景通常需要兼容 v0。<sup>[1]</sup></td><td><span class="tag tag-blue">推荐</span></td></tr>
+</tbody>
+</table>
+
+<h2 id="summary">7. 总结</h2>
+<p>回到核心问题：<strong>智能合约中保存 IPFS 链接，如何确保链下数据没有偷偷变化？</strong></p>
+<ol>
+<li><strong>保存 CID 本身就是一次内容承诺。</strong>它把内容与一个密码学内容标识绑定起来。</li>
+<li><strong>但 CID 不是简单的“文件 SHA-256 字符串”。</strong>尤其对 UnixFS 大文件，需要考虑 chunking、DAG layout 和 codec。</li>
+<li><strong>智能合约不能直接访问 IPFS。</strong>真正的验证者通常是客户端、后端或专门的证明程序；合约验证的是提交上来的 digest、Merkle proof 或其他密码学证明。</li>
+<li><strong>完整性、可用性、真实性是三个不同问题。</strong>CID 主要解决完整性/内容身份；Pin 或长期存储方案解决可用性；签名和身份系统解决来源真实性。</li>
+</ol>
+<p>一句话总结：<strong>内容寻址把“我要相信这个服务器”转换成“我要验证返回的数据是否符合这个内容承诺”。</strong>真正可靠的系统，则需要在此基础上继续解决可用性、来源和版本治理问题。</p>
+
+<div class="footer">
+  <p><strong>主要参考来源</strong></p>
+  <p>[1] IPFS Docs — Content Identifiers (CIDs)：https://docs.ipfs.tech/concepts/content-addressing/</p>
+  <p>[2] IPFS Kubo CLI — UnixFS import profiles：https://docs.ipfs.tech/reference/kubo/cli/</p>
+  <p>[3] Solidity Docs — Cryptographic Functions：https://docs.soliditylang.org/en/latest/units-and-global-variables.html</p>
+  <p>[4] Ethereum Yellow Paper — SHA-256 precompile：https://ethereum.org/content/developers/tutorials/yellow-paper-evm/yellow-paper-berlin.pdf</p>
+  <p>[5] Filecoin Docs — Storage model：https://docs.filecoin.io/basics/what-is-filecoin/storage-model</p>
+  <p>[6] Arweave Docs — Protocol / Endowment：https://docs.arweave.org/developers/development/protocol</p>
+  <p>[7] IPFS Docs — Persistence：https://docs.ipfs.tech/concepts/persistence/</p>
+  <p>[8] IPFS Specs — IPNS Record and Protocol：https://specs.ipfs.tech/ipns/ipns-record/</p>
+  <p>[9] Filecoin Docs — Storage proving：https://docs.filecoin.io/storage-providers/filecoin-economics/storage-proving</p>
+  <p class="note" style="margin-top:16px">本报告中的 Solidity 代码用于说明机制，不代表生产环境安全实现；生产系统应进一步考虑访问控制、重放、规范化编码、proof 构造规则、gas 成本及升级策略。</p>
+</div>
+</div>
+</body>
+</html>

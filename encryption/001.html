@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>非对称加密：私钥签名与公钥验签完全指南</title>
+<style>
+  :root {
+    --bg: #f7f7f5;
+    --card: #ffffff;
+    --text: #1a1b1e;
+    --text2: #5c6370;
+    --border: #e4e3dd;
+    --accent: #4a6cf7;
+    --accent-light: #eef1ff;
+    --green: #2da44e;
+    --green-light: #e6f4ea;
+    --red: #cf222e;
+    --red-light: #fbe9ea;
+    --orange: #bf6900;
+    --orange-light: #fff4e5;
+    --code-bg: #1e1e2e;
+    --code-text: #cdd6f4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 24px 16px;
+  }
+  .container { max-width: 960px; margin: 0 auto; }
+  h1 {
+    font-size: 28px; font-weight: 700; margin-bottom: 8px;
+    background: linear-gradient(135deg, var(--accent), #7c5cfc);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .subtitle { color: var(--text2); font-size: 15px; margin-bottom: 32px; }
+  h2 {
+    font-size: 20px; font-weight: 700; margin: 40px 0 16px;
+    padding-left: 12px; border-left: 4px solid var(--accent);
+  }
+  h3 { font-size: 16px; font-weight: 600; margin: 24px 0 10px; }
+  p { margin-bottom: 12px; font-size: 15px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px; margin: 16px 0;
+  }
+  .callout {
+    border-radius: 10px; padding: 14px 18px; margin: 16px 0;
+    font-size: 14px; line-height: 1.6;
+  }
+  .callout-info { background: var(--accent-light); border-left: 4px solid var(--accent); }
+  .callout-warn { background: var(--orange-light); border-left: 4px solid var(--orange); }
+  .callout-ok { background: var(--green-light); border-left: 4px solid var(--green); }
+  .callout-err { background: var(--red-light); border-left: 4px solid var(--red); }
+  .callout strong { display: block; margin-bottom: 4px; font-size: 14px; }
+  code {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 13.5px; background: #f0f0ec; padding: 2px 6px;
+    border-radius: 4px; color: #c7254e;
+  }
+  pre {
+    background: var(--code-bg); color: var(--code-text);
+    border-radius: 10px; padding: 18px 20px; overflow-x: auto;
+    margin: 12px 0; font-size: 13px; line-height: 1.6;
+  }
+  pre code { background: none; color: inherit; padding: 0; font-size: 13px; }
+  .kw { color: #cba6f7; } .fn { color: #89b4fa; } .str { color: #a6e3a1; }
+  .cm { color: #6c7086; font-style: italic; } .num { color: #fab387; }
+  .cls { color: #f9e2af; }
+  table {
+    width: 100%; border-collapse: collapse; margin: 16px 0;
+    font-size: 14px; background: var(--card); border-radius: 10px; overflow: hidden;
+  }
+  th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { background: #f5f5f2; font-weight: 600; font-size: 13px; color: var(--text2); }
+  tr:last-child td { border-bottom: none; }
+  .svg-wrap {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px; margin: 16px 0;
+    overflow-x: auto;
+  }
+  .svg-wrap svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+  .step-list { counter-reset: step; list-style: none; margin: 16px 0; }
+  .step-list li {
+    counter-increment: step; position: relative;
+    padding: 12px 16px 12px 52px; margin-bottom: 10px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    font-size: 14px;
+  }
+  .step-list li::before {
+    content: counter(step); position: absolute; left: 14px; top: 50%;
+    transform: translateY(-50%); width: 28px; height: 28px;
+    background: var(--accent); color: #fff; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700;
+  }
+  .tag {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 12px; font-weight: 600; margin-right: 6px;
+  }
+  .tag-blue { background: var(--accent-light); color: var(--accent); }
+  .tag-green { background: var(--green-light); color: var(--green); }
+  .tag-red { background: var(--red-light); color: var(--red); }
+  .tag-orange { background: var(--orange-light); color: var(--orange); }
+  .two-col { display: flex; gap: 16px; flex-wrap: wrap; margin: 16px 0; }
+  .two-col > div { flex: 1 1 300px; min-width: 0; }
+  .footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--border); color: var(--text2); font-size: 13px; text-align: center; }
+  @media (max-width: 600px) {
+    h1 { font-size: 22px; }
+    h2 { font-size: 17px; }
+    .card, .svg-wrap { padding: 14px; }
+    pre { padding: 14px; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>非对称加密：私钥签名与公钥验签完全指南</h1>
+<p class="subtitle">从你图中的「私钥加密 → 公钥解密」说起，讲清公钥分发、明文还原与工程实践</p>
+
+<!-- ==================== 第一部分：概念澄清 ==================== -->
+<h2>一、先纠正一个关键概念</h2>
+
+<div class="callout callout-warn">
+  <strong>⚠️ 你图中的「私钥加密、公钥解密」在密码学中不叫加密，叫「数字签名」</strong>
+  非对称加密有两个完全不同的使用方向，目的截然不同：
+</div>
+
+<table>
+  <tr>
+    <th>方向</th>
+    <th>操作</th>
+    <th>目的</th>
+    <th>典型场景</th>
+  </tr>
+  <tr>
+    <td><span class="tag tag-blue">加密</span>公钥 → 私钥</td>
+    <td>公钥加密 (encrypt) → 私钥解密 (decrypt)</td>
+    <td><strong>保密传输</strong>：只有私钥持有者能看懂</td>
+    <td>HTTPS 密钥交换、加密邮件</td>
+  </tr>
+  <tr>
+    <td><span class="tag tag-green">签名</span>私钥 → 公钥</td>
+    <td>私钥签名 (sign) → 公钥验签 (verify)</td>
+    <td><strong>身份认证 + 防篡改 + 防抵赖</strong>：证明消息是谁发的、没被改过</td>
+    <td>JWT、软件签名、区块链交易、数字证书</td>
+  </tr>
+</table>
+
+<div class="callout callout-info">
+  <strong>💡 核心区别</strong>
+  加密是「把消息藏起来，只有特定人能看」；签名是「给消息盖章，证明是谁发的、没被改过」。<br>
+  你图中画的私钥→公钥方向，对应的是<strong>数字签名</strong>，不是加密。
+</div>
+
+<!-- ==================== 第二部分：签名验签流程图 ==================== -->
+<h2>二、完整流程：从签名到验签</h2>
+
+<div class="svg-wrap">
+<svg viewBox="0 0 880 420" xmlns="http://www.w3.org/2000/svg" font-family="sans-serif">
+  <!-- 背景分区 -->
+  <rect x="10" y="10" width="420" height="400" rx="12" fill="#eef1ff" stroke="#c7d2fe" stroke-width="1.5"/>
+  <rect x="450" y="10" width="420" height="400" rx="12" fill="#e6f4ea" stroke="#a7d9b4" stroke-width="1.5"/>
+  <text x="220" y="38" text-anchor="middle" font-size="15" font-weight="700" fill="#4a6cf7">发送方 Alice（持有私钥）</text>
+  <text x="660" y="38" text-anchor="middle" font-size="15" font-weight="700" fill="#2da44e">接收方 Bob（持有公钥）</text>
+
+  <!-- Alice 侧 -->
+  <!-- 明文 -->
+  <rect x="60" y="65" width="160" height="50" rx="8" fill="#fff" stroke="#c7d2fe" stroke-width="1.5"/>
+  <text x="140" y="88" text-anchor="middle" font-size="13" font-weight="600" fill="#1a1b1e">明文消息</text>
+  <text x="140" y="106" text-anchor="middle" font-size="11" fill="#5c6370">"转账100 USDC"</text>
+
+  <!-- 哈希 -->
+  <rect x="60" y="140" width="160" height="50" rx="8" fill="#fff" stroke="#c7d2fe" stroke-width="1.5"/>
+  <text x="140" y="163" text-anchor="middle" font-size="13" font-weight="600" fill="#1a1b1e">SHA-256 哈希</text>
+  <text x="140" y="181" text-anchor="middle" font-size="11" fill="#5c6370">32字节摘要</text>
+
+  <!-- 私钥签名 -->
+  <rect x="60" y="215" width="160" height="60" rx="8" fill="#4a6cf7" stroke="#3b5de7" stroke-width="1.5"/>
+  <text x="140" y="240" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">私钥签名</text>
+  <text x="140" y="258" text-anchor="middle" font-size="11" fill="#dbe4ff">Sign(哈希, 私钥)</text>
+
+  <!-- 私钥图标 -->
+  <rect x="260" y="222" width="120" height="46" rx="8" fill="#fff" stroke="#4a6cf7" stroke-width="2" stroke-dasharray="4,3"/>
+  <text x="320" y="242" text-anchor="middle" font-size="12" font-weight="700" fill="#4a6cf7">🔑 私钥</text>
+  <text x="320" y="258" text-anchor="middle" font-size="10" fill="#5c6370">仅 Alice 持有</text>
+  <line x1="260" y1="245" x2="220" y2="245" stroke="#4a6cf7" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
+
+  <!-- 签名结果 -->
+  <rect x="60" y="300" width="160" height="50" rx="8" fill="#fff" stroke="#c7d2fe" stroke-width="1.5"/>
+  <text x="140" y="323" text-anchor="middle" font-size="13" font-weight="600" fill="#1a1b1e">签名结果</text>
+  <text x="140" y="341" text-anchor="middle" font-size="11" fill="#5c6370">256字节</text>
+
+  <!-- Alice 侧箭头 -->
+  <line x1="140" y1="115" x2="140" y2="140" stroke="#4a6cf7" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
+  <line x1="140" y1="190" x2="140" y2="215" stroke="#4a6cf7" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
+  <line x1="140" y1="275" x2="140" y2="300" stroke="#4a6cf7" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
+
+  <!-- 中间传输 -->
+  <rect x="370" y="170" width="140" height="90" rx="10" fill="#fff8e6" stroke="#f0d080" stroke-width="1.5"/>
+  <text x="440" y="195" text-anchor="middle" font-size="13" font-weight="700" fill="#bf6900">📡 网络传输</text>
+  <text x="440" y="215" text-anchor="middle" font-size="11" fill="#5c6370">明文 + 签名</text>
+  <text x="440" y="233" text-anchor="middle" font-size="11" fill="#5c6370">（或密文 + 签名）</text>
+  <line x1="220" y1="325" x2="370" y2="220" stroke="#bf6900" stroke-width="1.5" marker-end="url(#arrowOrange)"/>
+  <line x1="510" y1="220" x2="600" y2="165" stroke="#bf6900" stroke-width="1.5" marker-end="url(#arrowOrange)"/>
+
+  <!-- Bob 侧 -->
+  <!-- 收到明文+签名 -->
+  <rect x="620" y="65" width="180" height="50" rx="8" fill="#fff" stroke="#a7d9b4" stroke-width="1.5"/>
+  <text x="710" y="88" text-anchor="middle" font-size="13" font-weight="600" fill="#1a1b1e">收到：明文 + 签名</text>
+  <text x="710" y="106" text-anchor="middle" font-size="11" fill="#5c6370">从网络接收</text>
+
+  <!-- Bob 重新哈希 -->
+  <rect x="560" y="140" width="130" height="50" rx="8" fill="#fff" stroke="#a7d9b4" stroke-width="1.5"/>
+  <text x="625" y="163" text-anchor="middle" font-size="12" font-weight="600" fill="#1a1b1e">重新计算哈希</text>
+  <text x="625" y="181" text-anchor="middle" font-size="11" fill="#5c6370">SHA-256(明文)</text>
+
+  <!-- 公钥验签 -->
+  <rect x="560" y="215" width="130" height="60" rx="8" fill="#2da44e" stroke="#268f43" stroke-width="1.5"/>
+  <text x="625" y="240" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">公钥验签</text>
+  <text x="625" y="258" text-anchor="middle" font-size="11" fill="#d4edda">Verify(签名, 哈希, 公钥)</text>
+
+  <!-- 公钥图标 -->
+  <rect x="720" y="222" width="120" height="46" rx="8" fill="#fff" stroke="#2da44e" stroke-width="2" stroke-dasharray="4,3"/>
+  <text x="780" y="242" text-anchor="middle" font-size="12" font-weight="700" fill="#2da44e">🔓 公钥</text>
+  <text x="780" y="258" text-anchor="middle" font-size="10" fill="#5c6370">Alice 分发来的</text>
+  <line x1="720" y1="245" x2="690" y2="245" stroke="#2da44e" stroke-width="1.5" marker-end="url(#arrowGreen)"/>
+
+  <!-- 比对结果 -->
+  <rect x="560" y="300" width="280" height="60" rx="8" fill="#fff" stroke="#a7d9b4" stroke-width="1.5"/>
+  <text x="700" y="325" text-anchor="middle" font-size="13" font-weight="700" fill="#2da44e">✅ 验签通过 / ❌ 验签失败</text>
+  <text x="700" y="345" text-anchor="middle" font-size="11" fill="#5c6370">通过=消息来自Alice且未篡改；失败=被篡改或伪造</text>
+
+  <!-- Bob 侧箭头 -->
+  <line x1="680" y1="115" x2="640" y2="140" stroke="#2da44e" stroke-width="1.5" marker-end="url(#arrowGreen)"/>
+  <line x1="625" y1="190" x2="625" y2="215" stroke="#2da44e" stroke-width="1.5" marker-end="url(#arrowGreen)"/>
+  <line x1="625" y1="275" x2="625" y2="300" stroke="#2da44e" stroke-width="1.5" marker-end="url(#arrowGreen)"/>
+  <!-- 签名也送入验签 -->
+  <path d="M 740 115 Q 760 180 700 215" fill="none" stroke="#2da44e" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowGreen)"/>
+  <text x="770" y="170" font-size="10" fill="#2da44e">签名</text>
+
+  <!-- 箭头定义 -->
+  <defs>
+    <marker id="arrowBlue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#4a6cf7"/></marker>
+    <marker id="arrowGreen" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#2da44e"/></marker>
+    <marker id="arrowOrange" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#bf6900"/></marker>
+  </defs>
+</svg>
+</div>
+
+<div class="callout callout-info">
+  <strong>🔑 回答你的问题：怎么还原明文？</strong>
+  数字签名<strong>不还原明文</strong>！验签的逻辑是：<br>
+  1. Bob 收到「明文 + 签名」（明文是直接传的，不需要从签名里还原）<br>
+  2. Bob 对收到的明文重新计算 SHA-256 哈希<br>
+  3. Bob 用公钥执行验签算法，验证签名与消息哈希的对应关系（PSS 是概率性签名，不是简单"解开"签名）<br>
+  4. 验证通过 → 证明明文没被篡改、确实来自 Alice<br><br>
+  如果需要保密传输（不让中间人看到明文），则用<strong>对方的公钥加密明文</strong>，对方用自己的私钥解密。实际工程中通常两者结合：签名证明身份，加密保护机密。
+</div>
+
+<h3>加密场景一：标准保密传输（公钥加密 → 私钥解密）</h3>
+<p>当 Alice 想给 Bob 发一条<strong>只有 Bob 能看懂</strong>的秘密消息时，用 Bob 的公钥加密，Bob 用自己的私钥解密。中间人即使截获密文也无法还原明文。</p>
+
+<div class="svg-wrap">
+<svg viewBox="0 0 880 380" xmlns="http://www.w3.org/2000/svg" font-family="sans-serif">
+  <!-- 背景分区 -->
+  <rect x="10" y="10" width="400" height="360" rx="12" fill="#eef1ff" stroke="#c7d2fe" stroke-width="1.5"/>
+  <rect x="470" y="10" width="400" height="360" rx="12" fill="#fff4e5" stroke="#f0d080" stroke-width="1.5"/>
+  <text x="210" y="38" text-anchor="middle" font-size="15" font-weight="700" fill="#4a6cf7">发送方 Alice</text>
+  <text x="670" y="38" text-anchor="middle" font-size="15" font-weight="700" fill="#bf6900">接收方 Bob（持有私钥）</text>
+
+  <!-- Alice 侧 -->
+  <rect x="50" y="60" width="150" height="48" rx="8" fill="#fff" stroke="#c7d2fe" stroke-width="1.5"/>
+  <text x="125" y="82" text-anchor="middle" font-size="13" font-weight="600" fill="#1a1b1e">明文消息</text>
+  <text x="125" y="100" text-anchor="middle" font-size="11" fill="#5c6370">"今晚8点老地方见"</text>
+
+  <rect x="50" y="135" width="150" height="55" rx="8" fill="#4a6cf7" stroke="#3b5de7" stroke-width="1.5"/>
+  <text x="125" y="158" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">Bob 公钥加密</text>
+  <text x="125" y="176" text-anchor="middle" font-size="11" fill="#dbe4ff">Encrypt(明文, Bob公钥)</text>
+
+  <!-- Bob公钥来源 -->
+  <rect x="240" y="140" width="140" height="45" rx="8" fill="#fff" stroke="#4a6cf7" stroke-width="2" stroke-dasharray="4,3"/>
+  <text x="310" y="160" text-anchor="middle" font-size="12" font-weight="700" fill="#4a6cf7">🔓 Bob 的公钥</text>
+  <text x="310" y="176" text-anchor="middle" font-size="10" fill="#5c6370">通过可信渠道获取</text>
+  <line x1="240" y1="162" x2="200" y2="162" stroke="#4a6cf7" stroke-width="1.5" marker-end="url(#arrB)"/>
+
+  <rect x="50" y="220" width="150" height="48" rx="8" fill="#fff" stroke="#c7d2fe" stroke-width="1.5"/>
+  <text x="125" y="242" text-anchor="middle" font-size="13" font-weight="600" fill="#1a1b1e">密文</text>
+  <text x="125" y="260" text-anchor="middle" font-size="11" fill="#5c6370">0x8f3a...c2d1（乱码）</text>
+
+  <line x1="125" y1="108" x2="125" y2="135" stroke="#4a6cf7" stroke-width="1.5" marker-end="url(#arrB)"/>
+  <line x1="125" y1="190" x2="125" y2="220" stroke="#4a6cf7" stroke-width="1.5" marker-end="url(#arrB)"/>
+
+  <!-- 中间传输 -->
+  <rect x="415" y="155" width="50" height="80" rx="8" fill="#fbe9ea" stroke="#f5a8a8" stroke-width="1.5"/>
+  <text x="440" y="180" text-anchor="middle" font-size="18">👁️</text>
+  <text x="440" y="200" text-anchor="middle" font-size="9" fill="#cf222e">中间人</text>
+  <text x="440" y="215" text-anchor="middle" font-size="9" fill="#cf222e">只看到乱码</text>
+  <line x1="200" y1="244" x2="415" y2="195" stroke="#bf6900" stroke-width="1.5" marker-end="url(#arrO)"/>
+  <line x1="465" y1="195" x2="530" y2="160" stroke="#bf6900" stroke-width="1.5" marker-end="url(#arrO)"/>
+
+  <!-- Bob 侧 -->
+  <rect x="530" y="60" width="150" height="48" rx="8" fill="#fff" stroke="#f0d080" stroke-width="1.5"/>
+  <text x="605" y="82" text-anchor="middle" font-size="13" font-weight="600" fill="#1a1b1e">收到密文</text>
+  <text x="605" y="100" text-anchor="middle" font-size="11" fill="#5c6370">0x8f3a...c2d1</text>
+
+  <rect x="530" y="135" width="150" height="55" rx="8" fill="#bf6900" stroke="#a85a00" stroke-width="1.5"/>
+  <text x="605" y="158" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">Bob 私钥解密</text>
+  <text x="605" y="176" text-anchor="middle" font-size="11" fill="#ffe8cc">Decrypt(密文, Bob私钥)</text>
+
+  <!-- Bob私钥 -->
+  <rect x="720" y="140" width="130" height="45" rx="8" fill="#fff" stroke="#bf6900" stroke-width="2" stroke-dasharray="4,3"/>
+  <text x="785" y="160" text-anchor="middle" font-size="12" font-weight="700" fill="#bf6900">🔑 Bob 的私钥</text>
+  <text x="785" y="176" text-anchor="middle" font-size="10" fill="#5c6370">仅 Bob 持有</text>
+  <line x1="720" y1="162" x2="680" y2="162" stroke="#bf6900" stroke-width="1.5" marker-end="url(#arrO)"/>
+
+  <rect x="530" y="220" width="150" height="48" rx="8" fill="#e6f4ea" stroke="#a7d9b4" stroke-width="2"/>
+  <text x="605" y="242" text-anchor="middle" font-size="13" font-weight="700" fill="#2da44e">✅ 还原明文</text>
+  <text x="605" y="260" text-anchor="middle" font-size="11" fill="#5c6370">"今晚8点老地方见"</text>
+
+  <line x1="605" y1="108" x2="605" y2="135" stroke="#bf6900" stroke-width="1.5" marker-end="url(#arrO)"/>
+  <line x1="605" y1="190" x2="605" y2="220" stroke="#bf6900" stroke-width="1.5" marker-end="url(#arrO)"/>
+
+  <!-- 底部说明 -->
+  <rect x="50" y="300" width="800" height="55" rx="8" fill="#f7f7f5" stroke="#e4e3dd" stroke-width="1"/>
+  <text x="450" y="322" text-anchor="middle" font-size="12" font-weight="600" fill="#1a1b1e">核心特点：密文只有 Bob 的私钥能解开，Alice 自己也无法解密（非对称）</text>
+  <text x="450" y="342" text-anchor="middle" font-size="11" fill="#5c6370">但此场景无法证明消息是谁发的（任何人都能用 Bob 公钥加密）→ 需要结合签名</text>
+
+  <defs>
+    <marker id="arrB" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#4a6cf7"/></marker>
+    <marker id="arrO" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#bf6900"/></marker>
+  </defs>
+</svg>
+</div>
+
+<h3>加密场景二：签名 + 加密结合（既保密又认证，工程标准做法）</h3>
+<p>实际工程中，单独加密只能保密、单独签名只能认证。<strong>两者结合</strong>才能同时实现「只有 Bob 能看懂」+「确认是 Alice 发的且没被篡改」。</p>
+
+<div class="callout callout-warn">
+  <strong>⚠️ 关于 RSA 长度限制与混合加密（Hybrid Encryption）</strong>
+  RSA 2048位密钥 + OAEP(SHA256) 填充最多只能加密约 <strong>190 字节</strong>（256 − 2×32 − 2），而一个 RSA 签名就有 256 字节。因此「明文+签名」无法直接用 RSA 加密。<br>
+  <strong>工程标准做法是混合加密</strong>：① 生成随机 AES 对称密钥加密「明文+签名」；② 用 Bob 的 RSA 公钥加密 AES 密钥；③ 传输「加密后的AES密钥 + AES密文」；④ Bob 用私钥解密得到 AES 密钥，再解密数据。下图为概念示意，Python Demo 中使用混合加密实现。
+</div>
+
+<div class="svg-wrap">
+<svg viewBox="0 0 880 460" xmlns="http://www.w3.org/2000/svg" font-family="sans-serif">
+  <!-- 背景分区 -->
+  <rect x="10" y="10" width="400" height="440" rx="12" fill="#eef1ff" stroke="#c7d2fe" stroke-width="1.5"/>
+  <rect x="470" y="10" width="400" height="440" rx="12" fill="#e6f4ea" stroke="#a7d9b4" stroke-width="1.5"/>
+  <text x="210" y="38" text-anchor="middle" font-size="15" font-weight="700" fill="#4a6cf7">发送方 Alice（先签名，再加密）</text>
+  <text x="670" y="38" text-anchor="middle" font-size="15" font-weight="700" fill="#2da44e">接收方 Bob（先解密，再验签）</text>
+
+  <!-- Alice 侧 -->
+  <!-- 明文 -->
+  <rect x="50" y="55" width="140" height="44" rx="8" fill="#fff" stroke="#c7d2fe" stroke-width="1.5"/>
+  <text x="120" y="76" text-anchor="middle" font-size="12" font-weight="600" fill="#1a1b1e">明文消息</text>
+  <text x="120" y="92" text-anchor="middle" font-size="10" fill="#5c6370">"转账100 USDC"</text>
+
+  <!-- 分支：签名 -->
+  <rect x="30" y="125" width="130" height="50" rx="8" fill="#4a6cf7" stroke="#3b5de7" stroke-width="1.5"/>
+  <text x="95" y="147" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">① Alice 私钥签名</text>
+  <text x="95" y="164" text-anchor="middle" font-size="10" fill="#dbe4ff">Sign(明文, Alice私钥)</text>
+
+  <!-- Alice私钥 -->
+  <rect x="180" y="130" width="110" height="40" rx="8" fill="#fff" stroke="#4a6cf7" stroke-width="2" stroke-dasharray="4,3"/>
+  <text x="235" y="148" text-anchor="middle" font-size="11" font-weight="700" fill="#4a6cf7">🔑 Alice 私钥</text>
+  <text x="235" y="162" text-anchor="middle" font-size="9" fill="#5c6370">仅 Alice 持有</text>
+  <line x1="180" y1="150" x2="160" y2="150" stroke="#4a6cf7" stroke-width="1.2" marker-end="url(#aB)"/>
+
+  <!-- 签名结果 -->
+  <rect x="30" y="195" width="130" height="40" rx="8" fill="#fff" stroke="#c7d2fe" stroke-width="1.5"/>
+  <text x="95" y="213" text-anchor="middle" font-size="12" font-weight="600" fill="#1a1b1e">签名</text>
+  <text x="95" y="228" text-anchor="middle" font-size="10" fill="#5c6370">256字节</text>
+
+  <!-- 合并 -->
+  <rect x="180" y="195" width="120" height="40" rx="8" fill="#f5f5f2" stroke="#e4e3dd" stroke-width="1.5"/>
+  <text x="240" y="213" text-anchor="middle" font-size="12" font-weight="600" fill="#1a1b1e">明文 + 签名</text>
+  <text x="240" y="228" text-anchor="middle" font-size="10" fill="#5c6370">打包在一起</text>
+
+  <!-- Bob公钥加密 -->
+  <rect x="50" y="265" width="180" height="55" rx="8" fill="#7c5cfc" stroke="#6a4ce0" stroke-width="1.5"/>
+  <text x="140" y="288" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">② Bob 公钥加密</text>
+  <text x="140" y="306" text-anchor="middle" font-size="11" fill="#e8dfff">Encrypt(明文+签名, Bob公钥)</text>
+
+  <!-- Bob公钥 -->
+  <rect x="250" y="272" width="130" height="42" rx="8" fill="#fff" stroke="#7c5cfc" stroke-width="2" stroke-dasharray="4,3"/>
+  <text x="315" y="290" text-anchor="middle" font-size="11" font-weight="700" fill="#7c5cfc">🔓 Bob 公钥</text>
+  <text x="315" y="305" text-anchor="middle" font-size="9" fill="#5c6370">可信渠道获取</text>
+  <line x1="250" y1="293" x2="230" y2="293" stroke="#7c5cfc" stroke-width="1.2" marker-end="url(#aP)"/>
+
+  <!-- 最终密文 -->
+  <rect x="50" y="345" width="180" height="44" rx="8" fill="#fff" stroke="#c7d2fe" stroke-width="1.5"/>
+  <text x="140" y="366" text-anchor="middle" font-size="12" font-weight="600" fill="#1a1b1e">最终密文（对外传输）</text>
+  <text x="140" y="382" text-anchor="middle" font-size="10" fill="#5c6370">0x3f8a...b1e2</text>
+
+  <!-- Alice侧箭头 -->
+  <line x1="95" y1="99" x2="75" y2="125" stroke="#4a6cf7" stroke-width="1.2" marker-end="url(#aB)"/>
+  <line x1="95" y1="175" x2="95" y2="195" stroke="#4a6cf7" stroke-width="1.2" marker-end="url(#aB)"/>
+  <line x1="160" y1="215" x2="180" y2="215" stroke="#4a6cf7" stroke-width="1.2" marker-end="url(#aB)"/>
+  <path d="M 120 99 Q 200 130 240 195" fill="none" stroke="#4a6cf7" stroke-width="1.2" stroke-dasharray="3,2" marker-end="url(#aB)"/>
+  <line x1="240" y1="235" x2="180" y2="265" stroke="#7c5cfc" stroke-width="1.2" marker-end="url(#aP)"/>
+  <line x1="140" y1="320" x2="140" y2="345" stroke="#7c5cfc" stroke-width="1.2" marker-end="url(#aP)"/>
+
+  <!-- 中间传输 -->
+  <rect x="415" y="180" width="50" height="90" rx="8" fill="#fbe9ea" stroke="#f5a8a8" stroke-width="1.5"/>
+  <text x="440" y="208" text-anchor="middle" font-size="18">👁️</text>
+  <text x="440" y="228" text-anchor="middle" font-size="9" fill="#cf222e">中间人</text>
+  <text x="440" y="244" text-anchor="middle" font-size="9" fill="#cf222e">只看到密文</text>
+  <text x="440" y="258" text-anchor="middle" font-size="9" fill="#cf222e">无法解密</text>
+  <line x1="230" y1="367" x2="415" y2="225" stroke="#bf6900" stroke-width="1.5" marker-end="url(#aO)"/>
+  <line x1="465" y1="225" x2="530" y2="170" stroke="#bf6900" stroke-width="1.5" marker-end="url(#aO)"/>
+
+  <!-- Bob 侧 -->
+  <!-- 收到密文 -->
+  <rect x="530" y="55" width="150" height="44" rx="8" fill="#fff" stroke="#a7d9b4" stroke-width="1.5"/>
+  <text x="605" y="76" text-anchor="middle" font-size="12" font-weight="600" fill="#1a1b1e">收到最终密文</text>
+  <text x="605" y="92" text-anchor="middle" font-size="10" fill="#5c6370">0x3f8a...b1e2</text>
+
+  <!-- Bob私钥解密 -->
+  <rect x="530" y="125" width="150" height="50" rx="8" fill="#bf6900" stroke="#a85a00" stroke-width="1.5"/>
+  <text x="605" y="147" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">③ Bob 私钥解密</text>
+  <text x="605" y="164" text-anchor="middle" font-size="10" fill="#ffe8cc">Decrypt(密文, Bob私钥)</text>
+
+  <!-- Bob私钥 -->
+  <rect x="710" y="130" width="130" height="40" rx="8" fill="#fff" stroke="#bf6900" stroke-width="2" stroke-dasharray="4,3"/>
+  <text x="775" y="148" text-anchor="middle" font-size="11" font-weight="700" fill="#bf6900">🔑 Bob 私钥</text>
+  <text x="775" y="162" text-anchor="middle" font-size="9" fill="#5c6370">仅 Bob 持有</text>
+  <line x1="710" y1="150" x2="680" y2="150" stroke="#bf6900" stroke-width="1.2" marker-end="url(#aO)"/>
+
+  <!-- 解密得到明文+签名 -->
+  <rect x="530" y="195" width="150" height="44" rx="8" fill="#fff" stroke="#a7d9b4" stroke-width="1.5"/>
+  <text x="605" y="213" text-anchor="middle" font-size="12" font-weight="600" fill="#1a1b1e">得到：明文 + 签名</text>
+  <text x="605" y="229" text-anchor="middle" font-size="10" fill="#5c6370">解密成功</text>
+
+  <!-- Alice公钥验签 -->
+  <rect x="530" y="265" width="150" height="55" rx="8" fill="#2da44e" stroke="#268f43" stroke-width="1.5"/>
+  <text x="605" y="288" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">④ Alice 公钥验签</text>
+  <text x="605" y="306" text-anchor="middle" font-size="10" fill="#d4edda">Verify(签名, 明文, Alice公钥)</text>
+
+  <!-- Alice公钥 -->
+  <rect x="710" y="272" width="130" height="42" rx="8" fill="#fff" stroke="#2da44e" stroke-width="2" stroke-dasharray="4,3"/>
+  <text x="775" y="290" text-anchor="middle" font-size="11" font-weight="700" fill="#2da44e">🔓 Alice 公钥</text>
+  <text x="775" y="305" text-anchor="middle" font-size="9" fill="#5c6370">可信渠道获取</text>
+  <line x1="710" y1="293" x2="680" y2="293" stroke="#2da44e" stroke-width="1.2" marker-end="url(#aG)"/>
+
+  <!-- 最终结果 -->
+  <rect x="530" y="345" width="280" height="50" rx="8" fill="#e6f4ea" stroke="#a7d9b4" stroke-width="2"/>
+  <text x="670" y="368" text-anchor="middle" font-size="13" font-weight="700" fill="#2da44e">✅ 解密成功 + 验签通过</text>
+  <text x="670" y="386" text-anchor="middle" font-size="11" fill="#5c6370">只有Bob能看懂 + 确认来自Alice且未篡改</text>
+
+  <!-- Bob侧箭头 -->
+  <line x1="605" y1="99" x2="605" y2="125" stroke="#bf6900" stroke-width="1.2" marker-end="url(#aO)"/>
+  <line x1="605" y1="175" x2="605" y2="195" stroke="#bf6900" stroke-width="1.2" marker-end="url(#aO)"/>
+  <line x1="605" y1="239" x2="605" y2="265" stroke="#2da44e" stroke-width="1.2" marker-end="url(#aG)"/>
+  <line x1="605" y1="320" x2="605" y2="345" stroke="#2da44e" stroke-width="1.2" marker-end="url(#aG)"/>
+
+  <!-- 底部顺序说明 -->
+  <rect x="30" y="410" width="820" height="32" rx="6" fill="#f7f7f5" stroke="#e4e3dd" stroke-width="1"/>
+  <text x="440" y="431" text-anchor="middle" font-size="11" fill="#5c6370">发送顺序：①签名 → ②加密 ｜ 接收顺序：③解密 → ④验签 ｜ 注意：必须先签名再加密，否则签名会暴露明文</text>
+
+  <defs>
+    <marker id="aB" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#4a6cf7"/></marker>
+    <marker id="aO" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#bf6900"/></marker>
+    <marker id="aG" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#2da44e"/></marker>
+    <marker id="aP" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#7c5cfc"/></marker>
+  </defs>
+</svg>
+</div>
+
+<div class="callout callout-ok">
+  <strong>✅ 为什么要「先签名再加密」？</strong>
+  如果先加密再签名，签名是对密文签的，验签时只能证明密文没被改，但无法证明解密后的明文来自谁。<br>
+  先签名再加密：签名覆盖明文，加密覆盖「明文+签名」整体，Bob 解密后验签，既能确认明文来源，又能保证传输保密。<br>
+  这也是 PGP/GPG、S/MIME 等加密邮件标准的做法。
+</div>
+
+<!-- ==================== 第三部分：公钥分发 ==================== -->
+<h2>三、对方怎么知道我的公钥？—— 公钥分发问题</h2>
+
+<p>这是非对称加密最核心的工程难题：<strong>公钥本身可以公开，但怎么让对方确信「这个公钥确实属于你，而不是中间人伪造的」？</strong></p>
+
+<div class="svg-wrap">
+<svg viewBox="0 0 880 380" xmlns="http://www.w3.org/2000/svg" font-family="sans-serif">
+  <text x="440" y="30" text-anchor="middle" font-size="16" font-weight="700" fill="#1a1b1e">公钥分发的五种方式</text>
+
+  <!-- 方式1：手动分发 -->
+  <rect x="20" y="55" width="160" height="140" rx="10" fill="#fff" stroke="#c7d2fe" stroke-width="1.5"/>
+  <rect x="20" y="55" width="160" height="32" rx="10" fill="#4a6cf7"/>
+  <text x="100" y="76" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">① 手动分发</text>
+  <text x="100" y="110" text-anchor="middle" font-size="24">📧</text>
+  <text x="100" y="135" text-anchor="middle" font-size="11" fill="#1a1b1e">邮件 / GitHub / 微信</text>
+  <text x="100" y="152" text-anchor="middle" font-size="11" fill="#1a1b1e">U盘 / 当面拷贝</text>
+  <text x="100" y="175" text-anchor="middle" font-size="10" fill="#bf6900">⚠ 需自行验证公钥指纹</text>
+
+  <!-- 方式2：数字证书+CA -->
+  <rect x="195" y="55" width="160" height="140" rx="10" fill="#fff" stroke="#a7d9b4" stroke-width="1.5"/>
+  <rect x="195" y="55" width="160" height="32" rx="10" fill="#2da44e"/>
+  <text x="275" y="76" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">② 数字证书 + CA</text>
+  <text x="275" y="110" text-anchor="middle" font-size="24">🏛️</text>
+  <text x="275" y="135" text-anchor="middle" font-size="11" fill="#1a1b1e">X.509 证书</text>
+  <text x="275" y="152" text-anchor="middle" font-size="11" fill="#1a1b1e">CA 签名担保身份</text>
+  <text x="275" y="175" text-anchor="middle" font-size="10" fill="#2da44e">✅ HTTPS / 浏览器标准</text>
+
+  <!-- 方式3：PKI体系 -->
+  <rect x="370" y="55" width="160" height="140" rx="10" fill="#fff" stroke="#f0d080" stroke-width="1.5"/>
+  <rect x="370" y="55" width="160" height="32" rx="10" fill="#bf6900"/>
+  <text x="450" y="76" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">③ PKI 体系</text>
+  <text x="450" y="110" text-anchor="middle" font-size="24">🌐</text>
+  <text x="450" y="135" text-anchor="middle" font-size="11" fill="#1a1b1e">根CA → 中间CA → 用户</text>
+  <text x="450" y="152" text-anchor="middle" font-size="11" fill="#1a1b1e">证书链验证</text>
+  <text x="450" y="175" text-anchor="middle" font-size="10" fill="#bf6900">企业级 / 政府级标准</text>
+
+  <!-- 方式4：Web of Trust -->
+  <rect x="545" y="55" width="160" height="140" rx="10" fill="#fff" stroke="#e1b98f" stroke-width="1.5"/>
+  <rect x="545" y="55" width="160" height="32" rx="10" fill="#8b5e3c"/>
+  <text x="625" y="76" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">④ 信任网络</text>
+  <text x="625" y="110" text-anchor="middle" font-size="24">🤝</text>
+  <text x="625" y="135" text-anchor="middle" font-size="11" fill="#1a1b1e">PGP / GPG</text>
+  <text x="625" y="152" text-anchor="middle" font-size="11" fill="#1a1b1e">用户互相签名担保</text>
+  <text x="625" y="175" text-anchor="middle" font-size="10" fill="#8b5e3c">去中心化 / 技术圈常用</text>
+
+  <!-- 方式5：区块链/ENS -->
+  <rect x="720" y="55" width="140" height="140" rx="10" fill="#fff" stroke="#c9a7e8" stroke-width="1.5"/>
+  <rect x="720" y="55" width="140" height="32" rx="10" fill="#7c5cfc"/>
+  <text x="790" y="76" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">⑤ 链上注册</text>
+  <text x="790" y="110" text-anchor="middle" font-size="24">⛓️</text>
+  <text x="790" y="135" text-anchor="middle" font-size="11" fill="#1a1b1e">ENS / DID</text>
+  <text x="790" y="152" text-anchor="middle" font-size="11" fill="#1a1b1e">智能合约映射</text>
+  <text x="790" y="175" text-anchor="middle" font-size="10" fill="#7c5cfc">Web3 / 去中心化身份</text>
+
+  <!-- 中间人攻击示意 -->
+  <rect x="140" y="225" width="600" height="130" rx="10" fill="#fbe9ea" stroke="#f5a8a8" stroke-width="1.5"/>
+  <text x="440" y="252" text-anchor="middle" font-size="14" font-weight="700" fill="#cf222e">⚠️ 为什么不能随便相信一个公钥？—— 中间人攻击（MITM）</text>
+
+  <!-- Alice -->
+  <circle cx="200" cy="310" r="22" fill="#4a6cf7"/>
+  <text x="200" y="315" text-anchor="middle" font-size="12" fill="#fff">A</text>
+  <text x="200" y="348" text-anchor="middle" font-size="11" fill="#1a1b1e">Alice</text>
+
+  <!-- 中间人 -->
+  <circle cx="440" cy="295" r="26" fill="#cf222e"/>
+  <text x="440" y="300" text-anchor="middle" font-size="12" fill="#fff">M</text>
+  <text x="440" y="340" text-anchor="middle" font-size="11" fill="#cf222e">中间人 Mallory</text>
+
+  <!-- Bob -->
+  <circle cx="680" cy="310" r="22" fill="#2da44e"/>
+  <text x="680" y="315" text-anchor="middle" font-size="12" fill="#fff">B</text>
+  <text x="680" y="348" text-anchor="middle" font-size="11" fill="#1a1b1e">Bob</text>
+
+  <!-- 攻击箭头 -->
+  <path d="M 225 300 Q 330 270 410 290" fill="none" stroke="#cf222e" stroke-width="1.5" marker-end="url(#arrowRed)"/>
+  <text x="310" y="275" text-anchor="middle" font-size="10" fill="#cf222e">Alice公钥</text>
+  <path d="M 470 290 Q 570 270 655 300" fill="none" stroke="#cf222e" stroke-width="1.5" marker-end="url(#arrowRed)"/>
+  <text x="570" y="275" text-anchor="middle" font-size="10" fill="#cf222e">Mallory的公钥（冒充Alice）</text>
+
+  <defs>
+    <marker id="arrowRed" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#cf222e"/></marker>
+  </defs>
+</svg>
+</div>
+
+<h3>各种分发方式对比</h3>
+<table>
+  <tr>
+    <th>方式</th>
+    <th>信任基础</th>
+    <th>优点</th>
+    <th>缺点</th>
+    <th>适用场景</th>
+  </tr>
+  <tr>
+    <td>手动分发</td>
+    <td>自己验证指纹</td>
+    <td>简单、零成本</td>
+    <td>易被掉包、规模不可扩展</td>
+    <td>个人开发、小团队</td>
+  </tr>
+  <tr>
+    <td>数字证书+CA</td>
+    <td>可信第三方CA</td>
+    <td>浏览器自动信任、标准化</td>
+    <td>需付费（部分免费）、CA被攻破则全军覆没</td>
+    <td>HTTPS网站、代码签名</td>
+  </tr>
+  <tr>
+    <td>PKI体系</td>
+    <td>层级证书链</td>
+    <td>可扩展、可撤销、企业级管理</td>
+    <td>架构复杂、运维成本高</td>
+    <td>企业内网、政府、金融</td>
+  </tr>
+  <tr>
+    <td>信任网络(PGP)</td>
+    <td>熟人互相签名</td>
+    <td>去中心化、无需CA</td>
+    <td>上手门槛高、普及度低</td>
+    <td>开源社区、密码学爱好者</td>
+  </tr>
+  <tr>
+    <td>链上注册(ENS/DID)</td>
+    <td>区块链共识</td>
+    <td>不可篡改、全局可查</td>
+    <td>需链上交互、Gas费</td>
+    <td>Web3应用、去中心化身份</td>
+  </tr>
+</table>
+
+<!-- ==================== 第四部分：Python Demo ==================== -->
+<h2>四、Python 实战 Demo</h2>
+
+<p>下面是一个完整可运行的 Python 脚本，演示了：密钥生成 → 私钥签名 → 公钥验签 → 篡改检测 → 标准加密方向对比。</p>
+
+<h3>安装依赖</h3>
+<pre><code><span class="fn">pip</span> install cryptography</code></pre>
+
+<h3>完整代码（rsa_demo.py）</h3>
+<pre><code>#!/usr/bin/env python3
+"""
+RSA 非对称加密 Demo
+====================
+场景一：私钥签名 → 公钥验签（数字签名，证明身份+防篡改）
+场景二：签名 + 加密结合（混合加密 Hybrid Encryption，既保密又认证）
+
+运行：
+  pip install cryptography
+  python rsa_demo.py
+"""
+
+import os
+import base64
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.exceptions import InvalidSignature
+
+
+# ============================================================
+# 工具函数：密钥生成与保存
+# ============================================================
+def generate_keypair():
+    """生成 2048 位 RSA 密钥对"""
+    private_key = rsa.generate_private_key(
+        public_exponent=65537,
+        key_size=2048,
+    )
+    return private_key, private_key.public_key()
+
+
+def save_keys(private_key, public_key, priv_path, pub_path):
+    """保存私钥和公钥为 PEM 文件"""
+    priv_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    with open(priv_path, "wb") as f:
+        f.write(priv_pem)
+
+    pub_pem = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    with open(pub_path, "wb") as f:
+        f.write(pub_pem)
+    return priv_path, pub_path
+
+
+def load_public_key(pub_path):
+    """从 PEM 文件加载公钥"""
+    with open(pub_path, "rb") as f:
+        return serialization.load_pem_public_key(f.read())
+
+
+def key_fingerprint(public_key) -&gt; str:
+    """计算公钥指纹（SHA-256 前16位），用于验证公钥身份"""
+    pub_bytes = public_key.public_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    digest = hashes.Hash(hashes.SHA256())
+    digest.update(pub_bytes)
+    fp = digest.finalize()
+    return fp.hex()[:16]
+
+
+# ============================================================
+# 场景一：数字签名（私钥签名 → 公钥验签）
+# ============================================================
+def sign_message(private_key, message: bytes) -&gt; bytes:
+    """用私钥对消息签名（PSS + SHA-256）"""
+    return private_key.sign(
+        message,
+        padding.PSS(
+            mgf=padding.MGF1(hashes.SHA256()),
+            salt_length=padding.PSS.MAX_LENGTH,
+        ),
+        hashes.SHA256(),
+    )
+
+
+def verify_signature(public_key, message: bytes, signature: bytes) -&gt; bool:
+    """用公钥验证签名，返回 True/False"""
+    try:
+        public_key.verify(
+            signature,
+            message,
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.MAX_LENGTH,
+            ),
+            hashes.SHA256(),
+        )
+        return True
+    except InvalidSignature:
+        return False
+
+
+# ============================================================
+# 场景二辅助：RSA 加密/解密（用于加密 AES 密钥）
+# ============================================================
+def rsa_encrypt(public_key, plaintext: bytes) -&gt; bytes:
+    """用 RSA 公钥加密（OAEP + SHA-256），仅用于加密短数据（如 AES 密钥）"""
+    return public_key.encrypt(
+        plaintext,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None,
+        ),
+    )
+
+
+def rsa_decrypt(private_key, ciphertext: bytes) -&gt; bytes:
+    """用 RSA 私钥解密"""
+    return private_key.decrypt(
+        ciphertext,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None,
+        ),
+    )
+
+
+# ============================================================
+# 场景二辅助：AES-GCM 对称加密（用于加密实际数据）
+# ============================================================
+def aes_encrypt(key: bytes, plaintext: bytes, associated_data: bytes = b"") -&gt; bytes:
+    """
+    AES-256-GCM 加密，返回 nonce(12字节) + ciphertext + tag(16字节)
+    GCM 模式同时提供加密和完整性校验。
+    """
+    aesgcm = AESGCM(key)
+    nonce = os.urandom(12)  # 96位随机数，GCM推荐
+    ciphertext = aesgcm.encrypt(nonce, plaintext, associated_data)
+    return nonce + ciphertext  # nonce 和密文打包在一起
+
+
+def aes_decrypt(key: bytes, data: bytes, associated_data: bytes = b"") -&gt; bytes:
+    """AES-256-GCM 解密，data = nonce(12) + ciphertext + tag"""
+    aesgcm = AESGCM(key)
+    nonce = data[:12]
+    ciphertext = data[12:]
+    return aesgcm.decrypt(nonce, ciphertext, associated_data)
+
+
+# ============================================================
+# 日志工具：模拟两端对话
+# ============================================================
+def log(sender: str, msg: str, color: str = ""):
+    """格式化输出日志，模拟对话"""
+    prefix = f"[{sender}]"
+    if sender == "Alice":
+        prefix = f"\033[94m[{sender}]\033[0m"   # 蓝色
+    elif sender == "Bob":
+        prefix = f"\033[92m[{sender}]\033[0m"     # 绿色
+    elif sender == "网络":
+        prefix = f"\033[93m[{sender}]\033[0m"      # 黄色
+    elif sender == "系统":
+        prefix = f"\033[90m[{sender}]\033[0m"      # 灰色
+    print(f"  {prefix} {msg}")
+
+
+def separator(title: str):
+    print(f"\n{'='*60}")
+    print(f"  {title}")
+    print(f"{'='*60}")
+
+
+# ============================================================
+# 场景一演示：数字签名
+# ============================================================
+def demo_signature():
+    separator("场景一：数字签名（私钥签名 → 公钥验签）")
+
+    log("系统", "Alice 本地生成 RSA 密钥对（2048位）")
+    alice_priv, alice_pub = generate_keypair()
+    save_keys(alice_priv, alice_pub, "alice_private.pem", "alice_public.pem")
+    log("Alice", f"私钥已保存到 alice_private.pem（仅我持有）")
+    log("Alice", f"公钥已保存到 alice_public.pem（指纹: {key_fingerprint(alice_pub)}），可以公开分发")
+
+    log("Alice", "将公钥通过可信渠道发给 Bob（邮件/GitHub/证书等）")
+    log("Bob", f"收到 Alice 的公钥，验证指纹: {key_fingerprint(alice_pub)} ✓")
+
+    # Alice 签名
+    message = b"Hello Bob, this is Alice. Transfer 100 USDC to 0x1234...abcd"
+    log("Alice", f"准备发送消息: \"{message.decode()}\"")
+    log("Alice", "用我的私钥对消息签名（PSS + SHA-256）...")
+    signature = sign_message(alice_priv, message)
+    log("Alice", f"签名完成（{len(signature)}字节）: {base64.b64encode(signature).decode()[:60]}...")
+
+    # 网络传输
+    log("网络", "传输中... 明文 + 签名（明文不保密，任何人都能看到）")
+
+    # Bob 验签
+    log("Bob", "收到明文 + 签名")
+    log("Bob", "对收到的明文重新计算 SHA-256 哈希...")
+    bob_pub = load_public_key("alice_public.pem")
+    log("Bob", "用 Alice 的公钥执行验签算法（PSS 概率性验证，不是'解开'签名）...")
+    is_valid = verify_signature(bob_pub, message, signature)
+    if is_valid:
+        log("Bob", "\033[92m✅ 验签通过！消息确实来自 Alice 且未被篡改\033[0m")
+    else:
+        log("Bob", "\033[91m❌ 验签失败！消息被篡改或不是 Alice 发出的\033[0m")
+
+    # 篡改检测
+    log("系统", "--- 模拟中间人篡改 ---")
+    tampered = b"Hello Bob, this is Alice. Transfer 9999 USDC to 0xEVIL...hacker"
+    log("网络", f"中间人篡改消息为: \"{tampered.decode()}\"")
+    log("Bob", "用原签名验证篡改后的消息...")
+    is_valid2 = verify_signature(bob_pub, tampered, signature)
+    log("Bob", f"\033[91m❌ 验签失败（正确检测到篡改）\033[0m" if not is_valid2 else "⚠️ 验签通过（异常！）")
+
+    log("系统", "场景一结束：数字签名只能证明身份和完整性，不能保密（明文是公开传输的）")
+
+
+# ============================================================
+# 场景二演示：签名 + 加密结合（混合加密 Hybrid Encryption）
+# ============================================================
+def demo_sign_and_encrypt():
+    separator("场景二：签名 + 加密结合（混合加密，既保密又认证）")
+
+    # ---- 初始化：双方各生成密钥对，交换公钥 ----
+    log("系统", "初始化：Alice 和 Bob 各生成自己的 RSA 密钥对")
+    alice_priv, alice_pub = generate_keypair()
+    bob_priv, bob_pub = generate_keypair()
+    save_keys(alice_priv, alice_pub, "alice_private.pem", "alice_public.pem")
+    save_keys(bob_priv, bob_pub, "bob_private.pem", "bob_public.pem")
+
+    log("Alice", f"我的公钥指纹: {key_fingerprint(alice_pub)}（发给 Bob）")
+    log("Bob", f"我的公钥指纹: {key_fingerprint(bob_pub)}（发给 Alice）")
+    log("系统", "双方通过可信渠道交换公钥（验证指纹防止中间人掉包）")
+
+    # ---- Alice 侧：先签名，再加密 ----
+    plaintext = b"Hello Bob, this is Alice. Transfer 100 USDC to 0x1234...abcd. Confidential."
+    log("Alice", f"准备发送机密消息: \"{plaintext.decode()}\"")
+
+    # 步骤①：Alice 用自己的私钥签名
+    log("Alice", "步骤① 用我的私钥对明文签名（证明是我发的、没被改）...")
+    signature = sign_message(alice_priv, plaintext)
+    log("Alice", f"  签名完成（{len(signature)}字节）")
+
+    # 打包：明文 + 签名
+    # 格式：签名长度(4字节大端) + 签名 + 明文
+    sig_len = len(signature).to_bytes(4, "big")
+    data_to_encrypt = sig_len + signature + plaintext
+    log("Alice", f"  打包「明文+签名」共 {len(data_to_encrypt)} 字节（签名{len(signature)}字节 + 明文{len(plaintext)}字节）")
+
+    # 步骤②：生成随机 AES-256 密钥，加密「明文+签名」
+    log("Alice", "步骤② 生成随机 AES-256 密钥（32字节），用 AES-GCM 加密「明文+签名」...")
+    aes_key = os.urandom(32)  # AES-256
+    encrypted_data = aes_encrypt(aes_key, data_to_encrypt)
+    log("Alice", f"  AES 加密完成（{len(encrypted_data)}字节，含 nonce+密文+tag）")
+
+    # 步骤③：用 Bob 的 RSA 公钥加密 AES 密钥
+    log("Alice", "步骤③ 用 Bob 的 RSA 公钥加密 AES 密钥（只有 Bob 的私钥能解开）...")
+    encrypted_aes_key = rsa_encrypt(bob_pub, aes_key)
+    log("Alice", f"  RSA 加密 AES 密钥完成（{len(encrypted_aes_key)}字节）")
+
+    # 最终传输包：加密的AES密钥 + AES加密后的数据
+    transmit_package = encrypted_aes_key + encrypted_data
+    log("Alice", f"最终传输包大小: {len(transmit_package)} 字节（RSA加密的AES密钥 {len(encrypted_aes_key)}B + AES密文 {len(encrypted_data)}B）")
+    log("Alice", "发送给 Bob！")
+
+    # ---- 网络传输 ----
+    log("网络", f"传输中... 包大小 {len(transmit_package)} 字节")
+    log("网络", "中间人即使截获也无法解密（没有 Bob 的私钥就拿不到 AES 密钥）")
+
+    # ---- Bob 侧：先解密，再验签 ----
+    log("Bob", "收到传输包！")
+
+    # 步骤④：Bob 用自己的私钥解密 AES 密钥
+    log("Bob", "步骤④ 用我的私钥解密，得到 AES 密钥...")
+    enc_aes_key_len = 256  # RSA 2048位加密结果固定256字节
+    received_enc_aes_key = transmit_package[:enc_aes_key_len]
+    received_enc_data = transmit_package[enc_aes_key_len:]
+    decrypted_aes_key = rsa_decrypt(bob_priv, received_enc_aes_key)
+    log("Bob", f"  AES 密钥解密成功（{len(decrypted_aes_key)}字节）")
+
+    # 步骤⑤：用 AES 密钥解密数据，得到「明文+签名」
+    log("Bob", "步骤⑤ 用 AES 密钥解密数据（AES-GCM 同时校验完整性）...")
+    try:
+        decrypted_data = aes_decrypt(decrypted_aes_key, received_enc_data)
+        log("Bob", "  AES 解密成功，GCM 完整性校验通过 ✓")
+    except Exception as e:
+        log("Bob", f"\033[91m  AES 解密失败！数据被篡改: {e}\033[0m")
+        return
+
+    # 解包：签名长度 + 签名 + 明文
+    sig_len = int.from_bytes(decrypted_data[:4], "big")
+    received_signature = decrypted_data[4 : 4 + sig_len]
+    received_plaintext = decrypted_data[4 + sig_len :]
+    log("Bob", f"  解包得到：签名 {len(received_signature)}字节 + 明文 {len(received_plaintext)}字节")
+
+    # 步骤⑥：用 Alice 的公钥验签
+    log("Bob", "步骤⑥ 用 Alice 的公钥验证签名（确认消息来自 Alice 且未被篡改）...")
+    is_valid = verify_signature(alice_pub, received_plaintext, received_signature)
+    if is_valid:
+        log("Bob", f"\033[92m✅ 验签通过！明文: \"{received_plaintext.decode()}\"\033[0m")
+        log("Bob", "\033[92m   确认：只有我能看懂（保密）+ 确实来自 Alice（认证）\033[0m")
+    else:
+        log("Bob", "\033[91m❌ 验签失败！消息可能被篡改或不是 Alice 发出的\033[0m")
+
+    # ---- 模拟攻击：中间人篡改密文 ----
+    log("系统", "--- 模拟中间人篡改密文 ---")
+    tampered_package = bytearray(transmit_package)
+    tampered_package[-1] ^= 0xFF  # 翻转最后一个字节
+    log("网络", "中间人篡改了密文的最后一个字节")
+    log("Bob", "尝试解密被篡改的密文...")
+    try:
+        aes_decrypt(decrypted_aes_key, bytes(tampered_package[enc_aes_key_len:]))
+        log("Bob", "⚠️ 解密成功（异常！GCM 应该检测到篡改）")
+    except Exception as e:
+        log("Bob", f"\033[91m❌ AES-GCM 检测到篡改，解密失败: {type(e).__name__}\033[0m")
+
+    log("系统", "场景二结束：混合加密 = RSA(保密AES密钥) + AES(加密数据) + RSA签名(认证身份)")
+
+
+# ============================================================
+# 主函数
+# ============================================================
+def main():
+    print("\n" + "█" * 60)
+    print("  RSA 非对称加密 Demo：签名 + 加密 完整演示")
+    print("█" * 60)
+
+    # 场景一：数字签名
+    demo_signature()
+
+    # 场景二：签名+加密结合
+    demo_sign_and_encrypt()
+
+    # 总结
+    separator("总结")
+    print("""
+  场景一（数字签名）：
+    私钥签名 → 公钥验签
+    目的：证明身份 + 防篡改 + 防抵赖
+    局限：明文公开传输，不保密
+
+  场景二（签名+加密结合，工程标准）：
+    Alice：① 私钥签名 → ② AES加密「明文+签名」→ ③ Bob公钥加密AES密钥
+    Bob：  ④ 私钥解密AES密钥 → ⑤ AES解密 → ⑥ Alice公钥验签
+    目的：既保密（只有Bob能看懂）又认证（确认来自Alice）
+
+  为什么用混合加密？
+    RSA 2048位+OAEP最多加密约190字节，签名就有256字节
+    → 用 AES 加密大量数据（快、无长度限制）
+    → 用 RSA 加密 AES 密钥（安全交换密钥）
+    """)
+
+
+if __name__ == "__main__":
+    main()
+</code></pre>
+
+<h3>运行步骤</h3>
+<ol class="step-list">
+  <li><strong>安装依赖</strong>：执行 <code>pip install cryptography</code>（建议在虚拟环境中操作）</li>
+  <li><strong>保存代码</strong>：将上面的代码保存为 <code>rsa_demo.py</code></li>
+  <li><strong>运行脚本</strong>：执行 <code>python rsa_demo.py</code></li>
+  <li><strong>查看输出</strong>：脚本会依次展示密钥生成、签名、验签、篡改检测、加密解密的完整过程</li>
+  <li><strong>检查产物</strong>：运行后当前目录会生成 <code>private_key.pem</code>（私钥）和 <code>public_key.pem</code>（公钥，可分发给对方）</li>
+</ol>
+
+<div class="callout callout-ok">
+  <strong>✅ 预期输出</strong>
+  运行后你会看到：验签通过、篡改后验签失败、公钥加密→私钥解密成功还原明文。<br>
+  这就完整回答了你的问题：公钥通过 <code>public_key.pem</code> 文件分发给对方；对方用公钥验签来确认消息来源和完整性（明文本身随消息一起传输，不需要从签名中"还原"）。
+</div>
+
+<!-- ==================== 第五部分：工程实践 ==================== -->
+<h2>五、工程实践中的组合用法</h2>
+
+<p>真实系统中很少单独使用非对称加密，通常是<strong>非对称 + 对称 + 签名</strong>三者结合：</p>
+
+<div class="two-col">
+  <div class="card">
+    <h3 style="margin-top:0;color:var(--accent);">🔐 HTTPS 的做法</h3>
+    <p style="font-size:14px;">
+      1. 服务器向 CA 申请数字证书（含公钥）<br>
+      2. 浏览器验证证书链，确认公钥属于服务器<br>
+      3. 浏览器生成随机 AES 对称密钥，用服务器公钥加密后发送<br>
+      4. 服务器用私钥解密得到 AES 密钥<br>
+      5. 后续通信全部用 AES 对称加密（速度快）<br>
+      6. 可选：服务器对响应签名，浏览器验签
+    </p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0;color:var(--green);">📝 JWT 的做法</h3>
+    <p style="font-size:14px;">
+      1. 认证服务器用私钥对 JWT Header+Payload 签名（RS256）<br>
+      2. 公钥通过 JWKS（JSON Web Key Set）端点公开<br>
+      3. 业务服务从 JWKS 获取公钥，验证 JWT 签名<br>
+      4. 验签通过 → 信任 JWT 中的用户身份和权限声明<br>
+      5. JWT 本身不加密（Base64 编码），敏感信息不应放入
+    </p>
+  </div>
+</div>
+
+<div class="two-col">
+  <div class="card">
+    <h3 style="margin-top:0;color:var(--orange);">⛓️ 区块链交易</h3>
+    <p style="font-size:14px;">
+      1. 用户用私钥对交易数据（转账金额、接收地址等）签名<br>
+      2. 公钥（或地址）随交易一起广播到网络<br>
+      3. 每个节点用公钥验证交易签名，确认是账户持有者发起<br>
+      4. 验签通过 → 交易被打包进区块<br>
+      5. 公钥分发：地址本身就是公钥的哈希，全局可查
+    </p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0;color:#7c5cfc;">📦 软件包签名</h3>
+    <p style="font-size:14px;">
+      1. 开发者用私钥对软件包（或其哈希）签名<br>
+      2. 公钥通过官方网站、GitHub Releases、证书分发<br>
+      3. 用户下载软件包后，用公钥验证签名<br>
+      4. 验签通过 → 确认软件来自官方且未被篡改<br>
+      5. 示例：apt 仓库签名、npm package provenance、Android APK 签名
+    </p>
+  </div>
+</div>
+
+<!-- ==================== 第六部分：FAQ ==================== -->
+<h2>六、常见问题速查</h2>
+
+<div class="card">
+  <p><strong>Q1：私钥加密的密文，公钥能直接解密还原明文吗？</strong></p>
+  <p style="font-size:14px;color:var(--text2);">数学上原始 RSA 可以，但工程上<strong>不这样用</strong>。标准库（如 cryptography）不提供「公钥解密」API，因为私钥→公钥方向叫签名，验签是比对哈希而非还原明文。如果需要对方看到明文，明文直接随签名一起发送即可。</p>
+</div>
+
+<div class="card">
+  <p><strong>Q2：公钥可以随便公开吗？被别人拿到会怎样？</strong></p>
+  <p style="font-size:14px;color:var(--text2);">公钥就是设计来公开的。别人拿到你的公钥只能做两件事：①用你的公钥加密消息（只有你的私钥能解密）；②验证你用私钥签的名。公钥泄露不会导致安全问题，<strong>真正要保护的是私钥</strong>。</p>
+</div>
+
+<div class="card">
+  <p><strong>Q3：怎么确认我拿到的公钥真的是对方的，而不是中间人的？</strong></p>
+  <p style="font-size:14px;color:var(--text2);">这就是「公钥分发」的核心问题。解决方案：①通过可信渠道（官方网站、HTTPS、当面）获取并验证公钥指纹（Fingerprint）；②使用数字证书，由 CA 担保公钥与身份的绑定关系；③使用 PKI 证书链验证。绝不要在不可信渠道直接接收公钥。</p>
+</div>
+
+<div class="card">
+  <p><strong>Q4：RSA 签名和加密用的填充方式为什么不一样？</strong></p>
+  <p style="font-size:14px;color:var(--text2);">加密用 OAEP 填充（带随机种子，保证相同明文每次加密结果不同）；签名用 PSS 或 PKCS#1 v1.5 填充（对哈希进行填充后签名）。两者的安全目标不同：加密要防明文恢复，签名要防伪造。混用填充方式会导致安全漏洞。</p>
+</div>
+
+<div class="card">
+  <p><strong>Q5：实际项目中应该用 RSA 还是 ECDSA（椭圆曲线）？</strong></p>
+  <p style="font-size:14px;color:var(--text2);">新项目优先考虑 ECDSA（如 P-256、ed25519）：密钥更短（256位 vs 2048位）、签名更快、安全性相当或更高。RSA 的优势是兼容性好、支持加密（ECDSA 只能签名，加密需用 ECDH）。JWT 中 RS256（RSA）和 ES256（ECDSA）都常用。</p>
+</div>
+
+<!-- ==================== 总结 ==================== -->
+<h2>七、一句话总结</h2>
+
+<div class="callout callout-info" style="font-size:15px;">
+  <strong>🎯 回答你的两个核心问题</strong><br>
+  <strong>1. 对方怎么知道我的公钥？</strong> 通过公钥分发机制——手动分发（文件/邮件/GitHub）、数字证书+CA、PKI、PGP信任网络、链上注册等。关键是要通过可信渠道确保公钥没有被中间人掉包。<br><br>
+  <strong>2. 怎么还原明文？</strong> 数字签名不还原明文！验签的逻辑是「重新计算哈希 + 比对」，明文本身随消息一起传输。如果需要保密，用对方的公钥加密明文，对方用自己的私钥解密。实际工程中通常「签名+加密」结合使用。
+</div>
+
+<div class="footer">
+  <p>非对称加密完全指南 | 基于 Python cryptography 库实战演示 | 2026</p>
+</div>
+
+</div>
+</body>
+</html>
