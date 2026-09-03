@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solidity 外部库链接完全指南 — Hardhat 3 & Foundry</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232733;
+    --border: #2e3345;
+    --text: #e4e6ef;
+    --text-dim: #9ca0b0;
+    --accent: #6c8cff;
+    --accent2: #4ecdc4;
+    --warn: #f0b429;
+    --danger: #ff6b6b;
+    --success: #51cf66;
+    --code-bg: #161922;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 0;
+  }
+  .container { max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  /* Header */
+  header {
+    text-align: center;
+    padding: 60px 20px 50px;
+    background: linear-gradient(135deg, #1a1d27 0%, #0f1117 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 {
+    font-size: 2.2em;
+    font-weight: 700;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 12px;
+  }
+  header p { color: var(--text-dim); font-size: 1.05em; max-width: 700px; margin: 0 auto; }
+
+  /* Nav */
+  nav.toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 32px;
+    margin: 32px 0;
+  }
+  nav.toc h3 { font-size: 0.95em; color: var(--accent); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+  nav.toc ol { padding-left: 20px; }
+  nav.toc li { margin: 6px 0; }
+  nav.toc a { color: var(--text-dim); text-decoration: none; transition: color .2s; }
+  nav.toc a:hover { color: var(--accent); }
+
+  /* Sections */
+  section { margin: 48px 0; }
+  h2 {
+    font-size: 1.6em;
+    font-weight: 700;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--accent);
+    display: inline-block;
+  }
+  h3 { font-size: 1.2em; font-weight: 600; margin: 28px 0 14px; color: var(--accent2); }
+  h4 { font-size: 1.05em; font-weight: 600; margin: 20px 0 10px; color: var(--text); }
+  p { margin: 12px 0; color: var(--text); }
+  ul, ol { padding-left: 24px; margin: 12px 0; }
+  li { margin: 6px 0; }
+
+  /* Callout */
+  .callout {
+    background: var(--surface);
+    border-left: 4px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    padding: 16px 20px;
+    margin: 18px 0;
+  }
+  .callout.warn { border-left-color: var(--warn); }
+  .callout.success { border-left-color: var(--success); }
+  .callout.danger { border-left-color: var(--danger); }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .callout.warn strong { color: var(--warn); }
+  .callout.success strong { color: var(--success); }
+  .callout.danger strong { color: var(--danger); }
+
+  /* Code blocks */
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    overflow-x: auto;
+    margin: 14px 0;
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
+    font-size: 0.88em;
+    line-height: 1.65;
+  }
+  code {
+    font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
+    font-size: 0.9em;
+  }
+  p code, li code {
+    background: var(--surface2);
+    padding: 2px 7px;
+    border-radius: 4px;
+    color: var(--accent2);
+  }
+  pre code { color: #c8cdd8; }
+
+  /* Syntax highlighting */
+  .kw { color: #c792ea; }
+  .type { color: #82aaff; }
+  .fn { color: #82ddff; }
+  .str { color: #c3e88d; }
+  .num { color: #f78c6c; }
+  .cmt { color: #5c6370; font-style: italic; }
+  .op { color: #89ddff; }
+  .var { color: #eeffff; }
+  .dec { color: #f07178; }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 18px 0;
+    font-size: 0.92em;
+  }
+  th, td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    background: var(--surface2);
+    color: var(--accent);
+    font-weight: 600;
+    font-size: 0.9em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  tr:hover { background: var(--surface); }
+  td code { font-size: 0.85em; }
+
+  /* SVG diagram container */
+  .diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin: 20px 0;
+    overflow-x: auto;
+  }
+  .diagram svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+  .diagram-title { text-align: center; color: var(--text-dim); font-size: 0.9em; margin-top: 12px; }
+
+  /* Two-column layout */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin: 20px 0;
+  }
+  @media (max-width: 768px) { .two-col { grid-template-columns: 1fr; } }
+  .col-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .col-card h4 { margin-top: 0; color: var(--accent); }
+
+  /* Badge */
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.78em;
+    font-weight: 600;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+  .badge.hh { background: rgba(108,140,255,0.15); color: var(--accent); }
+  .badge.fd { background: rgba(78,205,196,0.15); color: var(--accent2); }
+
+  /* Step indicator */
+  .step {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .step-num {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.9em;
+  }
+  .step-content { flex: 1; }
+  .step-content h4 { margin-top: 4px; }
+
+  footer {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-dim);
+    font-size: 0.85em;
+    border-top: 1px solid var(--border);
+    margin-top: 60px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Solidity 外部库链接完全指南</h1>
+  <p>Counter 合约如何调用独立部署的 Library 中的 add 方法 — Hardhat 3 与 Foundry 双端配置实战</p>
+</header>
+
+<div class="container">
+
+<!-- TOC -->
+<nav class="toc">
+  <h3>目录</h3>
+  <ol>
+    <li><a href="#principle">核心原理：什么是"链接外部库"</a></li>
+    <li><a href="#diagram">架构与流程图</a></li>
+    <li><a href="#solidity">Solidity 代码实现</a></li>
+    <li><a href="#hardhat">Hardhat 3 配置与部署</a></li>
+    <li><a href="#foundry">Foundry 配置与部署</a></li>
+    <li><a href="#compare">双端对比与总结</a></li>
+    <li><a href="#faq">常见问题</a></li>
+  </ol>
+</nav>
+
+<!-- ========== 1. 核心原理 ========== -->
+<section id="principle">
+  <h2>1. 核心原理：什么是"链接外部库"</h2>
+
+  <p>在 Solidity 中，<code>library</code> 是一种特殊的合约。根据其函数可见性的不同，编译和部署行为有本质区别：</p>
+
+  <div class="two-col">
+    <div class="col-card">
+      <h4>internal 函数库（内联模式）</h4>
+      <p>如果 library 中<strong>只有</strong> <code>internal</code> 函数，编译器会在编译时把函数体直接内联（inline）到调用合约的字节码中。</p>
+      <ul>
+        <li>库不需要单独部署</li>
+        <li>调用方字节码体积增大</li>
+        <li>调用成本低（无跨合约调用）</li>
+        <li>典型：OpenZeppelin 的 <code>SafeMath</code>（旧版）、<code>Address</code></li>
+      </ul>
+    </div>
+    <div class="col-card">
+      <h4>external/public 函数库（部署模式）</h4>
+      <p>如果 library 中包含 <code>external</code> 或 <code>public</code> 函数，库必须<strong>单独部署</strong>到链上，调用方通过 <code>DELEGATECALL</code> 执行库代码。</p>
+      <ul>
+        <li>库需要单独部署，获得独立地址</li>
+        <li>调用方字节码中留有地址占位符</li>
+        <li>部署前必须"链接"（替换占位符为真实地址）</li>
+        <li>运行时通过 DELEGATECALL 调用</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout warn">
+    <strong>关键判断</strong>
+    本指南讨论的"链接外部库"专指第二种情况——包含 external/public 函数、需要单独部署并在部署调用方时填入库地址的 library。你的 Counter 合约调用独立 library 的 <code>add</code> 方法，正属于此类。
+  </div>
+
+  <h3>1.1 字节码占位符</h3>
+  <p>当 solc 编译一个引用了外部库的合约时，生成的字节码中会出现形如以下的占位符：</p>
+  <pre><code><span class="cmt">// 编译后 Counter 的字节码中会包含类似片段：</span>
+... <span class="num">__$53aea86b7d70b31448b230b20ae141a537$__</span> ...
+
+<span class="cmt">// $ 之间是 34 位 hex（库的 fully qualified name 的 keccak256 哈希前 34 字符）</span>
+<span class="cmt">// 部署前必须用真实库地址（20 字节 = 40 hex 字符）替换它</span></code></pre>
+
+  <p>这个"用真实地址替换占位符"的过程，就叫做 <strong>Linking（链接）</strong>。Hardhat 和 Foundry 都提供了自动化工具来完成这件事。</p>
+
+  <h3>1.2 DELEGATECALL 执行模型</h3>
+  <p>链接完成后，Counter 合约在运行时调用 <code>MathLib.add()</code> 的过程：</p>
+  <ol>
+    <li>Counter 合约中存储了 MathLib 的地址（链接时写入）</li>
+    <li>调用 <code>MathLib.add(a, b)</code> 时，EVM 执行 <code>DELEGATECALL</code></li>
+    <li>MathLib 的代码在 Counter 的上下文（storage、msg.sender、msg.value）中执行</li>
+    <li>库本身<strong>无状态</strong>（library 不能有 state variables），所有存储操作作用在调用方上</li>
+    <li>执行结果返回给 Counter</li>
+  </ol>
+</section>
+
+<!-- ========== 2. 架构图 ========== -->
+<section id="diagram">
+  <h2>2. 架构与流程图</h2>
+
+  <h3>2.1 编译与链接全景</h3>
+  <div class="diagram">
+    <svg viewBox="0 0 960 420" xmlns="http://www.w3.org/2000/svg" font-family="sans-serif">
+      <defs>
+        <marker id="arrow" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#6c8cff"/>
+        </marker>
+        <marker id="arrow2" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#4ecdc4"/>
+        </marker>
+        <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#232733;stop-opacity:1" />
+          <stop offset="100%" style="stop-color:#1a1d27;stop-opacity:1" />
+        </linearGradient>
+      </defs>
+
+      <!-- Source files -->
+      <rect x="30" y="30" width="160" height="70" rx="8" fill="url(#g1)" stroke="#6c8cff" stroke-width="1.5"/>
+      <text x="110" y="58" text-anchor="middle" fill="#82aaff" font-size="14" font-weight="bold">MathLib.sol</text>
+      <text x="110" y="80" text-anchor="middle" fill="#9ca0b0" font-size="11">library MathLib</text>
+
+      <rect x="30" y="130" width="160" height="70" rx="8" fill="url(#g1)" stroke="#6c8cff" stroke-width="1.5"/>
+      <text x="110" y="158" text-anchor="middle" fill="#82aaff" font-size="14" font-weight="bold">Counter.sol</text>
+      <text x="110" y="180" text-anchor="middle" fill="#9ca0b0" font-size="11">contract Counter</text>
+
+      <!-- solc compiler -->
+      <rect x="270" y="70" width="140" height="90" rx="10" fill="#1a1d27" stroke="#f0b429" stroke-width="2"/>
+      <text x="340" y="105" text-anchor="middle" fill="#f0b429" font-size="16" font-weight="bold">solc 编译</text>
+      <text x="340" y="128" text-anchor="middle" fill="#9ca0b0" font-size="11">bytecode + ABI</text>
+      <text x="340" y="146" text-anchor="middle" fill="#9ca0b0" font-size="11">linkReferences</text>
+
+      <!-- Arrows to compiler -->
+      <line x1="190" y1="65" x2="265" y2="95" stroke="#6c8cff" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <line x1="190" y1="165" x2="265" y2="135" stroke="#6c8cff" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+      <!-- Compiled outputs -->
+      <rect x="490" y="30" width="200" height="80" rx="8" fill="url(#g1)" stroke="#51cf66" stroke-width="1.5"/>
+      <text x="590" y="58" text-anchor="middle" fill="#51cf66" font-size="13" font-weight="bold">MathLib 字节码</text>
+      <text x="590" y="80" text-anchor="middle" fill="#9ca0b0" font-size="11">完整可部署字节码</text>
+      <text x="590" y="98" text-anchor="middle" fill="#9ca0b0" font-size="11">（无占位符）</text>
+
+      <rect x="490" y="140" width="200" height="90" rx="8" fill="url(#g1)" stroke="#ff6b6b" stroke-width="1.5"/>
+      <text x="590" y="168" text-anchor="middle" fill="#ff6b6b" font-size="13" font-weight="bold">Counter 字节码</text>
+      <text x="590" y="190" text-anchor="middle" fill="#c8cdd8" font-size="10" font-family="monospace">...__$53aea8...$__...</text>
+      <text x="590" y="210" text-anchor="middle" fill="#9ca0b0" font-size="11">含库地址占位符</text>
+
+      <line x1="410" y1="100" x2="485" y2="70" stroke="#51cf66" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <line x1="410" y1="130" x2="485" y2="180" stroke="#ff6b6b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+      <!-- Deploy MathLib -->
+      <rect x="760" y="30" width="170" height="80" rx="8" fill="url(#g1)" stroke="#51cf66" stroke-width="2"/>
+      <text x="845" y="58" text-anchor="middle" fill="#51cf66" font-size="13" font-weight="bold">部署 MathLib</text>
+      <text x="845" y="80" text-anchor="middle" fill="#c8cdd8" font-size="11" font-family="monospace">→ 0x1234...abcd</text>
+      <text x="845" y="98" text-anchor="middle" fill="#9ca0b0" font-size="11">获得库地址</text>
+
+      <line x1="690" y1="70" x2="755" y2="70" stroke="#51cf66" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+      <!-- Linking -->
+      <rect x="760" y="140" width="170" height="90" rx="8" fill="url(#g1)" stroke="#4ecdc4" stroke-width="2"/>
+      <text x="845" y="168" text-anchor="middle" fill="#4ecdc4" font-size="13" font-weight="bold">链接 Linking</text>
+      <text x="845" y="190" text-anchor="middle" fill="#c8cdd8" font-size="10" font-family="monospace">占位符 → 0x1234...abcd</text>
+      <text x="845" y="210" text-anchor="middle" fill="#9ca0b0" font-size="11">替换为真实库地址</text>
+
+      <line x1="690" y1="185" x2="755" y2="185" stroke="#ff6b6b" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <line x1="845" y1="110" x2="845" y2="135" stroke="#51cf66" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+      <text x="860" y="128" fill="#51cf66" font-size="10">地址传入</text>
+
+      <!-- Deploy Counter -->
+      <rect x="760" y="270" width="170" height="80" rx="8" fill="url(#g1)" stroke="#6c8cff" stroke-width="2"/>
+      <text x="845" y="298" text-anchor="middle" fill="#6c8cff" font-size="13" font-weight="bold">部署 Counter</text>
+      <text x="845" y="320" text-anchor="middle" fill="#c8cdd8" font-size="11" font-family="monospace">→ 0x5678...ef01</text>
+      <text x="845" y="338" text-anchor="middle" fill="#9ca0b0" font-size="11">字节码已链接</text>
+
+      <line x1="845" y1="230" x2="845" y2="265" stroke="#4ecdc4" stroke-width="1.5" marker-end="url(#arrow2)"/>
+
+      <!-- Runtime label -->
+      <rect x="30" y="270" width="680" height="110" rx="10" fill="#161922" stroke="#2e3345" stroke-width="1"/>
+      <text x="370" y="298" text-anchor="middle" fill="#f0b429" font-size="14" font-weight="bold">运行时：DELEGATECALL 调用链</text>
+
+      <!-- User -->
+      <rect x="60" y="315" width="100" height="50" rx="6" fill="#232733" stroke="#9ca0b0"/>
+      <text x="110" y="345" text-anchor="middle" fill="#e4e6ef" font-size="12">用户调用</text>
+
+      <!-- Counter at runtime -->
+      <rect x="220" y="315" width="130" height="50" rx="6" fill="#232733" stroke="#6c8cff" stroke-width="1.5"/>
+      <text x="285" y="338" text-anchor="middle" fill="#6c8cff" font-size="12" font-weight="bold">Counter 合约</text>
+      <text x="285" y="355" text-anchor="middle" fill="#9ca0b0" font-size="10">0x5678...ef01</text>
+
+      <!-- MathLib at runtime -->
+      <rect x="440" y="315" width="130" height="50" rx="6" fill="#232733" stroke="#51cf66" stroke-width="1.5"/>
+      <text x="505" y="338" text-anchor="middle" fill="#51cf66" font-size="12" font-weight="bold">MathLib 库</text>
+      <text x="505" y="355" text-anchor="middle" fill="#9ca0b0" font-size="10">0x1234...abcd</text>
+
+      <!-- DELEGATECALL box -->
+      <rect x="620" y="315" width="70" height="50" rx="6" fill="#1a1d27" stroke="#4ecdc4" stroke-width="1.5" stroke-dasharray="4,2"/>
+      <text x="655" y="338" text-anchor="middle" fill="#4ecdc4" font-size="11" font-weight="bold">DELEGATE</text>
+      <text x="655" y="354" text-anchor="middle" fill="#4ecdc4" font-size="11" font-weight="bold">CALL</text>
+
+      <line x1="160" y1="340" x2="215" y2="340" stroke="#9ca0b0" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <line x1="350" y1="340" x2="435" y2="340" stroke="#4ecdc4" stroke-width="1.5" marker-end="url(#arrow2)"/>
+      <text x="392" y="332" text-anchor="middle" fill="#4ecdc4" font-size="10">add(a,b)</text>
+      <line x1="570" y1="340" x2="615" y2="340" stroke="#4ecdc4" stroke-width="1.5" stroke-dasharray="3,2"/>
+    </svg>
+    <div class="diagram-title">图 1：从源码编译 → 库部署 → 链接 → 合约部署 → 运行时 DELEGATECALL 的完整流程</div>
+  </div>
+
+  <h3>2.2 部署顺序依赖</h3>
+  <div class="diagram">
+    <svg viewBox="0 0 800 200" xmlns="http://www.w3.org/2000/svg" font-family="sans-serif">
+      <defs>
+        <marker id="arr3" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#f0b429"/>
+        </marker>
+      </defs>
+      <!-- Step 1 -->
+      <rect x="30" y="60" width="180" height="80" rx="10" fill="#1a1d27" stroke="#51cf66" stroke-width="2"/>
+      <text x="120" y="90" text-anchor="middle" fill="#51cf66" font-size="14" font-weight="bold">① 部署 MathLib</text>
+      <text x="120" y="112" text-anchor="middle" fill="#9ca0b0" font-size="11">获得链上地址</text>
+      <text x="120" y="128" text-anchor="middle" fill="#c8cdd8" font-size="10" font-family="monospace">0xLibAddr</text>
+
+      <!-- Step 2 -->
+      <rect x="310" y="60" width="180" height="80" rx="10" fill="#1a1d27" stroke="#4ecdc4" stroke-width="2"/>
+      <text x="400" y="90" text-anchor="middle" fill="#4ecdc4" font-size="14" font-weight="bold">② 链接 Linking</text>
+      <text x="400" y="112" text-anchor="middle" fill="#9ca0b0" font-size="11">替换字节码占位符</text>
+      <text x="400" y="128" text-anchor="middle" fill="#c8cdd8" font-size="10" font-family="monospace">__$..$__ → 0xLibAddr</text>
+
+      <!-- Step 3 -->
+      <rect x="590" y="60" width="180" height="80" rx="10" fill="#1a1d27" stroke="#6c8cff" stroke-width="2"/>
+      <text x="680" y="90" text-anchor="middle" fill="#6c8cff" font-size="14" font-weight="bold">③ 部署 Counter</text>
+      <text x="680" y="112" text-anchor="middle" fill="#9ca0b0" font-size="11">已链接的完整字节码</text>
+      <text x="680" y="128" text-anchor="middle" fill="#c8cdd8" font-size="10" font-family="monospace">→ 链上部署成功</text>
+
+      <line x1="210" y1="100" x2="305" y2="100" stroke="#f0b429" stroke-width="2" marker-end="url(#arr3)"/>
+      <line x1="490" y1="100" x2="585" y2="100" stroke="#f0b429" stroke-width="2" marker-end="url(#arr3)"/>
+
+      <text x="258" y="92" text-anchor="middle" fill="#f0b429" font-size="10">地址传入</text>
+      <text x="538" y="92" text-anchor="middle" fill="#f0b429" font-size="10">已链接字节码</text>
+    </svg>
+    <div class="diagram-title">图 2：严格的三步部署顺序 — 库必须先于合约部署，地址是链接的前置依赖</div>
+  </div>
+</section>
+
+<!-- ========== 3. Solidity 代码 ========== -->
+<section id="solidity">
+  <h2>3. Solidity 代码实现</h2>
+
+  <p>我们创建两个文件：一个独立部署的 <code>MathLib</code> 库（包含 external 的 <code>add</code> 方法），和一个引用它的 <code>Counter</code> 合约。</p>
+
+  <h3>3.1 项目结构</h3>
+  <pre><code><span class="cmt">// Hardhat 项目结构</span>
+my-project/
+├── contracts/
+│   ├── MathLib.sol   <span class="cmt">// 独立库（需单独部署）</span>
+│   └── Counter.sol   <span class="cmt">// 引用 MathLib 的合约</span>
+├── scripts/
+│   └── deploy.ts
+├── test/
+├── hardhat.config.ts
+└── package.json
+
+<span class="cmt">// Foundry 项目结构</span>
+my-project/
+├── src/
+│   ├── MathLib.sol
+│   └── Counter.sol
+├── script/
+│   └── Deploy.s.sol
+├── test/
+├── foundry.toml
+└── remappings.txt</code></pre>
+
+  <h3>3.2 MathLib.sol — 独立部署的数学库</h3>
+  <pre><code><span class="cmt">// SPDX-License-Identifier: MIT</span>
+<span class="kw">pragma solidity</span> <span class="op">^</span><span class="num">0.8.24</span>;
+
+<span class="cmt">/**
+ * @title MathLib
+ * @notice 包含 external 函数的库，必须单独部署并被链接
+ * @dev    external 函数 → 编译后生成独立字节码，调用方通过 DELEGATECALL 调用
+ *         internal 函数 → 编译时内联到调用方，无需部署
+ */</span>
+<span class="kw">library</span> <span class="type">MathLib</span> {
+    <span class="cmt">/**
+     * @notice 加法运算（external → 需要单独部署 + 链接）
+     * @param a 第一个加数
+     * @param b 第二个加数
+     * @return  a + b 的结果
+     */</span>
+    <span class="kw">function</span> <span class="fn">add</span>(<span class="type">uint256</span> <span class="var">a</span>, <span class="type">uint256</span> <span class="var">b</span>) <span class="kw">external</span> <span class="kw">pure</span> <span class="kw">returns</span> (<span class="type">uint256</span>) {
+        <span class="kw">return</span> <span class="var">a</span> <span class="op">+</span> <span class="var">b</span>;
+    }
+
+    <span class="cmt">/**
+     * @notice 减法运算（internal → 编译时内联，无需部署和链接）
+     * @dev    仅作对比演示，展示 internal 与 external 的本质区别
+     */</span>
+    <span class="kw">function</span> <span class="fn">sub</span>(<span class="type">uint256</span> <span class="var">a</span>, <span class="type">uint256</span> <span class="var">b</span>) <span class="kw">internal</span> <span class="kw">pure</span> <span class="kw">returns</span> (<span class="type">uint256</span>) {
+        <span class="kw">return</span> <span class="var">a</span> <span class="op">-</span> <span class="var">b</span>;
+    }
+}</code></pre>
+
+  <div class="callout">
+    <strong>为什么 add 必须是 external？</strong>
+    如果 <code>add</code> 声明为 <code>internal</code>，solc 会把函数体内联到 Counter 的字节码中，MathLib 就不需要单独部署，也就不存在"链接"的概念。正是因为 <code>add</code> 是 <code>external</code>，MathLib 才成为一个需要独立部署、独立地址、需要被链接的外部库。
+  </div>
+
+  <h3>3.3 Counter.sol — 引用外部库的合约</h3>
+  <pre><code><span class="cmt">// SPDX-License-Identifier: MIT</span>
+<span class="kw">pragma solidity</span> <span class="op">^</span><span class="num">0.8.24</span>;
+
+<span class="kw">import</span> { <span class="type">MathLib</span> } <span class="kw">from</span> <span class="str">"./MathLib.sol"</span>;
+
+<span class="cmt">/**
+ * @title Counter
+ * @notice 计数器合约，调用外部库 MathLib 的 add 方法
+ * @dev    编译后字节码中包含 MathLib 地址占位符，部署时必须链接
+ */</span>
+<span class="kw">contract</span> <span class="type">Counter</span> {
+    <span class="cmt">// 使用 using for 语法，将 MathLib 的函数绑定到 uint256 类型</span>
+    <span class="cmt">// 这样可以写 count.add(1)，等价于 MathLib.add(count, 1)</span>
+    <span class="kw">using</span> <span class="type">MathLib</span> <span class="kw">for</span> <span class="type">uint256</span>;
+
+    <span class="type">uint256</span> <span class="kw">public</span> <span class="var">count</span>;
+
+    <span class="cmt">/**
+     * @notice 增加计数，通过 DELEGATECALL 调用 MathLib.add
+     */</span>
+    <span class="kw">function</span> <span class="fn">increment</span>() <span class="kw">external</span> {
+        <span class="cmt">// 方式 A：直接调用库函数（推荐，语义清晰）</span>
+        <span class="var">count</span> <span class="op">=</span> <span class="type">MathLib</span>.<span class="fn">add</span>(<span class="var">count</span>, <span class="num">1</span>);
+
+        <span class="cmt">// 方式 B：using for 语法（效果完全相同，也是 DELEGATECALL）</span>
+        <span class="cmt">// count = count.add(1);</span>
+    }
+
+    <span class="cmt">/**
+     * @notice 减少计数，调用 internal 函数 sub（内联，无 DELEGATECALL）
+     */</span>
+    <span class="kw">function</span> <span class="fn">decrement</span>() <span class="kw">external</span> {
+        <span class="cmt">// sub 是 internal 函数，编译时直接内联到本合约字节码</span>
+        <span class="cmt">// 不需要 MathLib 部署也能正常工作</span>
+        <span class="var">count</span> <span class="op">=</span> <span class="type">MathLib</span>.<span class="fn">sub</span>(<span class="var">count</span>, <span class="num">1</span>);
+    }
+
+    <span class="cmt">/**
+     * @notice 重置计数
+     */</span>
+    <span class="kw">function</span> <span class="fn">reset</span>() <span class="kw">external</span> {
+        <span class="var">count</span> <span class="op">=</span> <span class="num">0</span>;
+    }
+}</code></pre>
+
+  <div class="callout success">
+    <strong>验证编译产物</strong>
+    编译后检查 <code>artifacts</code>（Hardhat）或 <code>out</code>（Foundry）目录中 Counter 的 JSON，你会看到 <code>linkReferences</code> 字段列出了对 MathLib 的引用，且字节码中包含 <code>__$...$__</code> 占位符。这是确认"需要链接"的最直接证据。
+  </div>
+</section>
+
+<!-- ========== 4. Hardhat 3 ========== -->
+<section id="hardhat">
+  <h2>4. Hardhat 3 配置与部署 <span class="badge hh">Hardhat 3</span></h2>
+
+  <p>Hardhat 3 没有在 <code>hardhat.config.ts</code> 中预配置库地址的机制（这是 Foundry 的做法）。Hardhat 的哲学是<strong>在部署脚本中动态链接</strong>：先部署库拿到地址，再把地址传给合约工厂。</p>
+
+  <h3>4.1 hardhat.config.ts</h3>
+  <p>配置文件本身不需要任何库相关的特殊字段。标准的 Hardhat 3 配置即可：</p>
+  <pre><code><span class="kw">import</span> { <span class="fn">defineConfig</span> } <span class="kw">from</span> <span class="str">"hardhat/config"</span>;
+<span class="kw">import</span> <span class="var">hardhatToolbox</span> <span class="kw">from</span> <span class="str">"@nomicfoundation/hardhat-toolbox"</span>;
+
+<span class="cmt">// 注意：本指南的部署脚本使用 ethers API（ethers.deployContract / getContractFactory）</span>
+<span class="cmt">// 因此需要 @nomicfoundation/hardhat-toolbox（内含 @nomicfoundation/hardhat-ethers）</span>
+<span class="cmt">// 如果你使用 @nomicfoundation/hardhat-toolbox-viem，则需改用 viem 方式部署</span>
+
+<span class="kw">export default</span> <span class="fn">defineConfig</span>({
+  <span class="var">plugins</span>: [<span class="var">hardhatToolbox</span>],
+  <span class="var">solidity</span>: {
+    <span class="var">version</span>: <span class="str">"0.8.24"</span>,
+    <span class="var">settings</span>: {
+      <span class="var">optimizer</span>: {
+        <span class="var">enabled</span>: <span class="kw">true</span>,
+        <span class="var">runs</span>: <span class="num">200</span>,
+      },
+    },
+  },
+  <span class="var">networks</span>: {
+    <span class="var">sepolia</span>: {
+      <span class="var">url</span>: <span class="var">process</span>.<span class="var">env</span>.<span class="var">SEPOLIA_RPC_URL</span> <span class="op">??</span> <span class="str">""</span>,
+      <span class="var">accounts</span>: [<span class="var">process</span>.<span class="var">env</span>.<span class="var">PRIVATE_KEY</span> <span class="op">??</span> <span class="str">""</span>],
+    },
+  },
+  <span class="cmt">// 注意：Hardhat 3 没有 libraries 配置项</span>
+  <span class="cmt">// 库链接在部署脚本中通过 ethers.deployContract / getContractFactory 完成</span>
+});</code></pre>
+
+  <h3>4.2 部署脚本 scripts/deploy.ts（核心）</h3>
+  <p>这是 Hardhat 链接外部库的关键。部署分两步，库地址通过 <code>libraries</code> 选项传入：</p>
+
+  <pre><code><span class="kw">import</span> { <span class="var">ethers</span> } <span class="kw">from</span> <span class="str">"hardhat"</span>;
+
+<span class="kw">async function</span> <span class="fn">main</span>() {
+  <span class="kw">const</span> [<span class="var">deployer</span>] <span class="op">=</span> <span class="kw">await</span> <span class="var">ethers</span>.<span class="fn">getSigners</span>();
+  <span class="var">console</span>.<span class="fn">log</span>(<span class="str">"部署者地址:"</span>, <span class="kw">await</span> <span class="var">deployer</span>.<span class="fn">getAddress</span>());
+
+  <span class="cmt">// ============================================================</span>
+  <span class="cmt">// 第一步：部署 MathLib 库（独立部署，获得链上地址）</span>
+  <span class="cmt">// ============================================================</span>
+  <span class="kw">const</span> <span class="var">MathLibFactory</span> <span class="op">=</span> <span class="kw">await</span> <span class="var">ethers</span>.<span class="fn">getContractFactory</span>(<span class="str">"MathLib"</span>);
+  <span class="kw">const</span> <span class="var">mathLib</span> <span class="op">=</span> <span class="kw">await</span> <span class="var">MathLibFactory</span>.<span class="fn">deploy</span>();
+  <span class="kw">await</span> <span class="var">mathLib</span>.<span class="fn">waitForDeployment</span>();
+  <span class="kw">const</span> <span class="var">libAddress</span> <span class="op">=</span> <span class="kw">await</span> <span class="var">mathLib</span>.<span class="fn">getAddress</span>();
+  <span class="var">console</span>.<span class="fn">log</span>(<span class="str">"MathLib 已部署到:"</span>, <span class="var">libAddress</span>);
+
+  <span class="cmt">// ============================================================</span>
+  <span class="cmt">// 第二步：部署 Counter，通过 libraries 选项链接 MathLib</span>
+  <span class="cmt">// ============================================================</span>
+
+  <span class="cmt">// 方式 A：使用 getContractFactory + libraries（推荐，灵活）</span>
+  <span class="kw">const</span> <span class="var">CounterFactory</span> <span class="op">=</span> <span class="kw">await</span> <span class="var">ethers</span>.<span class="fn">getContractFactory</span>(<span class="str">"Counter"</span>, {
+    <span class="var">libraries</span>: {
+      <span class="type">MathLib</span>: <span class="var">libAddress</span>,  <span class="cmt">// key 是库名，value 是已部署的库地址</span>
+    },
+  });
+  <span class="kw">const</span> <span class="var">counter</span> <span class="op">=</span> <span class="kw">await</span> <span class="var">CounterFactory</span>.<span class="fn">deploy</span>();
+  <span class="kw">await</span> <span class="var">counter</span>.<span class="fn">waitForDeployment</span>();
+  <span class="var">console</span>.<span class="fn">log</span>(<span class="str">"Counter 已部署到:"</span>, <span class="kw">await</span> <span class="var">counter</span>.<span class="fn">getAddress</span>());
+
+  <span class="cmt">// 方式 B：使用 deployContract + libraries（更简洁）</span>
+  <span class="cmt">// const counter = await ethers.deployContract("Counter", {</span>
+  <span class="cmt">//   libraries: { MathLib: libAddress },</span>
+  <span class="cmt">// });</span>
+  <span class="cmt">// await counter.waitForDeployment();</span>
+
+  <span class="cmt">// ============================================================</span>
+  <span class="cmt">// 验证：调用 increment，确认 DELEGATECALL 正常工作</span>
+  <span class="cmt">// ============================================================</span>
+  <span class="var">console</span>.<span class="fn">log</span>(<span class="str">"\n初始 count:"</span>, <span class="kw">await</span> <span class="var">counter</span>.<span class="fn">count</span>());
+  <span class="kw">const</span> <span class="var">tx</span> <span class="op">=</span> <span class="kw">await</span> <span class="var">counter</span>.<span class="fn">increment</span>();
+  <span class="kw">await</span> <span class="var">tx</span>.<span class="fn">wait</span>();
+  <span class="var">console</span>.<span class="fn">log</span>(<span class="str">"increment 后 count:"</span>, <span class="kw">await</span> <span class="var">counter</span>.<span class="fn">count</span>());
+}
+
+<span class="var">main</span>().<span class="fn">catch</span>((<span class="var">error</span>) <span class="op">=></span> {
+  <span class="var">console</span>.<span class="fn">error</span>(<span class="var">error</span>);
+  <span class="var">process</span>.<span class="fn">exitCode</span> <span class="op">=</span> <span class="num">1</span>;
+});</code></pre>
+
+  <div class="callout success">
+    <strong>libraries 选项的格式</strong>
+    <code>libraries</code> 是一个对象，<strong>key 是库的合约名</strong>（不是文件名），<strong>value 是库的链上地址</strong>。如果有多个库，依次列出即可：<code>{ MathLib: "0x...", StringUtils: "0x..." }</code>
+  </div>
+
+  <h3>4.3 运行部署</h3>
+  <pre><code><span class="cmt"># 本地 Hardhat Network 测试</span>
+npx hardhat run scripts/deploy.ts
+
+<span class="cmt"># 部署到 Sepolia 测试网</span>
+npx hardhat run scripts/deploy.ts --network sepolia</code></pre>
+
+  <h3>4.4 合约验证（带库）</h3>
+  <p>验证引用了外部库的合约时，必须通过 <code>--libraries</code> 参数告知验证工具库的地址：</p>
+  <pre><code><span class="cmt"># 先验证库</span>
+npx hardhat verify --network sepolia <span class="num">0x</span>&lt;MathLib地址&gt;
+
+<span class="cmt"># 再验证 Counter，指定库地址</span>
+npx hardhat verify --network sepolia <span class="num">0x</span>&lt;Counter地址&gt; \
+  --libraries <span class="str">"contracts/MathLib.sol:MathLib=0x&lt;MathLib地址&gt;"</span>
+
+<span class="cmt"># 多个库用逗号分隔</span>
+<span class="cmt"># --libraries "contracts/A.sol:A=0x..1,contracts/B.sol:B=0x..2"</span></code></pre>
+
+  <div class="callout warn">
+    <strong>验证时的库格式注意</strong>
+    验证时的 <code>--libraries</code> 格式是 <code>文件路径:库名=地址</code>（用等号），而部署脚本中 <code>libraries</code> 对象的格式是 <code>{ 库名: 地址 }</code>。两者格式不同，不要混淆。
+  </div>
+
+  <h3>4.5 测试中的库链接</h3>
+  <p>在 Hardhat 测试中，如果需要部署带库的合约，同样使用 <code>libraries</code> 选项：</p>
+  <pre><code><span class="kw">import</span> { <span class="var">expect</span> } <span class="kw">from</span> <span class="str">"chai"</span>;
+<span class="kw">import</span> { <span class="var">ethers</span> } <span class="kw">from</span> <span class="str">"hardhat"</span>;
+
+<span class="fn">describe</span>(<span class="str">"Counter with MathLib"</span>, <span class="kw">function</span> () {
+  <span class="fn">it</span>(<span class="str">"should increment via external library"</span>, <span class="kw">async function</span> () {
+    <span class="cmt">// 先部署库</span>
+    <span class="kw">const</span> <span class="var">MathLib</span> <span class="op">=</span> <span class="kw">await</span> <span class="var">ethers</span>.<span class="fn">getContractFactory</span>(<span class="str">"MathLib"</span>);
+    <span class="kw">const</span> <span class="var">mathLib</span> <span class="op">=</span> <span class="kw">await</span> <span class="var">MathLib</span>.<span class="fn">deploy</span>();
+    <span class="kw">await</span> <span class="var">mathLib</span>.<span class="fn">waitForDeployment</span>();
+
+    <span class="cmt">// 再部署带库链接的 Counter</span>
+    <span class="kw">const</span> <span class="var">Counter</span> <span class="op">=</span> <span class="kw">await</span> <span class="var">ethers</span>.<span class="fn">getContractFactory</span>(<span class="str">"Counter"</span>, {
+      <span class="var">libraries</span>: { <span class="type">MathLib</span>: <span class="kw">await</span> <span class="var">mathLib</span>.<span class="fn">getAddress</span>() },
+    });
+    <span class="kw">const</span> <span class="var">counter</span> <span class="op">=</span> <span class="kw">await</span> <span class="var">Counter</span>.<span class="fn">deploy</span>();
+    <span class="kw">await</span> <span class="var">counter</span>.<span class="fn">waitForDeployment</span>();
+
+    <span class="kw">await</span> <span class="var">counter</span>.<span class="fn">increment</span>();
+    <span class="fn">expect</span>(<span class="kw">await</span> <span class="var">counter</span>.<span class="fn">count</span>()).<span class="fn">to</span>.<span class="fn">equal</span>(<span class="num">1</span>);
+  });
+});</code></pre>
+</section>
+
+<!-- ========== 5. Foundry ========== -->
+<section id="foundry">
+  <h2>5. Foundry 配置与部署 <span class="badge fd">Foundry</span></h2>
+
+  <p>Foundry 提供了两种链接外部库的方式，与你参考图中的内容一致：</p>
+  <ol>
+    <li><strong>命令行参数</strong>：<code>forge create --libraries</code></li>
+    <li><strong>配置文件</strong>：<code>foundry.toml</code> 中的 <code>libraries</code> 字段</li>
+  </ol>
+  <p>此外，在 <code>forge script</code> 部署脚本中，如果库在同一次广播中先被部署，Foundry 会<strong>自动链接</strong>，无需手动指定。</p>
+
+  <h3>5.1 foundry.toml 配置</h3>
+  <pre><code><span class="cmt"># foundry.toml</span>
+[<span class="var">profile</span>.<span class="kw">default</span>]
+src = <span class="str">"src"</span>
+out = <span class="str">"out"</span>
+libs = [<span class="str">"lib"</span>]
+solc_version = <span class="str">"0.8.24"</span>
+optimizer = <span class="kw">true</span>
+optimizer_runs = <span class="num">200</span>
+
+<span class="cmt"># ============================================================</span>
+<span class="cmt"># 方式二：在配置文件中预声明库地址</span>
+<span class="cmt"># 格式：["文件路径:库名:0x地址"]</span>
+<span class="cmt"># 适用于库已经预先部署、地址固定的场景</span>
+<span class="cmt"># ============================================================</span>
+<span class="cmt"># libraries = ["src/MathLib.sol:MathLib:0x1234567890abcdef1234567890abcdef12345678"]</span>
+
+<span class="cmt"># 多个库的写法：</span>
+<span class="cmt"># libraries = [</span>
+<span class="cmt">#   "src/MathLib.sol:MathLib:0x...1",</span>
+<span class="cmt">#   "src/StringUtils.sol:StringUtils:0x...2",</span>
+<span class="cmt"># ]</span>
+
+[<span class="var">profile</span>.<span class="kw">default</span>.<span class="var">etherscan</span>]
+key = <span class="str">"${ETHERSCAN_API_KEY}"</span></code></pre>
+
+  <div class="callout warn">
+    <strong>foundry.toml 中 libraries 的格式</strong>
+    格式为 <code>文件相对路径:库合约名:0x地址</code>，三部分用冒号分隔。文件路径是相对于项目根目录的路径（如 <code>src/MathLib.sol</code>），不是绝对路径。
+  </div>
+
+  <h3>5.2 方式一：命令行 forge create --libraries</h3>
+  <p>适合库已经部署好、地址已知的场景。两步完成：</p>
+
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+      <h4>部署 MathLib 库</h4>
+      <pre><code>forge create src/MathLib.sol:MathLib \
+  --rpc-url <span class="var">$RPC_URL</span> \
+  --private-key <span class="var">$PRIVATE_KEY</span>
+
+<span class="cmt"># 输出：Deployed to: 0x1234...abcd</span></code></pre>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+      <h4>部署 Counter，通过 --libraries 链接</h4>
+      <pre><code>forge create src/Counter.sol:Counter \
+  --rpc-url <span class="var">$RPC_URL</span> \
+  --private-key <span class="var">$PRIVATE_KEY</span> \
+  --libraries src/MathLib.sol:MathLib:<span class="num">0x</span>1234...abcd
+
+<span class="cmt"># 格式：--libraries 文件路径:库名:地址</span>
+<span class="cmt"># 多个库用空格分隔：--libraries A.sol:A:0x..1 B.sol:B:0x..2</span></code></pre>
+    </div>
+  </div>
+
+  <h3>5.3 方式二：foundry.toml 预配置 + forge create</h3>
+  <p>如果在 <code>foundry.toml</code> 中已经声明了 <code>libraries</code>，部署时就不需要再传 <code>--libraries</code>：</p>
+  <pre><code><span class="cmt"># foundry.toml 中已配置：</span>
+<span class="cmt"># libraries = ["src/MathLib.sol:MathLib:0x1234...abcd"]</span>
+
+<span class="cmt"># 部署时直接 create，forge 会自动读取配置中的库地址</span>
+forge create src/Counter.sol:Counter \
+  --rpc-url <span class="var">$RPC_URL</span> \
+  --private-key <span class="var">$PRIVATE_KEY</span></code></pre>
+
+  <h3>5.4 方式三：forge script 自动链接（推荐用于复杂部署）</h3>
+  <p>使用 Solidity 编写部署脚本时，如果在同一次 <code>vm.startBroadcast()</code> 中先部署了 MathLib，再部署 Counter，Foundry 会<strong>自动检测并链接</strong>已部署的库，无需手动指定地址。</p>
+
+  <pre><code><span class="cmt">// script/Deploy.s.sol</span>
+<span class="cmt">// SPDX-License-Identifier: MIT</span>
+<span class="kw">pragma solidity</span> <span class="op">^</span><span class="num">0.8.24</span>;
+
+<span class="kw">import</span> { <span class="type">Script</span>, <span class="var">console</span> } <span class="kw">from</span> <span class="str">"forge-std/Script.sol"</span>;
+<span class="kw">import</span> { <span class="type">MathLib</span> } <span class="kw">from</span> <span class="str">"../src/MathLib.sol"</span>;
+<span class="kw">import</span> { <span class="type">Counter</span> } <span class="kw">from</span> <span class="str">"../src/Counter.sol"</span>;
+
+<span class="kw">contract</span> <span class="type">DeployScript</span> <span class="kw">is</span> <span class="type">Script</span> {
+    <span class="kw">function</span> <span class="fn">run</span>() <span class="kw">external</span> <span class="kw">returns</span> (<span class="type">MathLib</span> <span class="var">mathLib</span>, <span class="type">Counter</span> <span class="var">counter</span>) {
+        <span class="type">uint256</span> <span class="var">deployerPrivateKey</span> <span class="op">=</span> <span class="var">vm</span>.<span class="fn">envUint</span>(<span class="str">"PRIVATE_KEY"</span>);
+
+        <span class="var">vm</span>.<span class="fn">startBroadcast</span>(<span class="var">deployerPrivateKey</span>);
+
+        <span class="cmt">// 第一步：部署 MathLib</span>
+        <span class="var">mathLib</span> <span class="op">=</span> <span class="kw">new</span> <span class="type">MathLib</span>();
+        <span class="var">console</span>.<span class="fn">log</span>(<span class="str">"MathLib deployed:"</span>, <span class="kw">address</span>(<span class="var">mathLib</span>));
+
+        <span class="cmt">// 第二步：部署 Counter</span>
+        <span class="cmt">// forge 会自动将上面部署的 MathLib 地址链接到 Counter 的字节码中</span>
+        <span class="cmt">// 无需手动指定 --libraries 或在 foundry.toml 中预配置</span>
+        <span class="var">counter</span> <span class="op">=</span> <span class="kw">new</span> <span class="type">Counter</span>();
+        <span class="var">console</span>.<span class="fn">log</span>(<span class="str">"Counter deployed:"</span>, <span class="kw">address</span>(<span class="var">counter</span>));
+
+        <span class="var">vm</span>.<span class="fn">stopBroadcast</span>();
+    }
+}</code></pre>
+
+  <p>运行部署脚本：</p>
+  <pre><code><span class="cmt"># 广播部署到链上</span>
+forge script script/Deploy.s.sol:DeployScript \
+  --rpc-url <span class="var">$RPC_URL</span> \
+  --private-key <span class="var">$PRIVATE_KEY</span> \
+  --broadcast
+
+<span class="cmt"># 仅模拟执行（不广播，用于验证逻辑）</span>
+forge script script/Deploy.s.sol:DeployScript --rpc-url <span class="var">$RPC_URL</span></code></pre>
+
+  <div class="callout success">
+    <strong>forge script 自动链接的原理</strong>
+    Foundry 在编译时记录了 Counter 对 MathLib 的未链接引用（<code>linkReferences</code>）。在脚本执行过程中，当 <code>new MathLib()</code> 被广播后，Foundry 的部署追踪器会记录下新部署的库地址。随后执行 <code>new Counter()</code> 时，Foundry 自动将 Counter 字节码中的占位符替换为刚记录的库地址，完成链接。
+  </div>
+
+  <h3>5.5 Foundry 合约验证（带库）</h3>
+  <pre><code><span class="cmt"># 验证库</span>
+forge verify-contract <span class="num">0x</span>&lt;MathLib地址&gt; MathLib \
+  --verifier-url https://api-sepolia.etherscan.io/api \
+  --etherscan-api-key <span class="var">$ETHERSCAN_API_KEY</span>
+
+<span class="cmt"># 验证 Counter，指定库地址</span>
+forge verify-contract <span class="num">0x</span>&lt;Counter地址&gt; Counter \
+  --libraries src/MathLib.sol:MathLib:<span class="num">0x</span>&lt;MathLib地址&gt; \
+  --verifier-url https://api-sepolia.etherscan.io/api \
+  --etherscan-api-key <span class="var">$ETHERSCAN_API_KEY</span></code></pre>
+
+  <h3>5.6 Foundry 测试中的库链接</h3>
+  <p>在 Foundry 测试中，直接在 <code>setUp</code> 中先部署库再部署合约即可，forge test 会自动处理链接：</p>
+  <pre><code><span class="cmt">// test/Counter.t.sol</span>
+<span class="cmt">// SPDX-License-Identifier: MIT</span>
+<span class="kw">pragma solidity</span> <span class="op">^</span><span class="num">0.8.24</span>;
+
+<span class="kw">import</span> { <span class="type">Test</span> } <span class="kw">from</span> <span class="str">"forge-std/Test.sol"</span>;
+<span class="kw">import</span> { <span class="type">MathLib</span> } <span class="kw">from</span> <span class="str">"../src/MathLib.sol"</span>;
+<span class="kw">import</span> { <span class="type">Counter</span> } <span class="kw">from</span> <span class="str">"../src/Counter.sol"</span>;
+
+<span class="kw">contract</span> <span class="type">CounterTest</span> <span class="kw">is</span> <span class="type">Test</span> {
+    <span class="type">MathLib</span> <span class="var">mathLib</span>;
+    <span class="type">Counter</span> <span class="var">counter</span>;
+
+    <span class="kw">function</span> <span class="fn">setUp</span>() <span class="kw">public</span> {
+        <span class="cmt">// 先部署库</span>
+        <span class="var">mathLib</span> <span class="op">=</span> <span class="kw">new</span> <span class="type">MathLib</span>();
+        <span class="cmt">// 再部署 Counter（forge test 自动链接同一次测试中部署的库）</span>
+        <span class="var">counter</span> <span class="op">=</span> <span class="kw">new</span> <span class="type">Counter</span>();
+    }
+
+    <span class="kw">function</span> <span class="fn">testIncrement</span>() <span class="kw">public</span> {
+        <span class="var">counter</span>.<span class="fn">increment</span>();
+        <span class="fn">assertEq</span>(<span class="var">counter</span>.<span class="fn">count</span>(), <span class="num">1</span>);
+    }
+
+    <span class="kw">function</span> <span class="fn">testDecrement</span>() <span class="kw">public</span> {
+        <span class="var">counter</span>.<span class="fn">increment</span>();
+        <span class="var">counter</span>.<span class="fn">decrement</span>();
+        <span class="fn">assertEq</span>(<span class="var">counter</span>.<span class="fn">count</span>(), <span class="num">0</span>);
+    }
+}</code></pre>
+</section>
+
+<!-- ========== 6. 对比总结 ========== -->
+<section id="compare">
+  <h2>6. 双端对比与总结</h2>
+
+  <h3>6.1 核心差异对比</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>维度</th>
+        <th>Hardhat 3</th>
+        <th>Foundry</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>链接时机</strong></td>
+        <td>部署脚本中动态链接</td>
+        <td>命令行 / 配置文件 / 脚本自动链接</td>
+      </tr>
+      <tr>
+        <td><strong>配置文件支持</strong></td>
+        <td>无（config 中无 libraries 字段）</td>
+        <td>有（<code>foundry.toml</code> 的 <code>libraries</code>）</td>
+      </tr>
+      <tr>
+        <td><strong>部署脚本链接</strong></td>
+        <td><code>getContractFactory("C", { libraries: { Lib: addr } })</code></td>
+        <td>同一次 broadcast 中先部署库，自动链接</td>
+      </tr>
+      <tr>
+        <td><strong>命令行链接</strong></td>
+        <td>不适用（通过脚本部署）</td>
+        <td><code>forge create --libraries path:Lib:0xaddr</code></td>
+      </tr>
+      <tr>
+        <td><strong>库地址格式</strong></td>
+        <td><code>{ 库名: "0x地址" }</code> 对象</td>
+        <td><code>"文件路径:库名:0x地址"</code> 字符串</td>
+      </tr>
+      <tr>
+        <td><strong>验证时库参数</strong></td>
+        <td><code>--libraries "path:Lib=0xaddr"</code>（等号）</td>
+        <td><code>--libraries path:Lib:0xaddr</code>（冒号）</td>
+      </tr>
+      <tr>
+        <td><strong>测试中链接</strong></td>
+        <td>手动传 <code>libraries</code> 选项</td>
+        <td>同测试内先部署库，自动链接</td>
+      </tr>
+      <tr>
+        <td><strong>多库支持</strong></td>
+        <td>对象中列出多个 key-value</td>
+        <td>数组中列出多个字符串 / 空格分隔</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>6.2 部署流程对比</h3>
+  <div class="two-col">
+    <div class="col-card">
+      <h4>Hardhat 3 流程</h4>
+      <ol>
+        <li>编写 <code>MathLib.sol</code> + <code>Counter.sol</code></li>
+        <li><code>npx hardhat compile</code> 编译</li>
+        <li>编写 <code>deploy.ts</code>：先 <code>deploy MathLib</code> → 拿地址 → <code>getContractFactory("Counter", { libraries: { MathLib: addr } })</code> → deploy</li>
+        <li><code>npx hardhat run scripts/deploy.ts --network sepolia</code></li>
+        <li>验证：<code>npx hardhat verify --libraries "contracts/MathLib.sol:MathLib=0x..."</code></li>
+      </ol>
+    </div>
+    <div class="col-card">
+      <h4>Foundry 流程</h4>
+      <ol>
+        <li>编写 <code>src/MathLib.sol</code> + <code>src/Counter.sol</code></li>
+        <li><code>forge build</code> 编译</li>
+        <li>方案 A：<code>forge create MathLib</code> → 拿地址 → <code>forge create Counter --libraries src/MathLib.sol:MathLib:0x...</code></li>
+        <li>方案 B：<code>foundry.toml</code> 配 <code>libraries</code> → <code>forge create Counter</code></li>
+        <li>方案 C：写 <code>Deploy.s.sol</code> → <code>forge script --broadcast</code>（自动链接）</li>
+      </ol>
+    </div>
+  </div>
+
+  <h3>6.3 什么时候需要链接外部库？决策清单</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>场景</th>
+        <th>需要单独部署？</th>
+        <th>需要链接？</th>
+        <th>调用方式</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>library 只有 internal 函数</td>
+        <td>否</td>
+        <td>否</td>
+        <td>内联（JUMP）</td>
+      </tr>
+      <tr>
+        <td>library 含 external/public 函数</td>
+        <td>是</td>
+        <td>是</td>
+        <td>DELEGATECALL</td>
+      </tr>
+      <tr>
+        <td>abstract contract 被继承</td>
+        <td>否</td>
+        <td>否</td>
+        <td>继承（字节码合并）</td>
+      </tr>
+      <tr>
+        <td>interface 被引用</td>
+        <td>否</td>
+        <td>否</td>
+        <td>仅类型声明，无代码</td>
+      </tr>
+      <tr>
+        <td>普通 contract 被 new 创建</td>
+        <td>是（运行时创建）</td>
+        <td>否</td>
+        <td>CALL（独立合约）</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ========== 7. FAQ ========== -->
+<section id="faq">
+  <h2>7. 常见问题</h2>
+
+  <h3>Q1：编译报错 "Undefined reference" 或字节码中有 __$...$__ 怎么办？</h3>
+  <p>这是正常现象，说明你的合约引用了需要外部部署的库。<strong>不要试图手动编辑字节码</strong>，而是按照本指南的方法在部署时通过 <code>libraries</code> 选项（Hardhat）或 <code>--libraries</code> / <code>foundry.toml</code>（Foundry）传入已部署的库地址，工具会自动完成占位符替换。</p>
+
+  <h3>Q2：库部署后可以升级吗？</h3>
+  <p>库地址在链接时被硬编码到调用合约的字节码中，<strong>一旦部署就无法更改</strong>。如果需要升级库逻辑，必须重新部署库并重新部署调用合约（或使用代理模式间接调用）。这也是为什么很多项目倾向于使用 <code>internal</code> 库（内联，无此问题）或采用可升级代理架构。</p>
+
+  <h3>Q3：DELEGATECALL 调用库函数会有安全风险吗？</h3>
+  <p>library 本身不能持有 state variables，且 DELEGATECALL 在调用方上下文中执行，所以库函数操作的是调用方的 storage。风险主要在于：如果库函数有 <code>selfdestruct</code> 或低级 <code>delegatecall</code>，可能被利用。Solidity 0.8.20+ 已禁止 library 中使用 <code>selfdestruct</code>。使用经过审计的库（如 OpenZeppelin）是最佳实践。</p>
+
+  <h3>Q4：using MathLib for uint256 和直接 MathLib.add() 有区别吗？</h3>
+  <p><strong>没有本质区别</strong>。<code>using for</code> 只是语法糖，<code>count.add(1)</code> 编译后等价于 <code>MathLib.add(count, 1)</code>，两者都会生成 DELEGATECALL（当 add 是 external 时）。选择哪种写法纯属代码风格偏好。</p>
+
+  <h3>Q5：一个合约可以链接多个库吗？</h3>
+  <p>可以。Hardhat 中在 <code>libraries</code> 对象中列出多个：<code>{ LibA: "0x..1", LibB: "0x..2" }</code>。Foundry 中在数组中列出多个字符串，或命令行用空格分隔多个 <code>--libraries</code> 参数。</p>
+
+  <h3>Q6：如何确认链接是否成功？</h3>
+  <ul>
+    <li><strong>Hardhat</strong>：部署后检查 <code>artifacts/build-info</code> 中的字节码，确认不再包含 <code>__$</code> 占位符；或直接调用合约函数验证功能正常。</li>
+    <li><strong>Foundry</strong>：<code>forge inspect Counter bytecode</code> 查看链接后的字节码；或在部署脚本中用 <code>console.log</code> 打印地址并调用函数验证。</li>
+    <li><strong>通用方法</strong>：部署后调用 <code>counter.increment()</code>，如果交易成功且 <code>count()</code> 返回 1，说明 DELEGATECALL 链路正常，链接成功。</li>
+  </ul>
+
+  <h3>Q7：库的部署地址在不同链上不一样，怎么管理？</h3>
+  <p>推荐做法：</p>
+  <ul>
+    <li><strong>Hardhat</strong>：在部署脚本中动态部署库并获取地址，不要硬编码。使用 <code>hardhat-deploy</code> 插件可以按网络保存部署记录。</li>
+    <li><strong>Foundry</strong>：使用多 profile（<code>[profile.sepolia]</code>、<code>[profile.mainnet]</code>）分别配置不同链的 <code>libraries</code>，或在 <code>forge script</code> 中动态部署。</li>
+    <li>环境变量管理：将库地址存入 <code>.env</code>，在脚本中读取。</li>
+  </ul>
+</section>
+
+<footer>
+  <p>Solidity 外部库链接完全指南 — Hardhat 3 & Foundry | 基于 Solidity 0.8.24 / Hardhat 3 / Foundry 最新版编写</p>
+  <p style="margin-top:8px;">核心要点：external 函数库 → 单独部署 → 链接地址 → DELEGATECALL 调用</p>
+</footer>
+
+</div>
+</body>
+</html>
