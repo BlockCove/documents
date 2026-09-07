@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web3 登录方案对比：AppKit vs SIWE (EIP-4361)</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --accent: #2563eb;
+    --accent-light: #eff6ff;
+    --green: #059669;
+    --green-light: #ecfdf5;
+    --orange: #d97706;
+    --orange-light: #fffbeb;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    color: var(--fg);
+    background: var(--bg);
+    line-height: 1.7;
+    font-size: 15px;
+  }
+  .container { max-width: 880px; margin: 0 auto; padding: 48px 24px 80px; }
+
+  /* Header */
+  header { border-bottom: 2px solid var(--fg); padding-bottom: 28px; margin-bottom: 40px; }
+  header .tag {
+    display: inline-block; font-size: 12px; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--accent); background: var(--accent-light);
+    padding: 4px 10px; border-radius: 4px; margin-bottom: 14px;
+  }
+  header h1 { font-size: 30px; font-weight: 700; line-height: 1.3; margin-bottom: 10px; }
+  header .subtitle { color: var(--muted); font-size: 15px; }
+  header .meta { margin-top: 16px; font-size: 13px; color: var(--muted); }
+
+  /* TOC */
+  .toc {
+    background: #f9fafb; border: 1px solid var(--border); border-radius: 8px;
+    padding: 20px 24px; margin-bottom: 40px;
+  }
+  .toc-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
+  .toc ol { padding-left: 20px; }
+  .toc li { margin: 4px 0; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+
+  /* Sections */
+  section { margin-bottom: 44px; }
+  h2 {
+    font-size: 22px; font-weight: 700; margin-bottom: 16px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  }
+  h3 { font-size: 17px; font-weight: 600; margin: 22px 0 10px; }
+  p { margin-bottom: 12px; }
+  ul, ol { padding-left: 22px; margin-bottom: 14px; }
+  li { margin-bottom: 6px; }
+  strong { font-weight: 600; }
+
+  /* Callout */
+  .callout {
+    border-left: 4px solid var(--accent); background: var(--accent-light);
+    padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 16px 0;
+  }
+  .callout.green { border-color: var(--green); background: var(--green-light); }
+  .callout.orange { border-color: var(--orange); background: var(--orange-light); }
+  .callout p:last-child { margin-bottom: 0; }
+
+  /* Cards */
+  .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 18px 0; }
+  .card {
+    border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px;
+  }
+  .card h4 { font-size: 15px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .card .badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+  .badge.connect { background: var(--accent-light); color: var(--accent); }
+  .badge.auth { background: var(--green-light); color: var(--green); }
+  .card p { font-size: 14px; color: #374151; margin-bottom: 0; }
+
+  /* Table */
+  .table-wrap { overflow-x: auto; margin: 16px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { background: #f9fafb; font-weight: 600; font-size: 13px; color: #374151; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  td.dim { color: var(--muted); }
+
+  /* Flow steps */
+  .flow { counter-reset: step; margin: 16px 0; }
+  .flow-item {
+    display: flex; gap: 14px; padding: 12px 0; border-bottom: 1px dashed var(--border);
+  }
+  .flow-item:last-child { border-bottom: none; }
+  .flow-num {
+    flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%;
+    background: var(--fg); color: #fff; font-size: 13px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .flow-content { flex: 1; }
+  .flow-content strong { display: block; margin-bottom: 2px; }
+  .flow-content span { font-size: 14px; color: #374151; }
+  .flow-divider {
+    text-align: center; padding: 10px 0; font-size: 13px; color: var(--muted);
+    border-bottom: 1px dashed var(--border); letter-spacing: 0.04em;
+  }
+
+  /* Scenario tags */
+  .scenario-list { list-style: none; padding-left: 0; }
+  .scenario-list li {
+    padding: 10px 14px; border: 1px solid var(--border); border-radius: 6px;
+    margin-bottom: 8px; font-size: 14px; display: flex; gap: 10px; align-items: flex-start;
+  }
+  .scenario-list .icon { flex-shrink: 0; font-weight: 700; }
+
+  /* Footer */
+  footer {
+    margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--border);
+    font-size: 13px; color: var(--muted);
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  @media (max-width: 640px) {
+    .card-grid { grid-template-columns: 1fr; }
+    header h1 { font-size: 24px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <span class="tag">技术调研报告</span>
+    <h1>Web3 应用登录方案对比<br>AppKit 钱包连接 vs SIWE (EIP-4361)</h1>
+    <p class="subtitle">从原理、层级定位到适用场景，厘清"连接钱包"与"登录认证"的本质区别</p>
+    <div class="meta">更新日期：2026-09-04 · 面向 Web3 前端 / 全栈开发者</div>
+  </header>
+
+  <nav class="toc">
+    <div class="toc-title">目录</div>
+    <ol>
+      <li><a href="#summary">核心结论（TL;DR）</a></li>
+      <li><a href="#appkit">AppKit 是什么：钱包连接层</a></li>
+      <li><a href="#siwe">SIWE 是什么：身份认证层</a></li>
+      <li><a href="#principle">两种方案的工作原理</a></li>
+      <li><a href="#compare">全方位对比</a></li>
+      <li><a href="#scenarios">分别在什么场景使用</a></li>
+      <li><a href="#combo">组合使用：AppKit + SIWE 的标准流程</a></li>
+      <li><a href="#pitfalls">常见误区与注意事项</a></li>
+    </ol>
+  </nav>
+
+  <!-- 1. TL;DR -->
+  <section id="summary">
+    <h2>1. 核心结论（TL;DR）</h2>
+    <div class="callout">
+      <p><strong>AppKit 和 SIWE 不是竞争关系，而是分层互补关系。</strong></p>
+      <p>AppKit 解决的是<strong>"把钱包和 dApp 连起来"</strong>（Connect）——建立通信通道、拿到钱包地址；SIWE 解决的是<strong>"证明你真的拥有这个地址"</strong>（Authenticate）——通过数字签名建立服务端会话。</p>
+      <p>只连接不认证，任何人都能在前端填入任意地址；只认证不连接，签名请求无处发送。生产级 Web3 应用通常<strong>两者并用</strong>。</p>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <h4>AppKit <span class="badge connect">连接层 Connect</span></h4>
+        <p>WalletConnect（Reown）推出的多链钱包连接 SDK，提供统一 UI 与钱包发现能力，支持 EVM / Solana / 多链，内置社交登录、智能账户等能力。</p>
+      </div>
+      <div class="card">
+        <h4>SIWE <span class="badge auth">认证层 Authenticate</span></h4>
+        <p>EIP-4361 定义的"用以太坊登录"标准消息格式，用户用钱包私钥对结构化消息签名，服务端验签后发放会话，本质是无密码的非对称加密认证。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. AppKit -->
+  <section id="appkit">
+    <h2>2. AppKit 是什么：钱包连接层</h2>
+    <p>AppKit 是 WalletConnect（现品牌 Reown）推出的<strong>多链钱包连接软件开发工具包（SDK）</strong>，是 Web3 应用中"连接钱包"按钮背后的标准实现之一。它的定位是<strong>连接层（Connectivity Layer）</strong>，而非认证协议。</p>
+
+    <h3>核心能力</h3>
+    <ul>
+      <li><strong>统一钱包连接 UI</strong>：弹出模态框，列出所有支持的钱包（MetaMask、WalletConnect、Coinbase Wallet 等），用户选择后建立连接。</li>
+      <li><strong>多传输协议支持</strong>：同时支持浏览器注入式钱包（window.ethereum）、WalletConnect 扫码连接（移动端钱包扫码）、以及移动端深度链接。</li>
+      <li><strong>多链 / 跨链</strong>：链无关（chain-agnostic）核心，支持 EVM、Solana 等多条链，使用 CAIP-2 链标识（如 <code>eip155:1</code>）。</li>
+      <li><strong>钱包与账户管理</strong>：处理账户切换、链切换、断线重连、会话持久化。</li>
+      <li><strong>增值能力</strong>：社交登录（邮箱 / Google 登录自动创建钱包）、智能账户（Smart Account）、交易赞助（Gasless）、一键认证（内置 SIWE / SIWX）。</li>
+      <li><strong>跨平台</strong>：支持 Web（React / Vue / Svelte 等）、React Native、Flutter、iOS、Android、Unity。</li>
+    </ul>
+
+    <h3>AppKit 不做什么</h3>
+    <div class="callout orange">
+      <p>AppKit 连接成功后，dApp 只拿到一个<strong>钱包地址（public address）</strong>。它<strong>不验证</strong>前端展示的这个地址是否真的由用户控制——理论上任何人都可以在浏览器控制台手动注入一个地址。因此，"连接成功"不等于"登录成功"。</p>
+    </div>
+  </section>
+
+  <!-- 3. SIWE -->
+  <section id="siwe">
+    <h2>3. SIWE 是什么：身份认证层</h2>
+    <p>SIWE（Sign-In with Ethereum）由 <strong>EIP-4361</strong> 标准化，定义了一套<strong>结构化的登录消息格式</strong>，让用户用以太坊钱包的私钥对该消息签名，服务端验证签名有效性后建立认证会话。它的定位是<strong>认证层（Authentication Layer）</strong>，类似于 Web2 中的"密码登录"或 OAuth，但基于非对称加密，无需密码、无需中心化身份提供商。</p>
+
+    <h3>SIWE 消息的标准字段</h3>
+    <p>EIP-4361 规定消息必须包含以下结构化字段，以人类可读的纯文本形式呈现给用户签名：</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>字段</th><th>作用</th><th>安全意义</th></tr></thead>
+        <tbody>
+          <tr><td><strong>domain</strong></td><td>请求登录的域名</td><td>绑定域名，防止钓鱼网站复用其他站点的签名</td></tr>
+          <tr><td><strong>address</strong></td><td>用户的以太坊地址</td><td>声明身份主体</td></tr>
+          <tr><td><strong>statement</strong></td><td>人类可读的声明（如"欢迎登录"）</td><td>让用户理解签名目的</td></tr>
+          <tr><td><strong>uri</strong></td><td>发起登录的页面 URI</td><td>可追溯来源</td></tr>
+          <tr><td><strong>version</strong></td><td>SIWE 版本（固定为 1）</td><td>协议版本兼容</td></tr>
+          <tr><td><strong>chainId</strong></td><td>链 ID（如 1 代表以太坊主网）</td><td>绑定链，防止跨链重放</td></tr>
+          <tr><td><strong>nonce</strong></td><td>服务端生成的随机数（≥8 位）</td><td><strong>防重放攻击</strong>核心字段，一次性使用</td></tr>
+          <tr><td><strong>issuedAt</strong></td><td>消息签发时间</td><td>时间锚点</td></tr>
+          <tr><td><strong>expirationTime</strong></td><td>过期时间（可选）</td><td>限制签名有效期</td></tr>
+          <tr><td><strong>notBefore</strong></td><td>生效时间（可选）</td><td>限制签名生效窗口</td></tr>
+          <tr><td><strong>requestId</strong></td><td>服务端请求标识（可选）</td><td>关联具体业务请求</td></tr>
+          <tr><td><strong>resources</strong></td><td>关联资源 URI 列表（可选）</td><td>声明授权范围</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>SIWE 的安全设计要点</h3>
+    <ul>
+      <li><strong>域名绑定（Domain Binding）</strong>：消息中明确写入请求方域名，钱包会校验当前页面域名与消息 domain 一致，从根源上防止跨站钓鱼签名复用。</li>
+      <li><strong>Nonce 防重放</strong>：每次登录由服务端生成高熵随机 nonce，验签后立即作废，攻击者无法截获旧签名重复登录。</li>
+      <li><strong>链 ID 绑定</strong>：签名与特定链绑定，避免一条链上的签名被用于另一条链。</li>
+      <li><strong>EIP-191 签名格式</strong>：使用标准化的签名数据格式，钱包可识别并安全展示，避免与交易签名或其他类型签名混淆。</li>
+      <li><strong>纯离线签名</strong>：整个认证过程不发起任何链上交易，不消耗 Gas，仅使用 <code>personal_sign</code> 等离线消息签名方法。</li>
+    </ul>
+  </section>
+
+  <!-- 4. 原理 -->
+  <section id="principle">
+    <h2>4. 两种方案的工作原理</h2>
+
+    <h3>4.1 AppKit 连接原理</h3>
+    <p>AppKit 本身不定义新的通信协议，它封装了多种钱包连接传输方式，其中最核心的是 <strong>WalletConnect 协议</strong>。其底层原理如下：</p>
+
+    <div class="flow">
+      <div class="flow-item">
+        <div class="flow-num">1</div>
+        <div class="flow-content">
+          <strong>dApp 生成连接提议（Session Proposal）</strong>
+          <span>dApp 端生成一对临时密钥（X25519 用于密钥交换），构造包含中继服务器地址、公钥、请求的链和方法的连接 URI，以二维码或深度链接形式展示。</span>
+        </div>
+      </div>
+      <div class="flow-item">
+        <div class="flow-num">2</div>
+        <div class="flow-content">
+          <strong>钱包扫码 / 点击链接，完成配对（Pairing）</strong>
+          <span>钱包解析 URI，通过 Relay 中继服务器与 dApp 建立 WebSocket 通道。双方通过 X25519 Diffie-Hellman 密钥交换派生共享对称密钥，后续所有消息均端到端加密，中继服务器只转发密文。</span>
+        </div>
+      </div>
+      <div class="flow-item">
+        <div class="flow-num">3</div>
+        <div class="flow-content">
+          <strong>钱包批准会话（Session Approval）</strong>
+          <span>钱包向用户展示 dApp 请求的链、方法和权限，用户确认后，钱包将选中的账户地址、链 ID 等信息通过加密通道回传给 dApp。</span>
+        </div>
+      </div>
+      <div class="flow-item">
+        <div class="flow-num">4</div>
+        <div class="flow-content">
+          <strong>建立会话，dApp 获得地址</strong>
+          <span>会话建立后，dApp 可通过加密通道向钱包发送签名请求（消息签名 / 交易签名），钱包每次弹窗请求用户批准。私钥始终留在钱包端，dApp 永远无法接触。</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <p><strong>关键认知</strong>：AppKit / WalletConnect 连接的本质是建立一条<strong>加密通信管道</strong>，让 dApp 能把"请签名"的请求安全地送到钱包。它本身不产生任何身份认证证据——拿到地址只意味着"钱包愿意和你通信"，不意味着"你已经登录"。</p>
+    </div>
+
+    <h3>4.2 SIWE 认证原理</h3>
+    <p>SIWE 的核心是<strong>非对称加密挑战-响应（Challenge-Response）</strong>机制，类似于经典的公钥认证，但用以太坊钱包和标准化消息格式实现：</p>
+
+    <div class="flow">
+      <div class="flow-item">
+        <div class="flow-num">1</div>
+        <div class="flow-content">
+          <strong>用户先连接钱包（依赖 AppKit 等连接层）</strong>
+          <span>dApp 通过 AppKit / wagmi / 直接注入等方式获得用户钱包地址。注意：这一步只是连接，尚未认证。</span>
+        </div>
+      </div>
+      <div class="flow-item">
+        <div class="flow-num">2</div>
+        <div class="flow-content">
+          <strong>服务端生成 Nonce 并构造 SIWE 消息</strong>
+          <span>前端请求后端获取一个高熵随机 nonce（服务端记录并设置短期有效期）。前端按 EIP-4361 格式组装包含 domain、address、nonce、chainId、issuedAt 等字段的结构化纯文本消息。</span>
+        </div>
+      </div>
+      <div class="flow-item">
+        <div class="flow-num">3</div>
+        <div class="flow-content">
+          <strong>用户用钱包私钥签名</strong>
+          <span>前端调用钱包的 <code>personal_sign</code>（或 <code>eth_signTypedData</code>）方法，将 SIWE 消息发送给钱包。钱包以人类可读形式展示消息内容，用户确认后用私钥签名，返回签名值（signature）。</span>
+        </div>
+      </div>
+      <div class="flow-item">
+        <div class="flow-num">4</div>
+        <div class="flow-content">
+          <strong>服务端验签（Verify）</strong>
+          <span>前端将"SIWE 消息原文 + 签名"提交给后端。后端：① 解析并校验消息字段（domain 是否为本站、nonce 是否有效且未使用、时间是否在窗口内、chainId 是否匹配）；② 使用 EIP-191 恢复签名公钥，推导出地址，与消息中的 address 比对；③ 一致则认证通过，立即作废该 nonce。</span>
+        </div>
+      </div>
+      <div class="flow-item">
+        <div class="flow-num">5</div>
+        <div class="flow-content">
+          <strong>发放会话（Session）</strong>
+          <span>验签通过后，后端发放传统的会话凭证（如 JWT、Set-Cookie Session），将该钱包地址绑定到登录态。后续请求凭会话凭证访问，无需重复签名。</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout green">
+      <p><strong>关键认知</strong>：SIWE 的安全性完全建立在<strong>"只有持有私钥的人才能产生有效签名"</strong>这一非对称加密基本假设上。服务端不需要存储密码、不需要第三方身份提供商，仅凭一个签名就能完成身份验证。这是"无密码认证"在 Web3 中的标准实现。</p>
+    </div>
+  </section>
+
+  <!-- 5. 对比 -->
+  <section id="compare">
+    <h2>5. 全方位对比</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>对比维度</th>
+            <th>AppKit（钱包连接）</th>
+            <th>SIWE / EIP-4361（登录认证）</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>本质定位</strong></td>
+            <td>连接层 SDK，建立 dApp 与钱包的通信通道</td>
+            <td>认证协议标准，证明地址所有权并建立服务端会话</td>
+          </tr>
+          <tr>
+            <td><strong>解决的问题</strong></td>
+            <td>"怎么把钱包连进来"</td>
+            <td>"怎么证明这个地址是你的"</td>
+          </tr>
+          <tr>
+            <td><strong>产出物</strong></td>
+            <td>钱包地址 + 可发送签名请求的会话通道</td>
+            <td>服务端登录态（Session / JWT / Cookie）</td>
+          </tr>
+          <tr>
+            <td><strong>是否需要后端</strong></td>
+            <td>纯前端即可完成连接（WalletConnect 中继由基础设施提供）</td>
+            <td class="dim"><strong>必须有后端</strong>：生成 nonce、验签、发放会话、管理 nonce 作废</td>
+          </tr>
+          <tr>
+            <td><strong>是否产生签名</strong></td>
+            <td>连接本身不签名；连接后可发起任意签名请求</td>
+            <td>核心动作就是用户对 SIWE 消息签名一次</td>
+          </tr>
+          <tr>
+            <td><strong>链支持</strong></td>
+            <td>多链（EVM、Solana 等），链无关设计</td>
+            <td>原生为 EVM / 以太坊设计；多链扩展为 SIWX（Sign-In with X）</td>
+          </tr>
+          <tr>
+            <td><strong>标准化程度</strong></td>
+            <td>WalletConnect 协议为行业事实标准，AppKit 是其官方 SDK 之一</td>
+            <td>EIP-4361 为以太坊正式标准，消息格式严格规范</td>
+          </tr>
+          <tr>
+            <td><strong>用户体验</strong></td>
+            <td>点按钮 → 选钱包 → 确认连接，一次操作</td>
+            <td>连接后额外弹出一次签名确认，用户需阅读消息并签名</td>
+          </tr>
+          <tr>
+            <td><strong>安全属性</strong></td>
+            <td>端到端加密通道，私钥不出钱包；但不提供身份认证</td>
+            <td>域名绑定 + nonce 防重放 + 链绑定 + 非对称验签，完整认证安全模型</td>
+          </tr>
+          <tr>
+            <td><strong>能否单独使用</strong></td>
+            <td>可以，纯链上交互场景只需连接</td>
+            <td>不能完全单独，必须先有钱包连接才能发起签名</td>
+          </tr>
+          <tr>
+            <td><strong>典型代表 / 同类</strong></td>
+            <td>RainbowKit、ConnectKit、wagmi、Web3Modal</td>
+            <td>siwe（Spruce）、login.xyz、NextAuth SIWE Provider</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 6. 场景 -->
+  <section id="scenarios">
+    <h2>6. 分别在什么场景使用</h2>
+
+    <h3>6.1 只需要 AppKit（连接即可，无需 SIWE）的场景</h3>
+    <p>当应用的核心交互<strong>全部发生在链上</strong>，且不需要服务端用户系统时，"连接钱包"就足够了——因为每一次链上操作本身都需要用户用私钥签名交易，这天然就是一次次的身份验证。</p>
+    <ul class="scenario-list">
+      <li><span class="icon">▸</span><span><strong>DeFi 交易应用</strong>（Uniswap、PancakeSwap 类）：用户连接钱包后直接进行 Swap、添加流动性，每笔交易都需钱包签名确认，无需额外登录。</span></li>
+      <li><span class="icon">▸</span><span><strong>NFT 铸造 / 交易市场的纯链上操作</strong>：mint、出价、购买等动作均通过链上交易完成，连接即可。</span></li>
+      <li><span class="icon">▸</span><span><strong>链上数据看板 / 只读工具</strong>：连接钱包仅用于读取该地址的资产、持仓、授权等链上状态，不写入任何服务端数据。</span></li>
+      <li><span class="icon">▸</span><span><strong>Gas 费签名类工具</strong>：permit、授权等一次性链上交互。</span></li>
+      <li><span class="icon">▸</span><span><strong>纯前端 demo / 原型</strong>：无需后端，仅验证钱包连接和基础链上交互。</span></li>
+    </ul>
+
+    <h3>6.2 必须使用 SIWE（需要真正登录认证）的场景</h3>
+    <p>当应用存在<strong>服务端状态、用户系统、权限控制或链下数据</strong>时，仅靠连接拿到的地址不可信（前端可伪造），必须通过 SIWE 签名验证地址所有权，建立服务端会话。</p>
+    <ul class="scenario-list">
+      <li><span class="icon">▸</span><span><strong>有用户账户系统的 Web3 应用</strong>：用户资料、偏好设置、收藏、关注等链下数据需要与钱包地址绑定存储。</span></li>
+      <li><span class="icon">▸</span><span><strong>NFT 市场的挂单 / 出价 / 聊天</strong>：挂单信息、出价记录、买卖双方消息等需要服务端持久化和权限校验。</span></li>
+      <li><span class="icon">▸</span><span><strong>DAO 治理 / 投票平台</strong>：需要记录投票人身份、防止重复投票、关联链下治理讨论。</span></li>
+      <li><span class="icon">▸</span><span><strong>GameFi / 链游</strong>：游戏存档、道具、任务进度、排行榜等大量链下状态需要登录态。</span></li>
+      <li><span class="icon">▸</span><span><strong>需要 API 鉴权的后端服务</strong>：任何需要识别"当前请求来自哪个真实用户"的 REST / GraphQL 接口。</span></li>
+      <li><span class="icon">▸</span><span><strong>多设备 / 跨端同步</strong>：用户在不同设备上访问同一账户，需要服务端会话统一管理。</span></li>
+      <li><span class="icon">▸</span><span><strong>合规 / 审计要求</strong>：需要记录操作人身份、操作日志的场景。</span></li>
+    </ul>
+
+    <div class="callout orange">
+      <p><strong>判断口诀</strong>：如果你的应用有"数据库里需要存一条和用户有关的记录"，就需要 SIWE；如果所有状态都在链上、每次操作都靠交易签名，AppKit 连接就够。</p>
+    </div>
+  </section>
+
+  <!-- 7. 组合使用 -->
+  <section id="combo">
+    <h2>7. 组合使用：AppKit + SIWE 的标准流程</h2>
+    <p>生产级 Web3 应用的标准做法是<strong>AppKit 负责连接，SIWE 负责登录</strong>，两者串联。AppKit 甚至内置了 SIWE 支持（可配置一键开启），但理解分层仍然重要。</p>
+
+    <div class="flow">
+      <div class="flow-item">
+        <div class="flow-num">1</div>
+        <div class="flow-content">
+          <strong>用户点击"连接钱包"</strong>
+          <span>AppKit 弹出钱包选择模态框，用户选择 MetaMask / WalletConnect 扫码等方式。</span>
+        </div>
+      </div>
+      <div class="flow-item">
+        <div class="flow-num">2</div>
+        <div class="flow-content">
+          <strong>AppKit 建立连接，dApp 获得地址</strong>
+          <span>此时前端显示"已连接 0xAbc...123"，但这只是连接态，不是登录态。按钮通常从"连接钱包"变为"登录 / Sign In"。</span>
+        </div>
+      </div>
+      <div class="flow-divider">↓ 以下为 SIWE 认证流程 ↓</div>
+      <div class="flow-item">
+        <div class="flow-num">3</div>
+        <div class="flow-content">
+          <strong>用户点击"登录"，前端向后端请求 nonce</strong>
+          <span>后端生成高熵随机 nonce，存入 Redis / 内存并设置短期 TTL（如 5 分钟），返回给前端。</span>
+        </div>
+      </div>
+      <div class="flow-item">
+        <div class="flow-num">4</div>
+        <div class="flow-content">
+          <strong>前端构造 SIWE 消息，调用钱包签名</strong>
+          <span>按 EIP-4361 格式组装消息（含 domain、address、nonce、chainId 等），通过 AppKit 建立的连接通道调用 <code>personal_sign</code>，用户在钱包中确认签名。</span>
+        </div>
+      </div>
+      <div class="flow-item">
+        <div class="flow-num">5</div>
+        <div class="flow-content">
+          <strong>前端提交"消息 + 签名"给后端验签</strong>
+          <span>后端校验消息字段合法性、nonce 未使用且在有效期、域名匹配、链 ID 匹配，再通过 EIP-191 恢复地址与声明地址比对。</span>
+        </div>
+      </div>
+      <div class="flow-item">
+        <div class="flow-num">6</div>
+        <div class="flow-content">
+          <strong>验签通过，发放会话，完成登录</strong>
+          <span>后端作废 nonce，发放 Session Cookie 或 JWT，将钱包地址绑定到登录态。前端显示"已登录 0xAbc...123"，后续 API 请求携带会话凭证。</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8. 误区 -->
+  <section id="pitfalls">
+    <h2>8. 常见误区与注意事项</h2>
+
+    <h3>误区一："连接钱包 = 登录"</h3>
+    <p><strong>错误。</strong>连接只建立通信通道并获取地址，不验证地址所有权。攻击者可在浏览器中注入任意地址。凡是需要服务端鉴权的场景，必须额外做 SIWE（或等价的签名验证）。</p>
+
+    <h3>误区二："用了 AppKit 就不用 SIWE 了"</h3>
+    <p><strong>错误。</strong>AppKit 是连接层，SIWE 是认证层，解决不同问题。AppKit 内置 SIWE 只是把两者集成在一起方便使用，不代表 AppKit 本身替代了 SIWE。是否需要 SIWE 取决于应用是否需要服务端认证，与用哪个连接 SDK 无关。</p>
+
+    <h3>误区三："SIWE 需要发链上交易，要花 Gas"</h3>
+    <p><strong>错误。</strong>SIWE 使用的是 <code>personal_sign</code> 离线消息签名，不向区块链提交任何交易，不消耗 Gas。签名和验签全程在链下完成。</p>
+
+    <h3>误区四："SIWE 可以在前端验签"</h3>
+    <p><strong>不建议。</strong>验签必须在服务端完成。前端验签没有任何安全意义——攻击者可以直接绕过前端代码。nonce 的生成、存储、作废和会话发放都必须由可信后端控制。</p>
+
+    <h3>误区五："SIWE 消息可以随便构造"</h3>
+    <p><strong>错误。</strong>必须严格遵循 EIP-4361 格式，包含 domain、nonce、chainId、issuedAt 等关键字段。尤其要校验 domain 与当前站点一致，否则存在钓鱼风险；nonce 必须服务端生成且一次性使用，否则存在重放风险。</p>
+
+    <h3>注意：多链场景下 SIWE 的局限</h3>
+    <p>SIWE（EIP-4361）原生面向 EVM 生态。如果应用支持 Solana 等非 EVM 链，需要使用 <strong>SIWX（Sign-In with X）</strong>——这是 WalletConnect / Reown 推动的多链扩展标准，AppKit 已内置支持。SIWX 使用 CAIP-2 链标识（如 <code>solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp</code>），而非 EIP-4361 中的数字 chainId。</p>
+
+    <h3>注意：智能账户（Smart Account）的签名兼容性</h3>
+    <p>ERC-4337 智能账户的签名验证逻辑与 EOA 不同，部分智能账户可能不支持标准 <code>personal_sign</code>。使用 AppKit 智能账户功能时，需确认其 SIWE 实现是否兼容对应智能账户的签名方案（如 ERC-1271）。</p>
+  </section>
+
+  <footer>
+    <p><strong>参考来源</strong>：EIP-4361 规范（eips.ethereum.org/EIPS/eip-4361）、ethereum.org 认证文档、WalletConnect / Reown 官方文档、login.xyz SIWE 文档。</p>
+    <p style="margin-top:8px;">本报告仅做技术方案对比与原理说明，不包含具体实现代码。集成时请以对应官方文档最新版本为准。</p>
+  </footer>
+
+</div>
+</body>
+</html>

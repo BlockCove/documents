@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web3 MPC 多方安全计算技术报告 —— 以 2/3 阈值方案为例</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d27;
+    --card-border: #2a2e3d;
+    --text: #e4e6ed;
+    --text-dim: #9ca0ad;
+    --accent: #4f8cff;
+    --accent-light: #7ba8ff;
+    --green: #4ade80;
+    --red: #f87171;
+    --orange: #fbbf24;
+    --purple: #a78bfa;
+    --code-bg: #12141c;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.75;
+    padding: 0;
+  }
+  .container { max-width: 960px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  /* 头部 */
+  .header {
+    text-align: center;
+    padding: 60px 20px 50px;
+    background: linear-gradient(135deg, #1a1d27 0%, #0f1117 100%);
+    border-bottom: 1px solid var(--card-border);
+    margin-bottom: 48px;
+  }
+  .header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+    background: linear-gradient(90deg, var(--accent-light), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .header .subtitle { color: var(--text-dim); font-size: 1rem; }
+  .header .meta { margin-top: 20px; font-size: 0.85rem; color: var(--text-dim); }
+  .header .meta span { margin: 0 12px; }
+
+  /* 章节 */
+  h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 48px 0 20px;
+    padding-left: 14px;
+    border-left: 4px solid var(--accent);
+  }
+  h3 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin: 32px 0 14px;
+    color: var(--accent-light);
+  }
+  p { margin-bottom: 16px; color: var(--text); }
+  ul, ol { margin: 0 0 16px 24px; }
+  li { margin-bottom: 8px; }
+
+  /* 卡片 */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 24px;
+    margin: 20px 0;
+  }
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    margin: 20px 0;
+  }
+  .card-mini {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    padding: 18px;
+  }
+  .card-mini h4 { font-size: 1rem; margin-bottom: 8px; color: var(--accent-light); }
+  .card-mini p { font-size: 0.9rem; color: var(--text-dim); margin: 0; }
+
+  /* 高亮提示 */
+  .highlight {
+    background: rgba(79, 140, 255, 0.08);
+    border-left: 3px solid var(--accent);
+    padding: 14px 18px;
+    border-radius: 0 8px 8px 0;
+    margin: 16px 0;
+    font-size: 0.95rem;
+  }
+  .warning {
+    background: rgba(251, 191, 36, 0.08);
+    border-left: 3px solid var(--orange);
+    padding: 14px 18px;
+    border-radius: 0 8px 8px 0;
+    margin: 16px 0;
+    font-size: 0.95rem;
+  }
+
+  /* 代码块 */
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    padding: 18px;
+    overflow-x: auto;
+    margin: 16px 0;
+    font-size: 0.85rem;
+    line-height: 1.6;
+  }
+  code {
+    font-family: "SF Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
+    color: var(--accent-light);
+  }
+  pre code { color: var(--text); }
+  .inline-code {
+    background: var(--code-bg);
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 0.88em;
+  }
+
+  /* 表格 */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: 0.92rem;
+  }
+  th, td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--card-border);
+  }
+  th {
+    background: var(--card);
+    font-weight: 600;
+    color: var(--accent-light);
+  }
+  tr:hover { background: rgba(79, 140, 255, 0.04); }
+
+  /* SVG 图容器 */
+  .svg-container {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 24px;
+    margin: 24px 0;
+    text-align: center;
+    overflow-x: auto;
+  }
+  .svg-container .caption {
+    margin-top: 14px;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    text-align: center;
+  }
+  svg text { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+
+  /* 标签 */
+  .tag {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    margin-right: 6px;
+  }
+  .tag-blue { background: rgba(79,140,255,0.15); color: var(--accent-light); }
+  .tag-green { background: rgba(74,222,128,0.15); color: var(--green); }
+  .tag-orange { background: rgba(251,191,36,0.15); color: var(--orange); }
+  .tag-red { background: rgba(248,113,113,0.15); color: var(--red); }
+  .tag-purple { background: rgba(167,139,250,0.15); color: var(--purple); }
+
+  /* 步骤流 */
+  .step-flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 20px 0;
+  }
+  .step-box {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 12px 18px;
+    text-align: center;
+    font-size: 0.88rem;
+    min-width: 100px;
+  }
+  .step-arrow { color: var(--text-dim); font-size: 1.2rem; }
+
+  /* 页脚 */
+  .footer {
+    text-align: center;
+    margin-top: 60px;
+    padding-top: 30px;
+    border-top: 1px solid var(--card-border);
+    color: var(--text-dim);
+    font-size: 0.85rem;
+  }
+
+  @media (max-width: 640px) {
+    .header h1 { font-size: 1.5rem; }
+    .container { padding: 20px 16px 60px; }
+    h2 { font-size: 1.25rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Web3 MPC 多方安全计算技术报告</h1>
+  <div class="subtitle">以 2/3 阈值秘密共享方案为例 —— 原理、流程与代码验证</div>
+  <div class="meta">
+    <span>📅 2026-09-04</span>
+    <span>🔖 技术调研</span>
+    <span>🏷️ MPC / TSS / Shamir</span>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ==================== 1. 什么是 MPC ==================== -->
+<h2>一、什么是 MPC 多方安全计算</h2>
+
+<p><strong>MPC（Multi-Party Computation，多方安全计算）</strong>是密码学的一个分支，核心思想是：<strong>多个参与方在不暴露各自私有输入的前提下，联合计算出一个函数的结果</strong>。</p>
+
+<p>通俗地说，MPC 让"互不信任的多方"能够合作完成计算，而任何一方都无法看到其他人的输入数据。</p>
+
+<div class="highlight">
+  <strong>经典比喻：</strong>三个百万富翁想知道谁最有钱，但又不想透露自己的具体财富。MPC 可以让他们在不暴露各自金额的情况下，比较出谁最富有。
+</div>
+
+<h3>1.1 MPC 在 Web3 中的核心应用：TSS 阈值签名</h3>
+
+<p>在 Web3 / 区块链领域，MPC 最主要的落地形式是 <strong>TSS（Threshold Signature Scheme，阈值签名方案）</strong>。</p>
+
+<p>传统钱包的私钥是一个完整的密钥，存储在单一设备上——一旦设备丢失、被盗或被黑客入侵，资产就全部丢失。这就是所谓的<strong>"单点故障"</strong>。</p>
+
+<p>MPC-TSS 将私钥拆分成多个分片（Key Share / Key Shard），分发给不同的参与方持有。签名时，需要达到阈值数量的分片协同参与，才能生成有效的签名。<strong>整个过程中，完整私钥从未在任何地方被组装出来</strong>。</p>
+
+<div class="card-grid">
+  <div class="card-mini">
+    <h4>🔑 私钥永不完整存在</h4>
+    <p>通过 DKG（分布式密钥生成）协议，各参与方本地生成分片，完整私钥从未出现在任何单一位置。</p>
+  </div>
+  <div class="card-mini">
+    <h4>✍️ 链上表现为单签名</h4>
+    <p>MPC 生成的签名与普通单密钥签名在链上完全一致，外部无法区分，不占用多签合约的额外 Gas。</p>
+  </div>
+  <div class="card-mini">
+    <h4>🛡️ 消除单点故障</h4>
+    <p>单个分片泄露或丢失不会导致资产被盗，攻击者需要同时攻破阈值数量的参与方才能作恶。</p>
+  </div>
+</div>
+
+<!-- ==================== 2. 2/3 方案详解 ==================== -->
+<h2>二、2/3 阈值方案详解</h2>
+
+<p><strong>2/3（2-of-3）方案</strong>是 Web3 行业中最常用的 MPC 配置之一：将私钥拆成 <strong>3 个分片</strong>，任意 <strong>2 个分片</strong>协同即可完成签名或恢复，少于 2 个则无法操作。</p>
+
+<h3>2.1 典型分片分布</h3>
+
+<div class="svg-container">
+  <svg width="720" height="320" viewBox="0 0 720 320" xmlns="http://www.w3.org/2000/svg">
+    <!-- 中心：私钥 -->
+    <rect x="290" y="20" width="140" height="56" rx="10" fill="#1e293b" stroke="#4f8cff" stroke-width="2"/>
+    <text x="360" y="45" text-anchor="middle" fill="#7ba8ff" font-size="14" font-weight="600">原始私钥</text>
+    <text x="360" y="63" text-anchor="middle" fill="#9ca0ad" font-size="11">Secret Key</text>
+
+    <!-- 拆分箭头 -->
+    <line x1="360" y1="76" x2="120" y2="130" stroke="#4f8cff" stroke-width="1.5" stroke-dasharray="4,3"/>
+    <line x1="360" y1="76" x2="360" y2="130" stroke="#4f8cff" stroke-width="1.5" stroke-dasharray="4,3"/>
+    <line x1="360" y1="76" x2="600" y2="130" stroke="#4f8cff" stroke-width="1.5" stroke-dasharray="4,3"/>
+    <text x="230" y="100" fill="#4f8cff" font-size="11">拆分</text>
+    <text x="490" y="100" fill="#4f8cff" font-size="11">拆分</text>
+
+    <!-- 分片 1 -->
+    <rect x="50" y="130" width="140" height="70" rx="10" fill="#1e293b" stroke="#4ade80" stroke-width="2"/>
+    <text x="120" y="155" text-anchor="middle" fill="#4ade80" font-size="13" font-weight="600">分片 1</text>
+    <text x="120" y="175" text-anchor="middle" fill="#e4e6ed" font-size="12">📱 用户手机</text>
+    <text x="120" y="191" text-anchor="middle" fill="#9ca0ad" font-size="10">移动端 App</text>
+
+    <!-- 分片 2 -->
+    <rect x="290" y="130" width="140" height="70" rx="10" fill="#1e293b" stroke="#fbbf24" stroke-width="2"/>
+    <text x="360" y="155" text-anchor="middle" fill="#fbbf24" font-size="13" font-weight="600">分片 2</text>
+    <text x="360" y="175" text-anchor="middle" fill="#e4e6ed" font-size="12">☁️ 平台服务器</text>
+    <text x="360" y="191" text-anchor="middle" fill="#9ca0ad" font-size="10">云端 HSM / KMS</text>
+
+    <!-- 分片 3 -->
+    <rect x="530" y="130" width="140" height="70" rx="10" fill="#1e293b" stroke="#a78bfa" stroke-width="2"/>
+    <text x="600" y="155" text-anchor="middle" fill="#a78bfa" font-size="13" font-weight="600">分片 3</text>
+    <text x="600" y="175" text-anchor="middle" fill="#e4e6ed" font-size="12">🔐 第三方安全节点</text>
+    <text x="600" y="191" text-anchor="middle" fill="#9ca0ad" font-size="10">独立托管方</text>
+
+    <!-- 底部说明：任意2个可签名 -->
+    <rect x="160" y="240" width="400" height="56" rx="10" fill="rgba(74,222,128,0.08)" stroke="#4ade80" stroke-width="1.5" stroke-dasharray="6,3"/>
+    <text x="360" y="265" text-anchor="middle" fill="#4ade80" font-size="14" font-weight="600">✓ 任意 2 个分片协同 → 可完成签名 / 恢复私钥</text>
+    <text x="360" y="285" text-anchor="middle" fill="#9ca0ad" font-size="11">分片1+分片2 / 分片1+分片3 / 分片2+分片3</text>
+  </svg>
+  <div class="caption">图 1：2/3 MPC 方案的典型分片分布架构（示意）</div>
+</div>
+
+<h3>2.2 为什么选择 2/3 而不是其他比例？</h3>
+
+<table>
+  <tr>
+    <th>方案</th>
+    <th>安全性</th>
+    <th>可用性</th>
+    <th>适用场景</th>
+  </tr>
+  <tr>
+    <td><span class="tag tag-green">2/3</span></td>
+    <td>需攻破 2 方才可盗币</td>
+    <td>允许 1 方离线/丢失</td>
+    <td><strong>个人钱包、C 端应用（最常用）</strong></td>
+  </tr>
+  <tr>
+    <td><span class="tag tag-blue">3/5</span></td>
+    <td>需攻破 3 方才可盗币</td>
+    <td>允许 2 方离线/丢失</td>
+    <td>机构托管、企业级钱包</td>
+  </tr>
+  <tr>
+    <td><span class="tag tag-orange">2/2</span></td>
+    <td>需攻破 2 方才可盗币</td>
+    <td>任何 1 方丢失即永久锁死</td>
+    <td>高安全但低可用，不推荐</td>
+  </tr>
+</table>
+
+<p>2/3 是<strong>安全性与可用性的最佳平衡点</strong>：用户手机 + 平台服务器 + 第三方节点，即使手机丢了（分片1丢失），平台和第三方仍可协助恢复；即使平台被攻破（分片2泄露），攻击者还需要用户手机或第三方节点才能盗币。</p>
+
+<!-- ==================== 3. Shamir 秘密共享数学原理 ==================== -->
+<h2>三、Shamir 秘密共享：数学原理</h2>
+
+<p>2/3 方案的底层密码学基础是 <strong>Shamir 秘密共享（Shamir's Secret Sharing）</strong>，由 Adi Shamir（RSA 共同发明人）于 1979 年提出。</p>
+
+<h3>3.1 核心思想：多项式插值</h3>
+
+<p>Shamir 方案基于一个简单的数学事实：</p>
+
+<div class="highlight">
+  <strong>一个 (t-1) 次多项式可以被 t 个点唯一确定，但少于 t 个点则无法确定。</strong>
+</div>
+
+<p>对于 2/3 方案（t=2），我们使用 <strong>1 次多项式（即一条直线）</strong>：</p>
+
+<div class="card">
+  <p style="text-align:center; font-size:1.1rem; margin-bottom:12px;">
+    <code>f(x) = secret + a₁ · x</code> &nbsp;&nbsp;(在有限域 GF(p) 上)
+  </p>
+  <ul style="margin-bottom:0;">
+    <li><code>secret</code>：要保护的秘密（私钥的整数表示），即 <code>f(0) = secret</code></li>
+    <li><code>a₁</code>：随机生成的系数，每次拆分都不同</li>
+    <li><code>p</code>：一个大素数（有限域模数），需大于 secret 和分片数量</li>
+  </ul>
+</div>
+
+<p>然后计算 3 个点作为分片：</p>
+<ul>
+  <li>分片 1：<code>(x=1, y=f(1))</code></li>
+  <li>分片 2：<code>(x=2, y=f(2))</code></li>
+  <li>分片 3：<code>(x=3, y=f(3))</code></li>
+</ul>
+
+<h3>3.2 图解：两点确定一条直线</h3>
+
+<div class="svg-container">
+  <svg width="680" height="380" viewBox="0 0 680 380" xmlns="http://www.w3.org/2000/svg">
+    <!-- 坐标系 -->
+    <line x1="80" y1="320" x2="640" y2="320" stroke="#4a4e5c" stroke-width="1.5"/>
+    <line x1="80" y1="320" x2="80" y2="40" stroke="#4a4e5c" stroke-width="1.5"/>
+    <text x="650" y="338" fill="#9ca0ad" font-size="12">x</text>
+    <text x="65" y="35" fill="#9ca0ad" font-size="12">y</text>
+
+    <!-- x 轴刻度 -->
+    <text x="80" y="340" text-anchor="middle" fill="#9ca0ad" font-size="11">0</text>
+    <text x="200" y="340" text-anchor="middle" fill="#9ca0ad" font-size="11">1</text>
+    <text x="320" y="340" text-anchor="middle" fill="#9ca0ad" font-size="11">2</text>
+    <text x="440" y="340" text-anchor="middle" fill="#9ca0ad" font-size="11">3</text>
+    <line x1="200" y1="316" x2="200" y2="324" stroke="#4a4e5c"/>
+    <line x1="320" y1="316" x2="320" y2="324" stroke="#4a4e5c"/>
+    <line x1="440" y1="316" x2="440" y2="324" stroke="#4a4e5c"/>
+
+    <!-- 直线 f(x) = secret + a1*x -->
+    <!-- 分片点斜率 -1/3：x=0→y=290, x=1→y=250, x=2→y=210, x=3→y=170, x=4→y=130 -->
+    <line x1="80" y1="290" x2="560" y2="130" stroke="#4f8cff" stroke-width="2.5"/>
+    <text x="470" y="120" fill="#7ba8ff" font-size="13" font-weight="600">f(x) = secret + a₁·x</text>
+
+    <!-- f(0) = secret 点 -->
+    <circle cx="80" cy="290" r="7" fill="#4f8cff" stroke="#fff" stroke-width="2"/>
+    <text x="95" y="285" fill="#7ba8ff" font-size="12" font-weight="600">f(0) = secret</text>
+    <text x="95" y="301" fill="#9ca0ad" font-size="10">（要恢复的秘密）</text>
+
+    <!-- 分片1: (1, f(1)) -->
+    <circle cx="200" cy="250" r="7" fill="#4ade80" stroke="#fff" stroke-width="2"/>
+    <text x="215" y="245" fill="#4ade80" font-size="12" font-weight="600">分片1: (1, f(1))</text>
+
+    <!-- 分片2: (2, f(2)) -->
+    <circle cx="320" cy="210" r="7" fill="#fbbf24" stroke="#fff" stroke-width="2"/>
+    <text x="335" y="205" fill="#fbbf24" font-size="12" font-weight="600">分片2: (2, f(2))</text>
+
+    <!-- 分片3: (3, f(3)) -->
+    <circle cx="440" cy="170" r="7" fill="#a78bfa" stroke="#fff" stroke-width="2"/>
+    <text x="455" y="165" fill="#a78bfa" font-size="12" font-weight="600">分片3: (3, f(3))</text>
+
+    <!-- 说明框 -->
+    <rect x="80" y="40" width="540" height="50" rx="8" fill="rgba(74,222,128,0.06)" stroke="#4ade80" stroke-width="1" stroke-dasharray="4,3"/>
+    <text x="350" y="62" text-anchor="middle" fill="#4ade80" font-size="12" font-weight="600">任意 2 个点 → 唯一确定这条直线 → 延长到 x=0 即得到 secret</text>
+    <text x="350" y="80" text-anchor="middle" fill="#9ca0ad" font-size="11">只有 1 个点时，过该点的直线有无数条，无法确定 secret</text>
+  </svg>
+  <div class="caption">图 2：Shamir (2,3) 方案的多项式插值原理（示意，非精确比例）</div>
+</div>
+
+<h3>3.3 恢复算法：拉格朗日插值</h3>
+
+<p>已知任意 2 个分片点 <code>(x₁, y₁)</code> 和 <code>(x₂, y₂)</code>，通过<strong>拉格朗日插值</strong>在 <code>x=0</code> 处求值即可恢复秘密：</p>
+
+<div class="card">
+  <p style="text-align:center; font-size:1.05rem; margin-bottom:12px;">
+    <code>secret = f(0) = y₁ · [x₂/(x₂-x₁)] + y₂ · [x₁/(x₁-x₂)]</code>
+  </p>
+  <p style="margin-bottom:0; font-size:0.9rem; color:var(--text-dim);">
+    所有运算在有限域 GF(p) 中进行，除法通过乘以模逆元实现。
+  </p>
+</div>
+
+<div class="warning">
+  <strong>为什么需要有限域？</strong>如果在普通整数域上，知道一个点 (x, y) 后，secret 的可能值虽然无限，但结合其他信息可能缩小范围。在大素数有限域 GF(p) 中，少于阈值的分片<strong>信息论安全</strong>——secret 的每个可能值都有相同概率，攻击者无法获得任何信息。
+</div>
+
+<!-- ==================== 4. 分片丢失与恢复流程 ==================== -->
+<h2>四、分片丢失怎么办？恢复流程详解</h2>
+
+<p>2/3 方案的核心优势就是<strong>容错性</strong>。当其中一个分片丢失时，剩余 2 个分片仍可完整恢复秘密。以下是完整的处理流程：</p>
+
+<h3>4.1 恢复流程图</h3>
+
+<div class="svg-container">
+  <svg width="700" height="440" viewBox="0 0 700 440" xmlns="http://www.w3.org/2000/svg">
+    <!-- 步骤1：检测丢失 -->
+    <rect x="250" y="15" width="200" height="50" rx="8" fill="#1e293b" stroke="#f87171" stroke-width="2"/>
+    <text x="350" y="38" text-anchor="middle" fill="#f87171" font-size="13" font-weight="600">① 检测到分片丢失</text>
+    <text x="350" y="55" text-anchor="middle" fill="#9ca0ad" font-size="10">例如：用户手机丢失 → 分片1不可用</text>
+
+    <line x1="350" y1="65" x2="350" y2="90" stroke="#4a4e5c" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+    <!-- 步骤2：确认剩余分片 -->
+    <rect x="250" y="90" width="200" height="50" rx="8" fill="#1e293b" stroke="#fbbf24" stroke-width="2"/>
+    <text x="350" y="113" text-anchor="middle" fill="#fbbf24" font-size="13" font-weight="600">② 确认剩余 ≥2 个分片</text>
+    <text x="350" y="130" text-anchor="middle" fill="#9ca0ad" font-size="10">分片2（服务器）+ 分片3（第三方）</text>
+
+    <line x1="350" y1="140" x2="350" y2="165" stroke="#4a4e5c" stroke-width="1.5"/>
+
+    <!-- 分支判断 -->
+    <polygon points="350,165 420,200 350,235 280,200" fill="#1e293b" stroke="#4f8cff" stroke-width="2"/>
+    <text x="350" y="205" text-anchor="middle" fill="#7ba8ff" font-size="12" font-weight="600">剩余 ≥ 2 ?</text>
+
+    <!-- 是 -->
+    <line x1="420" y1="200" x2="530" y2="200" stroke="#4ade80" stroke-width="1.5"/>
+    <text x="470" y="192" fill="#4ade80" font-size="11">是</text>
+
+    <!-- 否 -->
+    <line x1="280" y1="200" x2="170" y2="200" stroke="#f87171" stroke-width="1.5"/>
+    <text x="220" y="192" fill="#f87171" font-size="11">否</text>
+
+    <!-- 是分支：拉格朗日插值恢复 -->
+    <rect x="530" y="175" width="150" height="50" rx="8" fill="#1e293b" stroke="#4ade80" stroke-width="2"/>
+    <text x="605" y="198" text-anchor="middle" fill="#4ade80" font-size="12" font-weight="600">③ 拉格朗日插值</text>
+    <text x="605" y="215" text-anchor="middle" fill="#9ca0ad" font-size="10">在 x=0 处求值</text>
+
+    <line x1="605" y1="225" x2="605" y2="255" stroke="#4a4e5c" stroke-width="1.5"/>
+
+    <!-- 恢复成功 -->
+    <rect x="530" y="255" width="150" height="50" rx="8" fill="rgba(74,222,128,0.1)" stroke="#4ade80" stroke-width="2"/>
+    <text x="605" y="278" text-anchor="middle" fill="#4ade80" font-size="13" font-weight="600">✓ 恢复 secret</text>
+    <text x="605" y="295" text-anchor="middle" fill="#9ca0ad" font-size="10">与原始秘密完全一致</text>
+
+    <!-- 否分支：无法恢复 -->
+    <rect x="20" y="175" width="150" height="50" rx="8" fill="rgba(248,113,113,0.1)" stroke="#f87171" stroke-width="2"/>
+    <text x="95" y="198" text-anchor="middle" fill="#f87171" font-size="13" font-weight="600">✗ 无法恢复</text>
+    <text x="95" y="215" text-anchor="middle" fill="#9ca0ad" font-size="10">资产永久锁定</text>
+
+    <!-- 步骤5：重新分片（可选） -->
+    <line x1="605" y1="305" x2="605" y2="335" stroke="#4a4e5c" stroke-width="1.5"/>
+    <rect x="480" y="335" width="200" height="55" rx="8" fill="#1e293b" stroke="#a78bfa" stroke-width="2"/>
+    <text x="580" y="358" text-anchor="middle" fill="#a78bfa" font-size="12" font-weight="600">④ 可选：重新执行 DKG</text>
+    <text x="580" y="376" text-anchor="middle" fill="#9ca0ad" font-size="10">生成新的 3 个分片替换旧分片</text>
+    <text x="580" y="389" text-anchor="middle" fill="#9ca0ad" font-size="10">（旧分片即使泄露也无效）</text>
+
+    <!-- 箭头定义 -->
+    <defs>
+      <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0,0 8,3 0,6" fill="#4a4e5c"/>
+      </marker>
+    </defs>
+  </svg>
+  <div class="caption">图 3：分片丢失后的检测、恢复与重新分片流程（示意）</div>
+</div>
+
+<h3>4.2 实际操作步骤</h3>
+
+<ol>
+  <li><strong>检测丢失</strong>：用户尝试签名时发现某一分片不可用（如手机丢失、服务器故障）。</li>
+  <li><strong>身份验证</strong>：通过其他方式验证用户身份（邮箱、KYC、辅助密钥等），防止攻击者冒充用户进行恢复。</li>
+  <li><strong>召集剩余分片</strong>：确认至少有 2 个分片可用（例如服务器分片 + 第三方节点分片）。</li>
+  <li><strong>执行恢复</strong>：通过 MPC 协议或拉格朗日插值，用剩余 2 个分片恢复出完整秘密。</li>
+  <li><strong>重新分片（推荐）</strong>：恢复后应立即重新执行 DKG，生成一套全新的 3 个分片，旧分片全部作废。这样即使丢失的分片后来被找到或泄露，也无法再使用。</li>
+</ol>
+
+<div class="warning">
+  <strong>安全提醒：</strong>恢复过程是整个 MPC 方案中最脆弱的环节。恢复时完整秘密会在内存中短暂存在（或通过 MPC 协议避免），因此必须在可信环境中执行，并做好身份验证和操作审计。生产级方案通常使用"社交恢复"或"辅助密钥"来增强恢复流程的安全性。
+</div>
+
+<!-- ==================== 5. MPC vs 多签 ==================== -->
+<h2>五、MPC 钱包 vs 传统多签钱包</h2>
+
+<p>很多人会混淆 MPC 钱包和多签（Multisig）钱包，两者都需要多方参与，但实现机制有本质区别：</p>
+
+<table>
+  <tr>
+    <th>对比维度</th>
+    <th>MPC 钱包（TSS）</th>
+    <th>传统多签钱包（Multisig）</th>
+  </tr>
+  <tr>
+    <td>私钥形态</td>
+    <td>私钥被拆成分片，<strong>完整私钥永不存在</strong></td>
+    <td>每个参与方有<strong>独立的完整私钥</strong></td>
+  </tr>
+  <tr>
+    <td>链上签名</td>
+    <td>生成<strong>单个标准签名</strong>，链上与普通地址无异</td>
+    <td>需要<strong>多个签名</strong>上链，占用多签合约</td>
+  </tr>
+  <tr>
+    <td>地址类型</td>
+    <td>普通 EOA 地址（如 0x...）</td>
+    <td>多签合约地址（如 Gnosis Safe）</td>
+  </tr>
+  <tr>
+    <td>Gas 费用</td>
+    <td>与普通转账相同</td>
+    <td>更高（需验证多个签名 + 合约调用）</td>
+  </tr>
+  <tr>
+    <td>链上隐私</td>
+    <td>外部无法看出是 MPC 钱包</td>
+    <td>链上公开可见多签结构和签名者</td>
+  </tr>
+  <tr>
+    <td>跨链兼容性</td>
+    <td>所有支持标准签名的链都兼容</td>
+    <td>每条链需要部署对应的多签合约</td>
+  </tr>
+  <tr>
+    <td>实现复杂度</td>
+    <td>高（密码学协议复杂）</td>
+    <td>低（合约逻辑简单）</td>
+  </tr>
+</table>
+
+<!-- ==================== 6. Web3 行业应用 ==================== -->
+<h2>六、Web3 行业中的 MPC 应用场景</h2>
+
+<div class="card-grid">
+  <div class="card-mini">
+    <h4>📱 C 端智能钱包</h4>
+    <p>如 Fireblocks、ZenGo、Coinbase WaaS 等，将分片分布在用户设备、云端和安全区域，用户无感使用。</p>
+  </div>
+  <div class="card-mini">
+    <h4>🏦 机构级托管</h4>
+    <p>交易所、基金、托管商使用 3/5 或更高阈值方案，分片分布在不同地域和安全域，满足合规审计要求。</p>
+  </div>
+  <div class="card-mini">
+    <h4>🔗 跨链桥 / DApp</h4>
+    <p>跨链桥的验证者集合使用 MPC 联合签名，避免多签合约的 Gas 开销和链上隐私泄露。</p>
+  </div>
+  <div class="card-mini">
+    <h4>🎮 GameFi / NFT</h4>
+    <p>游戏内资产钱包使用 MPC，玩家不需要管理助记词，降低 Web3 入门门槛，同时保障资产安全。</p>
+  </div>
+  <div class="card-mini">
+    <h4>💼 企业财资管理</h4>
+    <p>企业 Treasury 团队使用 MPC 实现多人审批的链上转账，无需多签合约，兼容所有 EVM 链。</p>
+  </div>
+  <div class="card-mini">
+    <h4>🛡️ 社交恢复钱包</h4>
+    <p>结合 MPC + 社交恢复，用户指定监护人持有分片，丢失设备时可通过监护人协助恢复。</p>
+  </div>
+</div>
+
+<!-- ==================== 7. Python 代码验证 ==================== -->
+<h2>七、Python 代码验证：2/3 方案实战</h2>
+
+<p>为了验证上述原理，我们编写了一个完整的 Python 脚本 <code>mpc_shamir_2of3.py</code>，实现了 Shamir (2,3) 秘密共享的全流程：</p>
+
+<h3>7.1 脚本功能清单</h3>
+
+<table>
+  <tr>
+    <th>功能</th>
+    <th>说明</th>
+  </tr>
+  <tr>
+    <td><span class="tag tag-blue">split_secret</span></td>
+    <td>将秘密拆分为 3 个分片，使用 secp256k1 曲线的阶 N 作为有限域模数（与 BTC/ETH 私钥范围一致）</td>
+  </tr>
+  <tr>
+    <td><span class="tag tag-green">recover_secret</span></td>
+    <td>通过拉格朗日插值，用任意 ≥2 个分片恢复原始秘密</td>
+  </tr>
+  <tr>
+    <td><span class="tag tag-purple">save_shares / load_shares</span></td>
+    <td>将分片持久化为本地 JSON 文件（shares/share_1.json 等），支持从文件读取</td>
+  </tr>
+  <tr>
+    <td><span class="tag tag-orange">模拟丢失</span></td>
+    <td>删除分片 2 的文件，用剩余的分片 1 + 分片 3 恢复并验证一致性</td>
+  </tr>
+  <tr>
+    <td><span class="tag tag-red">反面验证</span></td>
+    <td>尝试只用 1 个分片恢复，确认脚本正确拒绝（阈值为 2）</td>
+  </tr>
+</table>
+
+<h3>7.2 核心代码片段</h3>
+
+<p><strong>分片生成（构造随机多项式）：</strong></p>
+
+<pre><code>def split_secret(secret, threshold, num_shares, prime=FIELD_PRIME):
+    # 构造 (threshold-1) 次多项式：f(x) = secret + a1*x + a2*x^2 + ...
+    coefficients = [secret] + [secrets.randbelow(prime) for _ in range(threshold - 1)]
+    shares = []
+    for x in range(1, num_shares + 1):
+        y = sum(coeff * pow(x, power, prime) for power, coeff in enumerate(coefficients)) % prime
+        shares.append((x, y))
+    return shares</code></pre>
+
+<p><strong>秘密恢复（拉格朗日插值在 x=0 处求值）：</strong></p>
+
+<pre><code>def recover_secret(shares, prime=FIELD_PRIME):
+    secret = 0
+    for j, (xj, yj) in enumerate(shares):
+        numerator = 1
+        denominator = 1
+        for i, (xi, _) in enumerate(shares):
+            if i == j:
+                continue
+            numerator = (numerator * xi) % prime
+            denominator = (denominator * (xi - xj)) % prime
+        # 有限域除法 = 乘以分母的模逆元（扩展欧几里得算法）
+        lagrange_coeff = (numerator * mod_inverse(denominator, prime)) % prime
+        secret = (secret + yj * lagrange_coeff) % prime
+    return secret</code></pre>
+
+<h3>7.3 运行结果验证</h3>
+
+<div class="card">
+  <p>脚本运行后输出以下关键验证点：</p>
+  <ol style="margin-bottom:0;">
+    <li>生成随机秘密（模拟 256 位私钥）</li>
+    <li>拆分为 3 个分片并存储为 JSON 文件</li>
+    <li><strong>用全部 3 个分片恢复 → 与原始秘密一致 ✓</strong></li>
+    <li>删除分片 2 文件（模拟丢失）</li>
+    <li><strong>用剩余 2 个分片（分片1 + 分片3）恢复 → 与原始秘密一致 ✓</strong></li>
+    <li><strong>只用 1 个分片尝试恢复 → 被正确拒绝 ✗</strong></li>
+  </ol>
+</div>
+
+<div class="highlight">
+  <strong>运行方式：</strong><code>python3 mpc_shamir_2of3.py</code><br>
+  分片文件存储在脚本同目录的 <code>shares/</code> 文件夹中，每个分片为独立 JSON 文件。
+</div>
+
+<!-- ==================== 8. 安全注意事项 ==================== -->
+<h2>八、安全注意事项与局限性</h2>
+
+<div class="card-grid">
+  <div class="card-mini">
+    <h4>⚠️ 本脚本是教学演示</h4>
+    <p>本 Python 脚本仅用于原理演示，<strong>不可直接用于生产环境</strong>。生产级 MPC 需要使用经过审计的库（如 Fireblocks MPC-CMP、Binance tss-lib、ZenGo 等），并处理异步通信、恶意安全模型、可验证性等复杂问题。</p>
+  </div>
+  <div class="card-mini">
+    <h4>🔒 诚实但好奇 vs 恶意模型</h4>
+    <p>Shamir 秘密共享本身是"诚实但好奇"安全模型——假设参与方遵守协议但试图窥探信息。生产级 TSS 方案（如 GG18/GG20/CMP/FROST）需要在<strong>恶意安全模型</strong>下证明安全，即参与方可以偏离协议。</p>
+  </div>
+  <div class="card-mini">
+    <h4>📡 通信与同步开销</h4>
+    <p>真实的 MPC 签名需要多方之间多轮通信交互（GG18 需要 4-6 轮），存在网络延迟和可用性问题。这也是为什么 MPC 钱包的签名速度通常比单密钥慢。</p>
+  </div>
+  <div class="card-mini">
+    <h4>🔄 密钥刷新（Key Refresh）</h4>
+    <p>高级 MPC 方案支持密钥刷新：在不改变公钥和地址的前提下，更新所有分片。这样即使旧分片泄露，刷新后攻击者也无法使用。这是 MPC 相比多签的重要安全优势。</p>
+  </div>
+</div>
+
+<!-- ==================== 9. 总结 ==================== -->
+<h2>九、总结</h2>
+
+<div class="card">
+  <p><strong>MPC 多方安全计算</strong>通过将私钥拆分为多个分片、以阈值方式协同签名，从根本上消除了传统钱包的"单点故障"问题。</p>
+  <p style="margin-bottom:12px;"><strong>2/3 方案</strong>是安全性与可用性的最佳平衡点：</p>
+  <ul style="margin-bottom:12px;">
+    <li>3 个分片分布在不同位置（用户设备 / 服务器 / 第三方节点）</li>
+    <li>任意 2 个分片即可完成签名或恢复</li>
+    <li>丢失 1 个分片不影响资产安全和可用性</li>
+    <li>攻击者需同时攻破至少 2 个分片才能盗币</li>
+  </ul>
+  <p style="margin-bottom:0;">其底层基于 <strong>Shamir 秘密共享</strong>的多项式插值原理，配合 <strong>DKG 分布式密钥生成</strong>和 <strong>TSS 阈值签名</strong>协议，构成了 Web3 行业最主流的钱包安全方案之一。</p>
+</div>
+
+<!-- ==================== 参考资料 ==================== -->
+<h2>参考资料</h2>
+<ul>
+  <li>Shamir, A. (1979). "How to share a secret." Communications of the ACM, 22(11), 612-613.</li>
+  <li>Gennaro, R., &amp; Goldfeder, S. (2018). "Fast Multiparty Threshold ECDSA with Fast Trustless Setup." (GG18)</li>
+  <li>Canetti, R., et al. (2021). "UC Non-Interactive, Proactive, Threshold ECDSA." (CMP)</li>
+  <li>Komlo, C., &amp; Goldberg, I. (2020). "FROST: Flexible Round-Optimized Schnorr Threshold Signatures."</li>
+  <li>Blockdaemon. "The Role of MPC &amp; Threshold Cryptography in Web3 Wallets."</li>
+  <li>Silence Laboratories. "Threshold Signatures Explained: How Distributed Key Management Works."</li>
+</ul>
+
+<div class="footer">
+  <p>Web3 MPC 多方安全计算技术报告 | 以 2/3 阈值方案为例</p>
+  <p>生成日期：2026-09-04 | 配套脚本：mpc_shamir_2of3.py</p>
+</div>
+
+</div>
+</body>
+</html>

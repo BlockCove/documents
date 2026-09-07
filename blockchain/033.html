@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+  <html>
+    <head>
+      <title>cast run 高频用法</title>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      
+      
+      <link rel="stylesheet" href="file:///Users/xushiying/.cursor/extensions/shd101wyy.markdown-preview-enhanced-0.8.34-universal/crossnote/dependencies/katex/katex.min.css">
+      
+      
+      
+      
+      
+      
+      
+      <style>
+      code[class*=language-],pre[class*=language-]{color:#a9b7c6;font-family:Consolas,Monaco,'Andale Mono',monospace;direction:ltr;text-align:left;white-space:pre;word-spacing:normal;word-break:normal;line-height:1.5;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-hyphens:none;-moz-hyphens:none;-ms-hyphens:none;hyphens:none}code[class*=language-] ::-moz-selection,code[class*=language-]::-moz-selection,pre[class*=language-] ::-moz-selection,pre[class*=language-]::-moz-selection{color:inherit;background:rgba(33,66,131,.85)}code[class*=language-] ::selection,code[class*=language-]::selection,pre[class*=language-] ::selection,pre[class*=language-]::selection{color:inherit;background:rgba(33,66,131,.85)}pre[class*=language-]{padding:1em;margin:.5em 0;overflow:auto}:not(pre)>code[class*=language-],pre[class*=language-]{background:#2b2b2b}:not(pre)>code[class*=language-]{padding:.1em;border-radius:.3em}.token.cdata,.token.comment,.token.prolog{color:grey}.token.atrule,.token.boolean,.token.delimiter,.token.important,.token.keyword,.token.selector{color:#cc7832}.token.attr-name,.token.operator,.token.punctuation{color:#a9b7c6}.token.builtin,.token.doctype,.token.tag,.token.tag .punctuation{color:#e8bf6a}.token.entity,.token.number,.token.symbol{color:#6897bb}.token.constant,.token.property,.token.variable{color:#9876aa}.token.char,.token.string{color:#6a8759}.token.attr-value,.token.attr-value .punctuation{color:#a5c261}.token.attr-value .punctuation:first-child{color:#a9b7c6}.token.url{color:#287bde;text-decoration:underline}.token.function{color:#ffc66d}.token.regex{background:#364135}.token.bold{font-weight:700}.token.italic{font-style:italic}.token.inserted{background:#294436}.token.deleted{background:#484a4a}code.language-css .token.property,code.language-css .token.property+.token.punctuation{color:#a9b7c6}code.language-css .token.id{color:#ffc66d}code.language-css .token.selector>.token.attribute,code.language-css .token.selector>.token.class,code.language-css .token.selector>.token.pseudo-class,code.language-css .token.selector>.token.pseudo-element{color:#ffc66d}pre[data-line]{position:relative;padding:1em 0 1em 3em}pre[data-line] .line-highlight-wrapper{position:absolute;top:0;left:0;background-color:transparent;display:block;width:100%}pre[data-line] .line-highlight{position:absolute;left:0;right:0;padding:inherit 0;margin-top:1em;background:hsla(24,20%,50%,.08);background:linear-gradient(to right,hsla(24,20%,50%,.1) 70%,hsla(24,20%,50%,0));pointer-events:none;line-height:inherit;white-space:pre}pre[data-line] .line-highlight:before,pre[data-line] .line-highlight[data-end]:after{content:attr(data-start);position:absolute;top:.4em;left:.6em;min-width:1em;padding:0 .5em;background-color:hsla(24,20%,50%,.4);color:#f4f1ef;font:bold 65%/1.5 sans-serif;text-align:center;vertical-align:.3em;border-radius:999px;text-shadow:none;box-shadow:0 1px #fff}pre[data-line] .line-highlight[data-end]:after{content:attr(data-end);top:auto;bottom:.4em}html body{font-family:'Helvetica Neue',Helvetica,'Segoe UI',Arial,freesans,sans-serif;font-size:16px;line-height:1.6;color:#333;background-color:#fff;overflow:initial;box-sizing:border-box;word-wrap:break-word}html body>:first-child{margin-top:0}html body h1,html body h2,html body h3,html body h4,html body h5,html body h6{line-height:1.2;margin-top:1em;margin-bottom:16px;color:#000}html body h1{font-size:2.25em;font-weight:300;padding-bottom:.3em}html body h2{font-size:1.75em;font-weight:400;padding-bottom:.3em}html body h3{font-size:1.5em;font-weight:500}html body h4{font-size:1.25em;font-weight:600}html body h5{font-size:1.1em;font-weight:600}html body h6{font-size:1em;font-weight:600}html body h1,html body h2,html body h3,html body h4,html body h5{font-weight:600}html body h5{font-size:1em}html body h6{color:#5c5c5c}html body strong{color:#000}html body del{color:#5c5c5c}html body a:not([href]){color:inherit;text-decoration:none}html body a{color:#08c;text-decoration:none}html body a:hover{color:#00a3f5;text-decoration:none}html body img{max-width:100%}html body>p{margin-top:0;margin-bottom:16px;word-wrap:break-word}html body>ol,html body>ul{margin-bottom:16px}html body ol,html body ul{padding-left:2em}html body ol.no-list,html body ul.no-list{padding:0;list-style-type:none}html body ol ol,html body ol ul,html body ul ol,html body ul ul{margin-top:0;margin-bottom:0}html body li{margin-bottom:0}html body li.task-list-item{list-style:none}html body li>p{margin-top:0;margin-bottom:0}html body .task-list-item-checkbox{margin:0 .2em .25em -1.8em;vertical-align:middle}html body .task-list-item-checkbox:hover{cursor:pointer}html body blockquote{margin:16px 0;font-size:inherit;padding:0 15px;color:#5c5c5c;background-color:#f0f0f0;border-left:4px solid #d6d6d6}html body blockquote>:first-child{margin-top:0}html body blockquote>:last-child{margin-bottom:0}html body hr{height:4px;margin:32px 0;background-color:#d6d6d6;border:0 none}html body table{margin:10px 0 15px 0;border-collapse:collapse;border-spacing:0;display:block;width:100%;overflow:auto;word-break:normal;word-break:keep-all}html body table th{font-weight:700;color:#000}html body table td,html body table th{border:1px solid #d6d6d6;padding:6px 13px}html body dl{padding:0}html body dl dt{padding:0;margin-top:16px;font-size:1em;font-style:italic;font-weight:700}html body dl dd{padding:0 16px;margin-bottom:16px}html body code{font-family:Menlo,Monaco,Consolas,'Courier New',monospace;font-size:.85em;color:#000;background-color:#f0f0f0;border-radius:3px;padding:.2em 0}html body code::after,html body code::before{letter-spacing:-.2em;content:'\00a0'}html body pre>code{padding:0;margin:0;word-break:normal;white-space:pre;background:0 0;border:0}html body .highlight{margin-bottom:16px}html body .highlight pre,html body pre{padding:1em;overflow:auto;line-height:1.45;border:#d6d6d6;border-radius:3px}html body .highlight pre{margin-bottom:0;word-break:normal}html body pre code,html body pre tt{display:inline;max-width:initial;padding:0;margin:0;overflow:initial;line-height:inherit;word-wrap:normal;background-color:transparent;border:0}html body pre code:after,html body pre code:before,html body pre tt:after,html body pre tt:before{content:normal}html body blockquote,html body dl,html body ol,html body p,html body pre,html body ul{margin-top:0;margin-bottom:16px}html body kbd{color:#000;border:1px solid #d6d6d6;border-bottom:2px solid #c7c7c7;padding:2px 4px;background-color:#f0f0f0;border-radius:3px}@media print{html body{background-color:#fff}html body h1,html body h2,html body h3,html body h4,html body h5,html body h6{color:#000;page-break-after:avoid}html body blockquote{color:#5c5c5c}html body pre{page-break-inside:avoid}html body table{display:table}html body img{display:block;max-width:100%;max-height:100%}html body code,html body pre{word-wrap:break-word;white-space:pre}}.markdown-preview{width:100%;height:100%;box-sizing:border-box}.markdown-preview ul{list-style:disc}.markdown-preview ul ul{list-style:circle}.markdown-preview ul ul ul{list-style:square}.markdown-preview ol{list-style:decimal}.markdown-preview ol ol,.markdown-preview ul ol{list-style-type:lower-roman}.markdown-preview ol ol ol,.markdown-preview ol ul ol,.markdown-preview ul ol ol,.markdown-preview ul ul ol{list-style-type:lower-alpha}.markdown-preview .newpage,.markdown-preview .pagebreak{page-break-before:always}.markdown-preview pre.line-numbers{position:relative;padding-left:3.8em;counter-reset:linenumber}.markdown-preview pre.line-numbers>code{position:relative}.markdown-preview pre.line-numbers .line-numbers-rows{position:absolute;pointer-events:none;top:1em;font-size:100%;left:0;width:3em;letter-spacing:-1px;border-right:1px solid #999;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}.markdown-preview pre.line-numbers .line-numbers-rows>span{pointer-events:none;display:block;counter-increment:linenumber}.markdown-preview pre.line-numbers .line-numbers-rows>span:before{content:counter(linenumber);color:#999;display:block;padding-right:.8em;text-align:right}.markdown-preview pre[data-line]{position:relative;padding:1em 0 1em 3em!important}.markdown-preview pre[data-line] .line-highlight-wrapper{position:absolute;top:0;left:0;background-color:transparent;display:block;width:100%}.markdown-preview pre[data-line] .line-highlight{position:absolute;left:0;right:0;padding:inherit 0;margin-top:1em;background:hsla(24,20%,50%,.08);background:var(--line-highlight-background,linear-gradient(to right,hsla(24,20%,50%,.1) 70%,hsla(24,20%,50%,0)));pointer-events:none;line-height:inherit;white-space:pre}.markdown-preview pre[data-line] .line-highlight:before,.markdown-preview pre[data-line] .line-highlight[data-end]:after{content:attr(data-start);position:absolute;top:.4em;left:.6em;min-width:1em;padding:0 .5em;background-color:hsla(24,20%,50%,.4);color:#f4f1ef;font:bold 65%/1.5 sans-serif;text-align:center;vertical-align:.3em;border-radius:999px;text-shadow:none}.markdown-preview pre[data-line] .line-highlight[data-end]:after{content:attr(data-end);top:auto;bottom:.4em}.markdown-preview .mathjax-exps .MathJax_Display{text-align:center!important}.markdown-preview:not([data-for=preview]) .code-chunk .code-chunk-btn-group{display:none}.markdown-preview:not([data-for=preview]) .code-chunk .status{display:none}.markdown-preview:not([data-for=preview]) .code-chunk .output-div{margin-bottom:16px}.markdown-preview .md-toc{padding:0}.markdown-preview .md-toc .md-toc-details{margin:0;padding:0;border:none}.markdown-preview .md-toc ol.md-toc-ol{margin:0;padding-left:1.6em}.markdown-preview .md-toc summary.md-toc-link-wrapper{cursor:pointer;list-style-position:outside}.markdown-preview .md-toc summary.md-toc-link-wrapper::marker{font-size:.85em}.markdown-preview .md-toc .md-toc-link-wrapper .md-toc-link{display:inline;padding:.25rem 0}.markdown-preview .md-toc .md-toc-link-wrapper .md-toc-link div,.markdown-preview .md-toc .md-toc-link-wrapper .md-toc-link p{display:inline}.markdown-preview .md-toc .md-toc-link-wrapper.highlighted .md-toc-link{font-weight:800}.markdown-preview .md-toc .md-toc-link-wrapper[data-level='0']{margin-left:12px}.markdown-preview .md-toc .md-toc-link-wrapper[data-level='1']{margin-left:28px}.markdown-preview .md-toc .md-toc-link-wrapper[data-level='2']{margin-left:44px}.markdown-preview .md-toc .md-toc-link-wrapper[data-level='3']{margin-left:60px}.markdown-preview .md-toc .md-toc-link-wrapper[data-level='4']{margin-left:76px}.markdown-preview .md-toc .md-toc-link-wrapper[data-level='5']{margin-left:80px}.markdown-preview a.tag,.markdown-preview a.tag:active,.markdown-preview a.tag:link,.markdown-preview a.tag:visited,.markdown-preview span.tag:not(.token){display:inline-block;background-color:var(--vscode-badge-background,rgba(127,127,127,.18));color:var(--vscode-badge-foreground,currentColor);border-radius:2em;font-size:.85em;font-weight:500;padding:.05em .55em;line-height:1.5;white-space:nowrap;text-decoration:none;text-shadow:none;box-shadow:none;transition:background-color .12s ease,opacity .12s ease}.markdown-preview a.tag{cursor:pointer}.markdown-preview a.tag:focus,.markdown-preview a.tag:hover{background-color:var(--vscode-badge-background,rgba(127,127,127,.32));color:var(--vscode-badge-foreground,currentColor);opacity:.85;text-decoration:none;outline:0}.markdown-preview .wikilink-embed-content{border-left:3px solid var(--vscode-textBlockQuote-border,rgba(128,128,128,.3));background:var(--vscode-textBlockQuote-background,rgba(128,128,128,.05));margin:.5em 0;padding:.5em .75em;border-radius:0 3px 3px 0}.markdown-preview .wikilink-embed-content.wikilink-embed-error{border-left-color:var(--vscode-errorForeground,#cf222e);color:var(--vscode-errorForeground,#cf222e);font-style:italic;opacity:.8}.markdown-preview .wikilink-embed-content h1:first-child,.markdown-preview .wikilink-embed-content h2:first-child,.markdown-preview .wikilink-embed-content h3:first-child,.markdown-preview .wikilink-embed-content h4:first-child,.markdown-preview .wikilink-embed-content h5:first-child,.markdown-preview .wikilink-embed-content h6:first-child{margin-top:.25em}.markdown-preview .wikilink-embed-content .wikilink-embed-content{margin:.25em 0;padding:.25em .5em}.markdown-preview .block-id{display:none}.scrollbar-style::-webkit-scrollbar{width:8px}.scrollbar-style::-webkit-scrollbar-track{border-radius:10px;background-color:transparent}.scrollbar-style::-webkit-scrollbar-thumb{border-radius:5px;background-color:var(--vscode-scrollbarSlider-background,rgba(150,150,150,.66));border:4px solid var(--vscode-scrollbarSlider-background,rgba(150,150,150,.66));background-clip:content-box}.scrollbar-style::-webkit-scrollbar-thumb:hover{background-color:var(--vscode-scrollbarSlider-hoverBackground,rgba(120,120,120,.66))}html body[for=html-export]:not([data-presentation-mode]){position:relative;width:100%;height:100%;top:0;left:0;margin:0;padding:0;overflow:auto}html body[for=html-export]:not([data-presentation-mode]) .markdown-preview{position:relative;top:0;min-height:100vh}@media screen and (min-width:914px){html body[for=html-export]:not([data-presentation-mode]) .markdown-preview{padding:2em calc(50% - 457px + 2em)}}@media screen and (max-width:914px){html body[for=html-export]:not([data-presentation-mode]) .markdown-preview{padding:2em}}@media screen and (max-width:450px){html body[for=html-export]:not([data-presentation-mode]) .markdown-preview{font-size:14px!important;padding:1em}}@media print{html body[for=html-export]:not([data-presentation-mode]) #sidebar-toc-btn{display:none}}html body[for=html-export]:not([data-presentation-mode]) #sidebar-toc-btn{position:fixed;bottom:8px;left:8px;font-size:28px;cursor:pointer;color:inherit;z-index:99;width:32px;text-align:center;opacity:.4}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] #sidebar-toc-btn{opacity:1}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc{position:fixed;top:0;left:0;width:300px;height:100%;padding:32px 0 48px 0;font-size:14px;box-shadow:0 0 4px rgba(150,150,150,.33);box-sizing:border-box;overflow:auto;background-color:inherit}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc::-webkit-scrollbar{width:8px}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc::-webkit-scrollbar-track{border-radius:10px;background-color:transparent}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc::-webkit-scrollbar-thumb{border-radius:5px;background-color:var(--vscode-scrollbarSlider-background,rgba(150,150,150,.66));border:4px solid var(--vscode-scrollbarSlider-background,rgba(150,150,150,.66));background-clip:content-box}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc::-webkit-scrollbar-thumb:hover{background-color:var(--vscode-scrollbarSlider-hoverBackground,rgba(120,120,120,.66))}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc a{text-decoration:none}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc{padding:0 16px}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-details{margin:0;padding:0;border:none}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc ol.md-toc-ol{margin:0;padding-left:1.6em}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper .md-toc-link{display:inline;padding:.25rem 0}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper .md-toc-link div,html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper .md-toc-link p{display:inline}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper.highlighted .md-toc-link{font-weight:800}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper[data-level='0']{padding-left:0}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper[data-level='1']{padding-left:16px}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper[data-level='2']{padding-left:32px}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper[data-level='3']{padding-left:48px}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper[data-level='4']{padding-left:64px}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .md-sidebar-toc .md-toc .md-toc-link-wrapper[data-level='5']{padding-left:80px}html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .markdown-preview{left:300px;width:calc(100% - 300px);padding:2em calc(50% - 457px - 300px / 2);margin:0;box-sizing:border-box}@media screen and (max-width:1274px){html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .markdown-preview{padding:2em}}@media screen and (max-width:450px){html body[for=html-export]:not([data-presentation-mode])[html-show-sidebar-toc] .markdown-preview{width:100%}}html body[for=html-export]:not([data-presentation-mode]):not([html-show-sidebar-toc]) .markdown-preview{left:50%;transform:translateX(-50%)}html body[for=html-export]:not([data-presentation-mode]):not([html-show-sidebar-toc]) .md-sidebar-toc{display:none}
+/* Please visit the URL below for more information: */
+/*   https://shd101wyy.github.io/markdown-preview-enhanced/#/customize-css */
+
+      </style>
+      <!-- The content below will be included at the end of the <head> element. -->
+<script type="text/javascript">
+  document.addEventListener("DOMContentLoaded", function () {
+    // your code here
+  });
+</script>
+    </head>
+    <body for="html-export" >
+      <div class="crossnote markdown-preview  "  >
+      
+<h1 id="cast-run-高频用法"><code>cast run</code> 高频用法 </h1>
+<p><code>cast run &lt;tx_hash&gt;</code> 把<strong>已经上链的交易</strong>在本地重放一遍，并打印调用树（trace）。用来查 revert 原因、看内部调用、核对 gas，而不是发新交易。</p>
+<p>本仓库 RPC 别名：</p>
+<ul>
+<li><code>--rpc-url local</code> → <code>http://127.0.0.1:8545</code>（<code>foundry.toml</code>）</li>
+<li><code>--rpc-url sepolia</code> → <code>.env</code> 里 <code>FOUNDRY_RPC_ENDPOINTS</code> 注入的 Sepolia 节点</li>
+</ul>
+<pre data-role="codeBlock" data-info="bash" class="language-bash bash"><code><span class="token builtin class-name">source</span> .env   <span class="token comment"># 加载 RPC 别名和 ETHERSCAN_API_KEY</span>
+</code></pre><p>官方参考：<a href="https://getfoundry.sh/cast/reference/run/">cast run</a></p>
+<hr>
+<h2 id="默认行为先记住这一条">默认行为（先记住这一条） </h2>
+<p>默认会<strong>先重放同一区块里、这笔交易之前的所有交易</strong>，再执行目标交易。这样状态和链上一致，但慢。</p>
+<table>
+<thead>
+<tr>
+<th>模式</th>
+<th>速度</th>
+<th>准确度</th>
+<th>要求</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>默认本地重放</td>
+<td>慢（整块 replay）</td>
+<td>最高</td>
+<td>普通 RPC 即可</td>
+</tr>
+<tr>
+<td><code>--quick</code></td>
+<td>快</td>
+<td>可能不准</td>
+<td>普通 RPC</td>
+</tr>
+<tr>
+<td><code>--prestate-tracer</code></td>
+<td>快</td>
+<td>接近链上</td>
+<td>节点开 <code>debug_</code></td>
+</tr>
+<tr>
+<td><code>--debug-trace-transaction</code></td>
+<td>最快</td>
+<td>就是链上发生的事</td>
+<td>节点开 <code>debug_</code>；无 opcode 细节</td>
+</tr>
+</tbody>
+</table>
+<p>公共 RPC 大多没有 <code>debug_</code>。Archive / 自建节点、Alchemy、部分付费节点才有。<code>debug_</code> 不可用时，<code>--prestate-tracer</code> 会静默退回整块 replay。</p>
+<hr>
+<h2 id="高频配方">高频配方 </h2>
+<p>把下面的 <code>0xTX</code> 换成真实交易哈希。</p>
+<h3 id="1-默认重放最常用">1. 默认重放（最常用） </h3>
+<pre data-role="codeBlock" data-info="bash" class="language-bash bash"><code>cast run 0xTX --rpc-url sepolia
+</code></pre><p>trace 里每一行大致是：<code>[gas] 合约::函数(...) [call 类型] → 返回值 / revert</code>。缩进表示调用深度。</p>
+<h3 id="2-查失败交易">2. 查失败交易 </h3>
+<pre data-role="codeBlock" data-info="bash" class="language-bash bash"><code>cast run 0xTX --rpc-url sepolia <span class="token parameter variable">--la</span>
+</code></pre><p><code>--la</code>（<code>--with-local-artifacts</code>）用当前 Foundry 项目的编译产物解码函数、事件、自定义 error。本仓库自己部署、浏览器上未验证的合约，必须加这个。</p>
+<p>解码仍糊时再补 Etherscan：</p>
+<pre data-role="codeBlock" data-info="bash" class="language-bash bash"><code>cast run 0xTX --rpc-url sepolia <span class="token parameter variable">--la</span> --etherscan-api-key <span class="token variable">$ETHERSCAN_API_KEY</span>
+</code></pre><h3 id="3-先快速看一眼-quick">3. 先快速看一眼：<code>--quick</code> </h3>
+<pre data-role="codeBlock" data-info="bash" class="language-bash bash"><code>cast run 0xTX --rpc-url sepolia <span class="token parameter variable">--quick</span>
+</code></pre><p>只用<strong>上一块结束时</strong>的状态执行这笔交易，跳过同块前置交易。同一块里若有人对同一账户/池子写过状态，结果会和链上不同。确认 revert 原因后再用默认模式复核。</p>
+<h3 id="4-给地址贴标签">4. 给地址贴标签 </h3>
+<pre data-role="codeBlock" data-info="bash" class="language-bash bash"><code>cast run 0xTX --rpc-url sepolia <span class="token parameter variable">--la</span> <span class="token punctuation">\</span>
+  <span class="token parameter variable">--label</span> 0xToken:MyTokenV1 <span class="token punctuation">\</span>
+  <span class="token parameter variable">--label</span> 0xBank:TokenBankV1 <span class="token punctuation">\</span>
+  --compact-labels
+</code></pre><p><code>--label</code> 可重复。<code>--compact-labels</code> 有标签时隐藏原始地址，trace 更短。地址也可从 <code>deployments/&lt;Name&gt;/&lt;Name&gt;_&lt;chainId&gt;.json</code> 抄。</p>
+<h3 id="5-看内部函数-decode-internal">5. 看内部函数：<code>--decode-internal</code> </h3>
+<pre data-role="codeBlock" data-info="bash" class="language-bash bash"><code>cast run 0xTX --rpc-url sepolia <span class="token parameter variable">--la</span> --decode-internal
+</code></pre><p>把合约内部调用和栈参数解出来。bytes / 数组等内存参数只在匹配到<strong>唯一</strong>函数时解码（和 <code>--debug</code> 一样，为了性能）。</p>
+<p>调用树太深时限深度：</p>
+<pre data-role="codeBlock" data-info="bash" class="language-bash bash"><code>cast run 0xTX --rpc-url sepolia <span class="token parameter variable">--la</span> --trace-depth <span class="token number">8</span>
+</code></pre><h3 id="6-进交互式调试器-debug">6. 进交互式调试器：<code>--debug</code> </h3>
+<pre data-role="codeBlock" data-info="bash" class="language-bash bash"><code>cast run 0xTX --rpc-url sepolia <span class="token parameter variable">--la</span> <span class="token parameter variable">--debug</span>
+</code></pre><p>终端 TUI：源码、opcode、变量、栈、memory/calldata。常用键：<code>j</code>/<code>k</code> 单步，<code>C</code>/<code>c</code> 下一个/上一个 call，<code>q</code> 退出。完整键位见 <a href="https://getfoundry.sh/forge/debugging">Forge debugging</a>。</p>
+<p>本仓库未验证的合约，没有 <code>--la</code> 时调试器对不上源码。</p>
+<h3 id="7-走节点-trace有-debug_-时">7. 走节点 trace（有 <code>debug_</code> 时） </h3>
+<pre data-role="codeBlock" data-info="bash" class="language-bash bash"><code><span class="token comment"># 不本地执行，直接渲染节点 callTracer（嵌套调用 / value / gas / log / revert）</span>
+cast run 0xTX --rpc-url sepolia --debug-trace-transaction
+
+<span class="token comment"># 仍本地执行，但用 debug_traceTransaction 拉 prestate，避免整块 replay</span>
+cast run 0xTX --rpc-url sepolia --prestate-tracer <span class="token parameter variable">--la</span>
+</code></pre><p><code>--debug-trace-transaction</code> <strong>不能</strong>和 <code>--debug</code>、<code>--decode-internal</code>、<code>--trace-printer</code>、<code>--quick</code>、<code>--prestate-tracer</code>、<code>--evm-version</code> 一起用。它快、反映链上真实行为（含本地 replay 可能对不齐的链特定 EVM），但没有 opcode 级细节。</p>
+<h3 id="8-本地-anvil-上的交易">8. 本地 anvil 上的交易 </h3>
+<pre data-role="codeBlock" data-info="bash" class="language-bash bash"><code>anvil   <span class="token comment"># 另一个终端</span>
+cast run 0xTX --rpc-url <span class="token builtin class-name">local</span> <span class="token parameter variable">--la</span>
+</code></pre><p>本地没有 Etherscan，解码几乎全靠 <code>--la</code>。</p>
+<h3 id="9-opcode-级跟踪偶尔才用">9. opcode 级跟踪（偶尔才用） </h3>
+<pre data-role="codeBlock" data-info="bash" class="language-bash bash"><code>cast run 0xTX --rpc-url sepolia --trace-printer
+</code></pre><p>输出极长，适合核对某条 <code>SSTORE</code> / <code>CALL</code>，不适合日常扫 revert。</p>
+<hr>
+<h2 id="怎么选">怎么选 </h2>
+<table>
+<thead>
+<tr>
+<th>你想做的事</th>
+<th>命令</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>这笔 tx 为什么 revert</td>
+<td><code>cast run 0xTX --rpc-url sepolia --la</code></td>
+</tr>
+<tr>
+<td>先快看，再精确复核</td>
+<td>先 <code>--quick</code>，再去掉 <code>--quick</code></td>
+</tr>
+<tr>
+<td>读自己的合约名 / 自定义 error</td>
+<td><code>--la</code>，必要时再加 <code>--label</code></td>
+</tr>
+<tr>
+<td>单步源码</td>
+<td><code>--la --debug</code></td>
+</tr>
+<tr>
+<td>内部函数参数</td>
+<td><code>--la --decode-internal</code></td>
+</tr>
+<tr>
+<td>节点有 <code>debug_</code>，只想要调用树</td>
+<td><code>--debug-trace-transaction</code></td>
+</tr>
+<tr>
+<td>节点有 <code>debug_</code>，还要本地 opcode / debugger</td>
+<td><code>--prestate-tracer --la</code></td>
+</tr>
+<tr>
+<td>公共 RPC、要和链上完全一致</td>
+<td>默认（不要 <code>--quick</code>）</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="和邻近命令的分工">和邻近命令的分工 </h2>
+<table>
+<thead>
+<tr>
+<th>命令</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cast run 0xTX</code></td>
+<td>重放<strong>已上链</strong>交易，打 trace</td>
+</tr>
+<tr>
+<td><code>cast tx 0xTX</code></td>
+<td>看 from / to / data / value</td>
+</tr>
+<tr>
+<td><code>cast receipt 0xTX</code></td>
+<td>看 status / gasUsed / logs</td>
+</tr>
+<tr>
+<td><code>cast call --trace</code></td>
+<td>模拟<strong>还没发</strong>的调用</td>
+</tr>
+<tr>
+<td><code>cast 4byte-decode 0x...</code></td>
+<td>只解码 calldata，不执行</td>
+</tr>
+</tbody>
+</table>
+<p>典型顺序：<code>cast receipt</code> 确认失败 → <code>cast tx</code> 看 calldata → <code>cast run --la</code> 看调用树。</p>
+<hr>
+<h2 id="常见坑">常见坑 </h2>
+<ol>
+<li>
+<p><strong><code>--quick</code> 和链上不一致</strong><br>
+同块前面的交易改过余额、allowance、池子储备。要对齐链上，去掉 <code>--quick</code>。</p>
+</li>
+<li>
+<p><strong>公共 RPC 没有 <code>debug_</code></strong><br>
+<code>--debug-trace-transaction</code> 会失败；<code>--prestate-tracer</code> 会退回整块 replay，看起来“没加速”。</p>
+</li>
+<li>
+<p><strong>trace 里全是 4byte 选择器</strong><br>
+合约未验证，或没加 <code>--la</code>。本仓库部署请始终 <code>--la</code>。也可先 <code>forge selectors cache</code> 把本地 selector 写进全局缓存。</p>
+</li>
+<li>
+<p><strong>默认模式很慢 / 超时</strong><br>
+块里交易多时整块 replay 会打满 RPC。提高 <code>--rpc-timeout</code>，或换 archive / 带 <code>debug_</code> 的节点后用 <code>--prestate-tracer</code>。</p>
+</li>
+<li>
+<p><strong><code>--debug-trace-transaction</code> 打不开调试器</strong><br>
+它只渲染节点 call tree，不走本地 EVM。要 TUI 调试器用默认 replay 或 <code>--prestate-tracer</code>，再加 <code>--debug</code>。</p>
+</li>
+<li>
+<p><strong>L2 系统交易</strong><br>
+部分 L2 需要 <code>--replay-system-txes</code> 才能对齐块内状态。Sepolia L1 一般不用。</p>
+</li>
+</ol>
+
+      </div>
+      
+      
+    </body>
+    
+    
+    
+    
+    
+  </html>
