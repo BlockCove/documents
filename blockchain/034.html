@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>金融词汇 × Web3 加密行业 速查报告</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1115;
+    --panel:#161a22;
+    --panel2:#1d2230;
+    --border:#2a3040;
+    --text:#e6e8ee;
+    --muted:#9aa3b5;
+    --accent:#5b9dff;
+    --accent2:#7ee2b8;
+    --warn:#ffb86b;
+    --danger:#ff7a90;
+    --code:#0b0d12;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    line-height:1.7;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:48px 24px 80px}
+  header{border-bottom:1px solid var(--border);padding-bottom:24px;margin-bottom:32px}
+  h1{font-size:30px;margin:0 0 8px;letter-spacing:.5px}
+  .sub{color:var(--muted);font-size:14px}
+  h2{
+    font-size:22px;margin:48px 0 16px;
+    padding-left:12px;border-left:4px solid var(--accent);
+  }
+  h3{font-size:17px;margin:24px 0 10px;color:var(--accent2)}
+  p{margin:8px 0}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}
+  .card{
+    background:var(--panel);border:1px solid var(--border);
+    border-radius:10px;padding:16px 18px;
+  }
+  .card h4{margin:0 0 8px;font-size:15px;color:var(--accent)}
+  .card.web3 h4{color:var(--accent2)}
+  .card ul{margin:6px 0 0;padding-left:20px}
+  .card li{margin:4px 0;font-size:14px}
+  table{
+    width:100%;border-collapse:collapse;margin:16px 0;
+    background:var(--panel);font-size:14px;
+  }
+  th,td{border:1px solid var(--border);padding:10px 12px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:var(--accent);font-weight:600}
+  tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+  code{
+    background:var(--code);padding:2px 6px;border-radius:4px;
+    font-family:"SF Mono",Menlo,Consolas,monospace;font-size:13px;color:var(--accent2);
+  }
+  .tag{
+    display:inline-block;padding:1px 8px;border-radius:10px;
+    font-size:12px;margin-right:6px;
+  }
+  .tag.base{background:#1f3a5f;color:#7db4ff}
+  .tag.deriv{background:#3a2a5f;color:#c39bff}
+  .tag.cred{background:#2a4a3a;color:#7ee2b8}
+  .tag.web3{background:#5f4a1f;color:#ffcf7d}
+  .mermaid{
+    background:var(--panel);border:1px solid var(--border);
+    border-radius:10px;padding:20px;margin:16px 0;text-align:center;
+  }
+  .callout{
+    border-left:3px solid var(--warn);background:#2a2418;
+    padding:10px 14px;border-radius:0 8px 8px 0;margin:12px 0;font-size:14px;
+  }
+  .danger{border-left-color:var(--danger);background:#2a1a20}
+  .toc{
+    background:var(--panel);border:1px solid var(--border);
+    border-radius:10px;padding:16px 20px;margin-bottom:24px;
+  }
+  .toc ol{margin:6px 0 0;padding-left:22px;font-size:14px}
+  .toc a{color:var(--accent);text-decoration:none}
+  .toc a:hover{text-decoration:underline}
+  .term{font-weight:600;color:var(--text)}
+  .vs{
+    display:grid;grid-template-columns:1fr 32px 1fr;gap:8px;align-items:center;
+    margin:10px 0;
+  }
+  .vs .arrow{text-align:center;color:var(--muted)}
+  .vs .box{
+    background:var(--panel2);border:1px solid var(--border);
+    border-radius:8px;padding:10px 12px;font-size:13px;
+  }
+  footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--border);color:var(--muted);font-size:12px}
+  @media(max-width:720px){
+    .grid{grid-template-columns:1fr}
+    .vs{grid-template-columns:1fr}
+    .vs .arrow{transform:rotate(90deg)}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>金融词汇 × Web3 加密行业 速查报告</h1>
+  <div class="sub">传统金融概念 → 加密行业对应物 · 一张表看懂两者是同一回事的不同外衣</div>
+</header>
+
+<div class="toc">
+  <strong>目录</strong>
+  <ol>
+    <li><a href="#s1">货币与银行体系：从央行到稳定币</a></li>
+    <li><a href="#s2">资本市场：股票 / 债券 / 基金 / ETF</a></li>
+    <li><a href="#s3">衍生品：期货 / 期权 / 永续合约</a></li>
+    <li><a href="#s4">交易与市场结构：CEX、DEX、AMM、订单簿</a></li>
+    <li><a href="#s5">信用与杠杆：抵押、清算、做多做空</a></li>
+    <li><a href="#s6">Web3 特有黑话：DeFi / NFT / DAO / MEV</a></li>
+    <li><a href="#s7">全景对照图</a></li>
+  </ol>
+</div>
+
+<!-- ============ 1 ============ -->
+<h2 id="s1">1. 货币与银行体系：从央行到稳定币</h2>
+
+<div class="grid">
+  <div class="card">
+    <h4>传统金融</h4>
+    <ul>
+      <li><span class="term">货币 M0/M1/M2</span>：现金 / 现金+活期 / +定期存款，央行控制发行</li>
+      <li><span class="term">央行 / 商业银行</span>：央行印钱、定利率；商业银行放贷、创造存款</li>
+      <li><span class="term">利率</span>：钱的价格，加息=收紧流动性，降息=放水</li>
+      <li><span class="term">通胀</span>：货币超发导致物价上涨，法币购买力被稀释</li>
+      <li><span class="term">汇率</span>：不同法币之间的兑换比率</li>
+    </ul>
+  </div>
+  <div class="card web3">
+    <h4>Web3 对应</h4>
+    <ul>
+      <li><span class="term">ETH / BTC</span>：原生币 = 链上"黄金" / 数字现金，发行规则写在代码里</li>
+      <li><span class="term">稳定币</span>：USDT/USDC（链下美元抵押）、DAI（链上超额抵押）、算法稳定币</li>
+      <li><span class="term">Gas</span>：以太坊上的"手续费"，用于支付矿工/验证者打包交易</li>
+      <li><span class="term">质押利率 / 借贷利率</span>：Aave、Compound 上 USDT 存借利率，完全由市场供需自动定价</li>
+      <li><span class="term">算法货币政策</span>：MakerDAO 的稳定费率（SF）= 链上央行利率，加息抑制 DAI 流通</li>
+    </ul>
+  </div>
+</div>
+
+<div class="callout">
+  <strong>关键对应：</strong>传统央行通过公开市场操作调节利率；MakerDAO 通过调节 <code>Stability Fee</code>（稳定费）调节 DAI 的铸造成本，本质是同一回事——只是决策者从美联储理事会变成了合约代码。
+</div>
+
+<!-- ============ 2 ============ -->
+<h2 id="s2">2. 资本市场：股票 / 债券 / 基金 / ETF</h2>
+
+<table>
+  <thead>
+    <tr><th>传统概念</th><th>它是啥</th><th>Web3 对应物</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><span class="tag base">基础</span><span class="term">股票</span></td>
+      <td>公司所有权凭证，分红 + 股价涨跌</td>
+      <td><code>治理代币</code>（如 UNI、AAVE）：协议所有权 + 投票权，但大多不分红（revenue share 是新趋势）</td>
+    </tr>
+    <tr>
+      <td><span class="tag base">基础</span><span class="term">债券</span></td>
+      <td>借条，到期还本付息，有信用评级</td>
+      <td><code>RWA 代币化债券</code>（如 MakerDAO 买的美国国债、Ondo 的 OUSG）：把现实债券上链</td>
+    </tr>
+    <tr>
+      <td><span class="tag base">基础</span><span class="term">基金 / ETF</span></td>
+      <td>一篮子资产打包，由基金经理管理</td>
+      <td><code>指数产品</code>（如 Bitwise 10 Crypto Index）、<code>链上 Vault</code>（Yearn、Set Protocol）：智能合约自动调仓</td>
+    </tr>
+    <tr>
+      <td><span class="tag base">基础</span><span class="term">IPO</span></td>
+      <td>公司首次公开募股</td>
+      <td><code>ICO / IEO / IDO</code>：首次代币发行；合规化后对应 <code>STO</code>（证券型代币发行）</td>
+    </tr>
+    <tr>
+      <td><span class="tag base">基础</span><span class="term">市值 / 市盈率</span></td>
+      <td>股价×总股本；股价/每股盈利</td>
+      <td><code>Fully Diluted Valuation (FDV)</code> / <code>Market Cap</code>；DeFi 用 TVL、费率年化来估值，不用 PE</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ============ 3 ============ -->
+<h2 id="s3">3. 衍生品：期货 / 期权 / 永续合约</h2>
+
+<div class="grid">
+  <div class="card">
+    <h4>传统衍生品</h4>
+    <ul>
+      <li><span class="term">期货 Futures</span>：约定未来某日按约定价格买卖，<b>双方都有义务</b></li>
+      <li><span class="term">期权 Option</span>：花权利金买一份<b>权利而非义务</b>（Call 买权 / Put 卖权）</li>
+      <li><span class="term">远期 Forward</span>：场外非标期货，私下约定</li>
+      <li><span class="term">互换 Swap</span>：交换未来现金流（利率互换、外汇互换）</li>
+    </ul>
+  </div>
+  <div class="card web3">
+    <h4>加密衍生品</h4>
+    <ul>
+      <li><span class="term">永续合约 Perp</span>：<b>没有到期日的期货</b>，靠资金费率（Funding Rate）让价格锚定现货；dYdX、GMX</li>
+      <li><span class="term">期权</span>：Deribit 长期占据加密期权市场主导份额；链上有 Lyra、Aevo</li>
+      <li><span class="term">结构产品</span>：自动做期权策略（如 Ribbon 卖出 covered call）</li>
+      <li><span class="term">杠杆 ETF 代币</span>：LBTC2/3、LETF，内嵌再平衡</li>
+    </ul>
+  </div>
+</div>
+
+<h3>期货 vs 期权：盈亏结构差异</h3>
+<div class="mermaid">
+flowchart LR
+  subgraph Futures["期货（义务）"]
+    F多["多头<br/>涨多少赚多少"] --- F空["空头<br/>跌多少赚多少"]
+  end
+  subgraph Options["期权（权利）"]
+    C["Call 买方<br/>大涨盈利 / 最多亏权利金"]
+    P["Put 买方<br/>大跌盈利 / 最多亏权利金"]
+  end
+  Futures -->|"保证金交易<br/>每日盯市"| Perp["加密永续合约"]
+  Options -->|"链上实现"| ChainOpt["Deribit / Lyra"]
+</div>
+
+<!-- ============ 4 ============ -->
+<h2 id="s4">4. 交易与市场结构：CEX、DEX、AMM、订单簿</h2>
+
+<table>
+  <thead>
+    <tr><th>概念</th><th>传统金融</th><th>Web3</th><th>本质</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><span class="tag base">交易场所</span>中心化交易所</td>
+      <td>纽交所、纳斯达克、上交所</td>
+      <td><code>CEX</code>：Binance、OKX、Coinbase</td>
+      <td>公司撮合，用户把币托管给交易所</td>
+    </tr>
+    <tr>
+      <td><span class="tag base">交易场所</span>去中心化交易所</td>
+      <td>（传统没有对等物）</td>
+      <td><code>DEX</code>：Uniswap、PancakeSwap</td>
+      <td>智能合约撮合，用户自托管钱包</td>
+    </tr>
+    <tr>
+      <td><span class="tag base">撮合方式</span>订单簿</td>
+      <td>所有传统交易所的核心：买单/卖单排队</td>
+      <td><code>CLOB DEX</code>：dYdX、Hyperliquid</td>
+      <td>挂单等待对手方</td>
+    </tr>
+    <tr>
+      <td><span class="tag base">撮合方式</span>做市商</td>
+      <td>Jump Trading、Jane Street、Citadel 高频报价赚差价</td>
+      <td><code>AMM</code>（自动做市商）：<code>x·y=k</code> 算法自动定价</td>
+      <td>Uniswap V2：流动性池替代人工做市</td>
+    </tr>
+    <tr>
+      <td><span class="tag cred">流动性</span>做市资金</td>
+      <td>做市商自有库存报价</td>
+      <td><code>LP 流动性提供者</code>：用户把币存进池子，赚手续费</td>
+      <td>任何人都能当"做市商"</td>
+    </tr>
+    <tr>
+      <td><span class="tag cred">交易成本</span>买卖价差 / 滑点</td>
+      <td>bid-ask spread</td>
+      <td><code>滑点 Slippage</code>：大额交易价格偏离</td>
+      <td>池越深滑点越小</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  <strong>AMM 公式：</strong>Uniswap V2 核心就一行 <code>x·y = k</code>（池内两种币数量乘积恒定）。你卖 x 换 y，x 变多 → 价格自动上涨，本质是把做市商的报价规则写进了合约。
+</div>
+
+<!-- ============ 5 ============ -->
+<h2 id="s5">5. 信用与杠杆：抵押、清算、做多做空</h2>
+
+<div class="grid">
+  <div class="card">
+    <h4>传统信贷</h4>
+    <ul>
+      <li><span class="term">抵押贷款</span>：房子抵押给银行，贷款 70% 估值</li>
+      <li><span class="term">保证金交易</span>：券商给你融资/融券，维持保证金率</li>
+      <li><span class="term">强平</span>：保证金不足 → 券商强制平仓</li>
+      <li><span class="term">做多 / 做空</span>：看涨买现货；看跌借券卖出</li>
+      <li><span class="term">杠杆</span>：借钱放大头寸，10 倍杠杆 = 价格反向 10% 爆仓</li>
+    </ul>
+  </div>
+  <div class="card web3">
+    <h4>链上借贷</h4>
+    <ul>
+      <li><span class="term">超额抵押</span>：Aave/Compound，抵押 200% 才能借出稳定币</li>
+      <li><span class="term">清算线 Liquidation Threshold</span>：抵押率跌破阈值，合约自动拍卖抵押品</li>
+      <li><span class="term">清算人 Keeper</span>：第三方机器人抢清算单，赚清算折扣</li>
+      <li><span class="term">闪贷 Flash Loan</span>：一笔交易内借+还，无抵押，DeFi 独有</li>
+      <li><span class="term">杠杆挖矿</span>：抵押 → 借稳定币 → 再存 → 再借，循环放大收益（同时放大爆仓风险）</li>
+    </ul>
+  </div>
+</div>
+
+<h3>链上清算流程（以 Aave / MakerDAO 为例）</h3>
+<div class="mermaid">
+flowchart TD
+  A["用户存入 ETH<br/>借出 DAI"] --> B["ETH 价格下跌"]
+  B --> C{"抵押率是否跌破<br/>清算阈值？"}
+  C -->|否| D["正常持有"]
+  C -->|是| E["清算人触发<br/>智能合约"]
+  E --> F["拍卖部分 ETH"]
+  F --> G["拍卖所得用于<br/>回购并销毁 DAI"]
+  G --> H["剩余 ETH<br/>归还用户"]
+</div>
+
+<div class="callout danger">
+  <strong>风险点：</strong>链上清算完全由代码执行，没有"追加保证金宽限期"。极端行情（如 2022 年 6 月 ETH 暴跌）会出现连环清算 → 抵押品被砸盘 → 价格进一步下跌 → 更多金库爆仓。
+</div>
+
+<!-- ============ 6 ============ -->
+<h2 id="s6">6. Web3 特有黑话：DeFi / NFT / DAO / MEV</h2>
+
+<table>
+  <thead>
+    <tr><th>术语</th><th>类比传统金融</th><th>一句话解释</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>DeFi</code></td><td>没有银行的银行体系</td><td>用智能合约替代银行、券商、交易所，代码即规则，无需中心化机构托管</td></tr>
+    <tr><td><code>CeFi</code></td><td>中心化加密金融（公司托管）</td><td>Binance、Coinbase 这类中心化加密公司，用户把资产托管给平台</td></tr>
+    <tr><td><code>NFT</code></td><td>收藏品 / 艺术品 / 会员卡</td><td>链上唯一凭证，可代表艺术品、门票、游戏道具、版权</td></tr>
+    <tr><td><code>DAO</code></td><td>没有 CEO 的公司 / 合作社</td><td>持币者投票治理协议，链上执行提案</td></tr>
+    <tr><td><code>质押 Staking</code></td><td>定期存款 + 股权投票</td><td>锁定 ETH 参与 PoS 共识，赚区块奖励，锁仓期间不能随时取出</td></tr>
+    <tr><td><code>流动性挖矿 Yield Farming</code></td><td>存贷+手续费+项目补贴</td><td>把 LP 代币再质押进奖励池，拿项目代币奖励</td></tr>
+    <tr><td><code>Gas</code></td><td>转账手续费 + 系统拥堵费</td><td>以太坊每笔交易必须付的 ETH 手续费</td></tr>
+    <tr><td><code>MEV</code></td><td>抢跑 / 交易排序获利</td><td>验证者/搜索者通过重新排序、插入交易获利（三明治攻击、套利、清算）</td></tr>
+    <tr><td><code>空投 Airdrop</code></td><td>用户拉新补贴</td><td>项目方免费发代币给早期用户，换取留存和热度</td></tr>
+    <tr><td><code>Rug Pull</code></td><td>跑路 / 卷款潜逃</td><td>项目方拿走 LP 资金消失，DeFi 版"庞氏跑路"</td></tr>
+    <tr><td><code>稳定币脱锚 Depeg</code></td><td>汇率失守</td><td>USDT/DAI 偏离 1 美元，如 UST 从 1 美元跌到接近 0</td></tr>
+    <tr><td><code>桥 Bridge</code></td><td>跨境资产搬运通道</td><td>把资产从以太坊跨到 Solana/Arbitrum 等其他链</td></tr>
+  </tbody>
+</table>
+
+<!-- ============ 7 ============ -->
+<h2 id="s7">7. 全景对照图：传统金融 ↔ Web3</h2>
+
+<div class="mermaid">
+flowchart LR
+  subgraph Trad["传统金融"]
+    direction TB
+    T1["央行<br/>美联储/人民银行"]
+    T2["商业银行<br/>存贷汇"]
+    T3["交易所<br/>纽交所/上交所"]
+    T4["投行/做市商<br/>高盛/Citadel"]
+    T5["基金/ETF<br/>贝莱德"]
+    T6["券商<br/>保证金交易"]
+  end
+  subgraph Web3["Web3 加密行业"]
+    direction TB
+    W1["稳定币发行方<br/>MakerDAO / Circle"]
+    W2["借贷协议<br/>Aave / Compound"]
+    W3["DEX<br/>Uniswap / Hyperliquid"]
+    W4["AMM / 做市策略<br/>x·y=k"]
+    W5["Vault / 指数<br/>Yearn / Set"]
+    W6["永续合约所<br/>dYdX / GMX"]
+  end
+  T1 -.->|"货币政策"| W1
+  T2 -.->|"信用中介"| W2
+  T3 -.->|"交易场所"| W3
+  T4 -.->|"流动性提供"| W4
+  T5 -.->|"资产管理"| W5
+  T6 -.->|"杠杆/衍生品"| W6
+</div>
+
+<h3>一句话总结</h3>
+<div class="card">
+  <ul>
+    <li><b>同一套金融底层逻辑，两套实现</b>：传统金融靠<b>制度+信用+中介</b>，Web3 靠<b>代码+抵押+智能合约</b>。</li>
+    <li><b>稳定币 = 链上美元</b>；<b>DEX = 没有公司的交易所</b>；<b>借贷协议 = 没有柜员的银行</b>；<b>永续合约 = 没有到期日的期货</b>。</li>
+    <li><b>风险同源</b>：杠杆、清算、信心崩塌、脱锚——传统金融踩过的坑，加密一个没少踩，只是跑得更快、更没有熔断。</li>
+  </ul>
+</div>
+
+<footer>
+  本报告仅作概念科普，不构成任何投资建议。加密资产与衍生品波动极大，杠杆交易可能导致本金全部损失。<br/>
+  生成时间：2026-09-21
+</footer>
+
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#1d2230',
+      primaryTextColor: '#e6e8ee',
+      primaryBorderColor: '#5b9dff',
+      lineColor: '#7ee2b8',
+      secondaryColor: '#2a3040',
+      tertiaryColor: '#161a22',
+      fontFamily: '-apple-system, "PingFang SC", "Microsoft YaHei", sans-serif'
+    },
+    flowchart: { curve: 'basis' }
+  });
+</script>
+</body>
+</html>
