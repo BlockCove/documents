@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SushiSwap MasterChef 流动性挖矿算法解析</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --border:#2a2f3a;
+    --text:#e6e8ec; --muted:#9aa3b2; --accent:#f2c94c; --accent2:#56ccf2;
+    --green:#6fcf97; --red:#eb5757; --code-bg:#0c0e12;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;line-height:1.7;font-size:15px}
+  .wrap{max-width:960px;margin:0 auto;padding:32px 20px 80px}
+  header.hero{border-bottom:1px solid var(--border);padding-bottom:24px;margin-bottom:32px}
+  header.hero h1{font-size:28px;margin:0 0 8px;color:var(--accent)}
+  header.hero .sub{color:var(--muted);font-size:14px}
+  header.hero .meta{margin-top:14px;display:flex;flex-wrap:wrap;gap:8px}
+  .tag{background:var(--panel2);border:1px solid var(--border);border-radius:4px;padding:3px 10px;font-size:12px;color:var(--muted)}
+  h2{font-size:21px;margin:40px 0 14px;padding-left:10px;border-left:3px solid var(--accent);color:var(--accent)}
+  h3{font-size:17px;margin:24px 0 10px;color:var(--accent2)}
+  p{margin:10px 0}
+  a{color:var(--accent2);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .callout{background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--accent2);border-radius:6px;padding:14px 18px;margin:16px 0}
+  .callout.warn{border-left-color:var(--red)}
+  .callout.note{border-left-color:var(--accent)}
+  .callout strong{color:var(--accent)}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px}
+  th,td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:var(--accent);font-weight:600}
+  tr:nth-child(even) td{background:var(--panel)}
+  code{background:var(--code-bg);border:1px solid var(--border);border-radius:3px;padding:1px 6px;font-family:"SF Mono",Consolas,"Courier New",monospace;font-size:13px;color:var(--green)}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:6px;padding:14px 16px;overflow-x:auto;font-size:13px;line-height:1.55}
+  pre code{background:none;border:none;padding:0;color:var(--text)}
+  .formula{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:14px 18px;margin:14px 0;font-family:"SF Mono",Consolas,monospace;font-size:14px;overflow-x:auto;white-space:pre}
+  .formula .var{color:var(--accent2)}
+  .formula .op{color:var(--muted)}
+  .mermaid{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:16px;margin:16px 0;display:flex;justify-content:center}
+  .mermaid svg{max-width:100%!important;height:auto!important}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:700px){.grid2{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:14px 16px}
+  .card h4{margin:0 0 8px;color:var(--accent);font-size:15px}
+  .card ul{margin:6px 0;padding-left:20px}
+  .card li{margin:4px 0}
+  .step{display:flex;gap:12px;margin:10px 0}
+  .step .num{flex:0 0 26px;height:26px;border-radius:50%;background:var(--accent);color:#000;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
+  .step .body{flex:1}
+  footer{margin-top:48px;padding-top:20px;border-top:1px solid var(--border);color:var(--muted);font-size:13px}
+  .toc{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:16px 20px;margin-bottom:24px}
+  .toc h3{margin-top:0}
+  .toc ol{margin:0;padding-left:22px}
+  .toc li{margin:4px 0}
+  .kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:16px 0}
+  .kpi .item{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:12px 14px}
+  .kpi .item .k{color:var(--muted);font-size:12px}
+  .kpi .item .v{color:var(--accent);font-size:18px;font-weight:600;margin-top:2px;font-family:"SF Mono",Consolas,monospace}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>SushiSwap MasterChef 流动性挖矿算法解析</h1>
+  <div class="sub">基于 <code>MasterChef.sol</code>（Solidity 0.6.12）的逐行算法拆解</div>
+  <div class="meta">
+    <span class="tag">合约: MasterChef</span>
+    <span class="tag">Solidity 0.6.12</span>
+    <span class="tag">OpenZeppelin v3</span>
+    <span class="tag">算法: 按份额累积 + 债务记账</span>
+  </div>
+</header>
+
+<div class="toc">
+  <h3>目录</h3>
+  <ol>
+    <li><a href="#tldr">核心结论 (TL;DR)</a></li>
+    <li><a href="#arch">系统架构与角色</a></li>
+    <li><a href="#struct">核心数据结构</a></li>
+    <li><a href="#algo">核心算法：累积份额与债务</a></li>
+    <li><a href="#update">奖励累积：updatePool 与 Bonus 机制</a></li>
+    <li><a href="#userop">用户操作：deposit / withdraw / pending</a></li>
+    <li><a href="#admin">池管理与迁移</a></li>
+    <li><a href="#safety">安全兜底机制</a></li>
+    <li><a href="#example">数值演算示例</a></li>
+    <li><a href="#risk">设计要点与风险</a></li>
+  </ol>
+</div>
+
+<!-- ============ 1. TL;DR ============ -->
+<h2 id="tldr">1. 核心结论 (TL;DR)</h2>
+<div class="callout note">
+  <p>MasterChef 是 SUSHI 代币的<strong>按区块铸造 + 按 LP 份额分配</strong>的流动性挖矿合约。它不逐个用户记账奖励，而是维护一个池子级的累积变量 <code>accSushiPerShare</code>（每份额累计 SUSHI，放大 1e12 倍），用户每次操作时用「当前累积值 × 质押量 − 已记账债务 <code>rewardDebt</code>」一次性结算应得奖励。</p>
+  <p>这种设计的本质是 <strong>O(1) 结算</strong>：无论池子里有多少用户，每次存取只更新当前用户一条记录，无需遍历所有人。</p>
+</div>
+
+<div class="kpi">
+  <div class="item"><div class="k">每区块铸造</div><div class="v">sushiPerBlock</div></div>
+  <div class="item"><div class="k">早期奖励倍数</div><div class="v">10×</div></div>
+  <div class="item"><div class="k">Dev 分成</div><div class="v">10%</div></div>
+  <div class="item"><div class="k">精度放大</div><div class="v">1e12</div></div>
+</div>
+
+<!-- ============ 2. 架构 ============ -->
+<h2 id="arch">2. 系统架构与角色</h2>
+<p>MasterChef 处于整个挖矿体系的中心，向上接收用户质押的 LP Token，向下铸造 SUSHI 并分配给用户和开发者地址。</p>
+
+<div class="mermaid">
+graph LR
+  U[用户 User] -- 1. 质押 LP Token --> MC[MasterChef]
+  MC -- 2. 划转 LP --> LP[(LP Token 合约)]
+  MC -- 3. mint SUSHI --> ST[SushiToken]
+  ST -- 4. 奖励 SUSHI --> U
+  ST -- 5. 10% dev 分成 --> DEV[Dev Address]
+  OW[Owner / Governance] -- add / set / migrate --> MC
+  MG[MigratorChef] -- 迁移 LP --> MC
+</div>
+
+<div class="grid2">
+  <div class="card">
+    <h4>核心角色</h4>
+    <ul>
+      <li><strong>用户</strong>：存入 LP Token，领取 SUSHI 奖励</li>
+      <li><strong>MasterChef</strong>：托管 LP、铸造并分配 SUSHI</li>
+      <li><strong>SushiToken</strong>：可 mint 的 ERC20，由 MasterChef 调用 <code>mint()</code></li>
+      <li><strong>Dev Address</strong>：每区块奖励的 10% 直接 mint 给开发者</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>管理角色</h4>
+    <ul>
+      <li><strong>Owner</strong>：增删池、调整 allocPoint、设置 migrator</li>
+      <li><strong>MigratorChef</strong>：将 Uniswap V2 LP 迁移为 SushiSwap LP（需授权）</li>
+      <li><strong>Dev</strong>：可自行更换 devaddr</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============ 3. 数据结构 ============ -->
+<h2 id="struct">3. 核心数据结构</h2>
+
+<h3>3.1 PoolInfo — 每个挖矿池</h3>
+<table>
+  <thead><tr><th>字段</th><th>类型</th><th>含义</th></tr></thead>
+  <tbody>
+    <tr><td><code>lpToken</code></td><td>IERC20</td><td>该池质押的 LP Token 合约地址</td></tr>
+    <tr><td><code>allocPoint</code></td><td>uint256</td><td>分配点数，决定该池占总 SUSHI 产出的权重</td></tr>
+    <tr><td><code>lastRewardBlock</code></td><td>uint256</td><td>上一次结算奖励的区块号（增量计算的起点）</td></tr>
+    <tr><td><code>accSushiPerShare</code></td><td>uint256</td><td>每份额累计 SUSHI × 1e12，算法核心变量</td></tr>
+  </tbody>
+</table>
+
+<h3>3.2 UserInfo — 每个用户在每个池</h3>
+<table>
+  <thead><tr><th>字段</th><th>类型</th><th>含义</th></tr></thead>
+  <tbody>
+    <tr><td><code>amount</code></td><td>uint256</td><td>用户质押的 LP Token 数量</td></tr>
+    <tr><td><code>rewardDebt</code></td><td>uint256</td><td>奖励债务 = 上次操作时已结算到的累积值 × amount，用于差额计算</td></tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  <strong>存储布局：</strong><code>mapping(uint256 =&gt; mapping(address =&gt; UserInfo)) public userInfo</code>，即 <code>userInfo[pid][user]</code>。每个用户在每个池独立记账。
+</div>
+
+<h3>3.3 全局常量与变量</h3>
+<table>
+  <thead><tr><th>名称</th><th>类型</th><th>值 / 含义</th></tr></thead>
+  <tbody>
+    <tr><td><code>BONUS_MULTIPLIER</code></td><td>constant uint256</td><td><code>10</code>，bonus 期内每区块产出放大 10 倍</td></tr>
+    <tr><td><code>sushiPerBlock</code></td><td>uint256</td><td>基础每区块铸造的 SUSHI 数量（构造时设定）</td></tr>
+    <tr><td><code>startBlock</code></td><td>uint256</td><td>挖矿起始区块</td></tr>
+    <tr><td><code>bonusEndBlock</code></td><td>uint256</td><td>10 倍 bonus 结束区块</td></tr>
+    <tr><td><code>totalAllocPoint</code></td><td>uint256</td><td>所有池 allocPoint 之和，分配比例的分母</td></tr>
+  </tbody>
+</table>
+
+<!-- ============ 4. 核心算法 ============ -->
+<h2 id="algo">4. 核心算法：累积份额与债务</h2>
+
+<p>整个算法围绕两个变量展开：池子级的 <code>accSushiPerShare</code> 和用户级的 <code>rewardDebt</code>。合约注释中给出了核心公式：</p>
+
+<div class="formula"><span class="var">pending reward</span> <span class="op">=</span> (<span class="var">user.amount</span> <span class="op">×</span> <span class="var">pool.accSushiPerShare</span>) <span class="op">/</span> 1e12 <span class="op">−</span> <span class="var">user.rewardDebt</span></div>
+
+<h3>4.1 为什么需要 accSushiPerShare？</h3>
+<p>如果逐个用户记录「已领取奖励」，每次有新奖励产生时都要遍历所有用户更新，Gas 不可接受。MasterChef 的做法是：</p>
+<ul>
+  <li>池子只维护一个<strong>全局累积值</strong> <code>accSushiPerShare</code>，表示「每 1 份 LP 从挖矿开始到现在累计应得多少 SUSHI」。</li>
+  <li>用户不存「已领多少」，而是存一个<strong>快照债务</strong> <code>rewardDebt</code>，表示「上次操作时，按当时的累积值我已经结算到哪里了」。</li>
+  <li>当前应得 = 按当前累积值算出的总额 − 上次已结算的债务。</li>
+</ul>
+
+<h3>4.2 为什么放大 1e12？</h3>
+<p>Solidity 不支持小数。<code>sushiReward / lpSupply</code> 通常小于 1（每份额奖励），直接整除会丢失精度。因此先乘以 <code>1e12</code> 再除，把累积值存为放大后的整数，使用时再除回来。这是 DeFi 中标准的 <strong>fixed-point 精度放大</strong>手法。</p>
+
+<div class="formula"><span class="var">accSushiPerShare</span> <span class="op">+=</span> <span class="var">sushiReward</span> <span class="op">×</span> 1e12 <span class="op">/</span> <span class="var">lpSupply</span></div>
+
+<h3>4.3 rewardDebt 的重置时机</h3>
+<p>每次用户 <code>deposit</code> 或 <code>withdraw</code> 后，<code>rewardDebt</code> 被重置为当前累积值下的总额：</p>
+<div class="formula"><span class="var">user.rewardDebt</span> <span class="op">=</span> <span class="var">user.amount</span> <span class="op">×</span> <span class="var">pool.accSushiPerShare</span> <span class="op">/</span> 1e12</div>
+<p>这意味着「操作前产生的奖励已经结算给用户」，操作后新产生的奖励将从 0 开始累积，直到下一次操作。</p>
+
+<!-- ============ 5. updatePool ============ -->
+<h2 id="update">5. 奖励累积：updatePool 与 Bonus 机制</h2>
+
+<p><code>updatePool(pid)</code> 是所有写操作的入口前置步骤，负责把池子的累积值更新到当前区块。</p>
+
+<h3>5.1 getMultiplier — Bonus 倍数</h3>
+<p>早期挖矿有 10 倍奖励，<code>getMultiplier(from, to)</code> 计算两个区块之间的「有效区块数」：</p>
+<table>
+  <thead><tr><th>区间情况</th><th>返回值</th></tr></thead>
+  <tbody>
+    <tr><td><code>to &lt;= bonusEndBlock</code>（全在 bonus 期内）</td><td><code>(to - from) × 10</code></td></tr>
+    <tr><td><code>from &gt;= bonusEndBlock</code>（全在 bonus 期后）</td><td><code>to - from</code></td></tr>
+    <tr><td>跨 bonusEndBlock</td><td><code>(bonusEndBlock - from) × 10 + (to - bonusEndBlock)</code></td></tr>
+  </tbody>
+</table>
+
+<div class="mermaid">
+graph TD
+  A[getMultiplier from, to] --> B{to &lt;= bonusEndBlock?}
+  B -- 是 --> C[返回 to-from × 10]
+  B -- 否 --> D{from &gt;= bonusEndBlock?}
+  D -- 是 --> E[返回 to - from]
+  D -- 否 --> F[分段计算: bonus段×10 + 普通段]
+  F --> G[返回 bonusEndBlock-from×10 + to-bonusEndBlock]
+</div>
+
+<h3>5.2 updatePool 完整流程</h3>
+
+<div class="mermaid">
+graph TD
+  S[updatePool pid] --> C1{block.number &lt;= lastRewardBlock?}
+  C1 -- 是 --> R1[直接 return 无需更新]
+  C1 -- 否 --> C2{lpSupply == 0?}
+  C2 -- 是 --> R2[lastRewardBlock = block.number, return]
+  C2 -- 否 --> M[multiplier = getMultiplier lastRewardBlock, block.number]
+  M --> RW[sushiReward = multiplier × sushiPerBlock × allocPoint / totalAllocPoint]
+  RW --> MD[mint devaddr, sushiReward / 10]
+  MD --> MC[mint MasterChef, sushiReward]
+  MC --> ACC[accSushiPerShare += sushiReward × 1e12 / lpSupply]
+  ACC --> LB[lastRewardBlock = block.number]
+</div>
+
+<div class="callout warn">
+  <strong>注意 Dev 分成：</strong>每区块实际铸造量是 <code>sushiReward</code>（给池子）+ <code>sushiReward / 10</code>（给 dev）= <code>1.1 × sushiReward</code>。也就是说 SUSHI 的实际通胀率比 <code>sushiPerBlock</code> 名义值高 10%。
+</div>
+
+<h3>5.3 massUpdatePools</h3>
+<p>遍历所有池调用 <code>updatePool</code>。在 <code>add</code> / <code>set</code> 时可选调用（<code>_withUpdate</code> 参数），用于在调整权重前先把所有池结算干净。<strong>Gas 消耗随池数线性增长</strong>，池多时需谨慎。</p>
+
+<!-- ============ 6. 用户操作 ============ -->
+<h2 id="userop">6. 用户操作：deposit / withdraw / pending</h2>
+
+<h3>6.1 deposit — 质押 LP 并领取累计奖励</h3>
+
+<div class="mermaid">
+graph TD
+  D[deposit pid, amount] --> UP[updatePool pid  更新累积值]
+  UP --> C{user.amount &gt; 0?}
+  C -- 是 --> P[pending = amount × accSushiPerShare / 1e12 - rewardDebt]
+  P --> T[safeSushiTransfer msg.sender, pending  发放奖励]
+  C -- 否 --> TF[safeTransferFrom 用户 LP 到合约]
+  T --> TF
+  TF --> UA[user.amount += amount]
+  UA --> UR[user.rewardDebt = user.amount × accSushiPerShare / 1e12  重置债务]
+  UR --> E[emit Deposit]
+</div>
+
+<div class="callout note">
+  <strong>关键点：</strong>存款时会先把<strong>之前累积的奖励全部发放</strong>，再更新质押量和债务。这意味着每次 deposit 都是一次「结算 + 追加质押」的组合操作。
+</div>
+
+<h3>6.2 withdraw — 取出 LP 并领取奖励</h3>
+<p>与 deposit 对称，但多了一个余额校验 <code>require(user.amount &gt;= _amount)</code>。流程：</p>
+<ol>
+  <li><code>updatePool(_pid)</code> 更新累积值</li>
+  <li>计算 pending 并 <code>safeSushiTransfer</code> 给用户</li>
+  <li><code>user.amount -= _amount</code></li>
+  <li>重置 <code>rewardDebt</code></li>
+  <li>把 LP Token 转回用户</li>
+</ol>
+
+<h3>6.3 pendingSushi — 前端查询视图</h3>
+<p><code>external view</code> 函数，不修改状态，供前端显示「待领取奖励」。它在内存中模拟一次 <code>updatePool</code> 的计算（不写回），再套用 pending 公式：</p>
+<pre><code>function pendingSushi(uint256 _pid, address _user) external view returns (uint256) {
+    PoolInfo storage pool = poolInfo[_pid];
+    UserInfo storage user = userInfo[_pid][_user];
+    uint256 accSushiPerShare = pool.accSushiPerShare;
+    uint256 lpSupply = pool.lpToken.balanceOf(address(this));
+    if (block.number &gt; pool.lastRewardBlock &amp;&amp; lpSupply != 0) {
+        uint256 multiplier = getMultiplier(pool.lastRewardBlock, block.number);
+        uint256 sushiReward = multiplier.mul(sushiPerBlock).mul(pool.allocPoint).div(totalAllocPoint);
+        accSushiPerShare = accSushiPerShare.add(sushiReward.mul(1e12).div(lpSupply));
+    }
+    return user.amount.mul(accSushiPerShare).div(1e12).sub(user.rewardDebt);
+}</code></pre>
+
+<!-- ============ 7. 池管理 ============ -->
+<h2 id="admin">7. 池管理与迁移</h2>
+
+<h3>7.1 add — 新增挖矿池</h3>
+<pre><code>function add(uint256 _allocPoint, IERC20 _lpToken, bool _withUpdate) public onlyOwner</code></pre>
+<ul>
+  <li>可选先 <code>massUpdatePools()</code> 结算所有池</li>
+  <li><code>totalAllocPoint += _allocPoint</code></li>
+  <li>新池的 <code>lastRewardBlock</code> 取 <code>max(block.number, startBlock)</code></li>
+  <li><code>accSushiPerShare</code> 从 0 开始</li>
+</ul>
+<div class="callout warn">
+  <strong>合约警告：</strong>注释明确写道「DO NOT add the same LP token more than once. Rewards will be messed up if you do.」同一个 LP 重复添加会导致奖励计算混乱，因为两个池共享同一个 LP 合约的 <code>balanceOf</code>，但 <code>accSushiPerShare</code> 各自独立。
+</div>
+
+<h3>7.2 set — 调整池权重</h3>
+<pre><code>function set(uint256 _pid, uint256 _allocPoint, bool _withUpdate) public onlyOwner</code></pre>
+<p>先从 <code>totalAllocPoint</code> 减去旧 allocPoint，再加新值，最后更新池的 allocPoint。</p>
+
+<h3>7.3 migrate — LP 迁移</h3>
+<p>将池中的 Uniswap V2 LP 迁移为 SushiSwap LP。任何人可调用，但必须先由 owner 设置 <code>migrator</code>：</p>
+<ol>
+  <li>读取合约持有该 LP 的余额 <code>bal</code></li>
+  <li>授权 migrator 花费全部 <code>bal</code></li>
+  <li>调用 <code>migrator.migrate(lpToken)</code> 返回新 LP</li>
+  <li><strong>校验</strong>新 LP 余额 == <code>bal</code>（防止 migrator 偷币）</li>
+  <li>替换 <code>pool.lpToken</code> 为新 LP</li>
+</ol>
+<div class="callout warn">
+  <strong>权限风险：</strong>migrator 被授权花费合约持有的全部该类 LP，且注释承认「It has a lot of power」。虽然有余额校验，但恶意 migrator 仍可能在迁移过程中造成损失，需治理谨慎设置。
+</div>
+
+<!-- ============ 8. 安全兜底 ============ -->
+<h2 id="safety">8. 安全兜底机制</h2>
+
+<div class="grid2">
+  <div class="card">
+    <h4>emergencyWithdraw</h4>
+    <p>紧急提款，<strong>放弃所有未领取奖励</strong>，只取回质押的 LP。</p>
+    <ul>
+      <li>不调用 <code>updatePool</code>，不计算 pending</li>
+      <li>直接 <code>safeTransfer</code> 用户全部 <code>amount</code></li>
+      <li>清零 <code>user.amount</code> 和 <code>user.rewardDebt</code></li>
+      <li>用于合约奖励逻辑异常时的资金逃生通道</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>safeSushiTransfer</h4>
+    <p>内部转账函数，防止<strong>舍入误差导致余额不足</strong>而 revert。</p>
+    <ul>
+      <li>读取合约 SUSHI 余额 <code>sushiBal</code></li>
+      <li>若 <code>_amount &gt; sushiBal</code>，只转 <code>sushiBal</code></li>
+      <li>否则转 <code>_amount</code></li>
+      <li>本质是「有多少转多少」的容错降级</li>
+    </ul>
+  </div>
+</div>
+
+<div class="callout">
+  <strong>dev 地址更换：</strong><code>dev(address _devaddr)</code> 只能由当前 <code>devaddr</code> 调用，将开发者地址迁移到新地址。这是一个独立于 owner 的权限，确保 dev 分成可自主转移。
+</div>
+
+<!-- ============ 9. 数值示例 ============ -->
+<h2 id="example">9. 数值演算示例</h2>
+
+<p>用一组具体数字走一遍完整流程，验证算法正确性。</p>
+
+<h3>初始条件</h3>
+<table>
+  <thead><tr><th>参数</th><th>值</th></tr></thead>
+  <tbody>
+    <tr><td><code>sushiPerBlock</code></td><td>100 SUSHI/区块</td></tr>
+    <tr><td>池 allocPoint</td><td>100</td></tr>
+    <tr><td>totalAllocPoint</td><td>1000（该池占 10%）</td></tr>
+    <tr><td>当前处于 bonus 期（multiplier=10）</td><td>—</td></tr>
+    <tr><td>池内总质押 lpSupply</td><td>1000 LP</td></tr>
+    <tr><td>用户 A 质押</td><td>100 LP（占 10%）</td></tr>
+  </tbody>
+</table>
+
+<h3>经过 10 个区块后 updatePool</h3>
+<div class="formula">multiplier      = 10 × 10 = 100
+sushiReward     = 100 × 100 × 100 / 1000 = 1000 SUSHI
+dev 分成        = 1000 / 10 = 100 SUSHI
+accSushiPerShare 增量 = 1000 × 1e12 / 1000 = 1e12</div>
+
+<h3>用户 A 的待领取奖励</h3>
+<div class="formula">pending = 100 × 1e12 / 1e12 − 0 = 100 SUSHI</div>
+<p>验证：该池 10 区块共产出 1000 SUSHI，用户占 10% 份额 → 100 SUSHI。<strong>完全吻合。</strong></p>
+
+<h3>用户 A 此时 deposit 50 LP 后的状态</h3>
+<ol>
+  <li>先发放 pending 100 SUSHI 给 A</li>
+  <li><code>user.amount = 100 + 50 = 150</code></li>
+  <li><code>user.rewardDebt = 150 × 1e12 / 1e12 = 150</code></li>
+  <li>此后新产生的奖励从 0 开始累积</li>
+</ol>
+
+<!-- ============ 10. 风险 ============ -->
+<h2 id="risk">10. 设计要点与风险</h2>
+
+<table>
+  <thead><tr><th>类别</th><th>要点</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>精度</td>
+      <td>1e12 fixed-point</td>
+      <td>accSushiPerShare 放大 1e12 避免整除丢精度；lpSupply 极小时仍可能有微小舍入</td>
+    </tr>
+    <tr>
+      <td>通胀</td>
+      <td>Dev 10% 分成</td>
+      <td>实际每区块铸造 1.1× sushiReward，名义 sushiPerBlock 不含 dev 部分</td>
+    </tr>
+    <tr>
+      <td>权重</td>
+      <td>totalAllocPoint 同步</td>
+      <td>add/set 必须同步更新 totalAllocPoint，否则分配比例错乱；合约已正确处理</td>
+    </tr>
+    <tr>
+      <td>重复添加</td>
+      <td>同一 LP 不可重复 add</td>
+      <td>两池共享 balanceOf 但 accSushiPerShare 独立，会导致奖励计算错误（合约仅注释警告，无代码校验）</td>
+    </tr>
+    <tr>
+      <td>权限</td>
+      <td>Owner 权力极大</td>
+      <td>可增池、调权重、设 migrator；注释承诺后续转移给治理合约</td>
+    </tr>
+    <tr>
+      <td>权限</td>
+      <td>Migrator 高权限</td>
+      <td>可花费合约全部某类 LP，虽有余额校验仍需治理审慎</td>
+    </tr>
+    <tr>
+      <td>Gas</td>
+      <td>massUpdatePools 线性增长</td>
+      <td>池数多时调用成本高，add/set 的 _withUpdate 需权衡</td>
+    </tr>
+    <tr>
+      <td>安全</td>
+      <td>emergencyWithdraw 逃生</td>
+      <td>奖励逻辑异常时用户可放弃奖励取回本金，保护资金安全</td>
+    </tr>
+    <tr>
+      <td>容错</td>
+      <td>safeSushiTransfer</td>
+      <td>余额不足时降级转账而非 revert，防止舍入误差卡死用户操作</td>
+    </tr>
+    <tr>
+      <td>重入</td>
+      <td>无 ReentrancyGuard</td>
+      <td>deposit/withdraw 中先外部转账（safeTransferFrom / safeSushiTransfer）后改状态，理论上若 LP 或 SUSHI 代币有回调可被重入；但标准 ERC20 无回调，实际风险低</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout note">
+  <strong>算法地位：</strong>MasterChef 的「累积份额 + 债务」模式后来被 PancakeSwap、Biswap、SpookySwap 等几乎所有 DEX 挖矿合约直接复用或微调，成为 DeFi 流动性挖矿的<strong>事实标准范式</strong>。后续的 MasterChef V2 主要优化了多奖励代币和委托投票，核心结算逻辑未变。
+</div>
+
+<footer>
+  <p>源码参考：<a href="https://github.com/sushiswap/masterchef/blob/master/contracts/MasterChef.sol" target="_blank" rel="noopener">github.com/sushiswap/masterchef — MasterChef.sol</a></p>
+  <p>本报告基于合约源码逐行分析，所有公式与数值示例均可在合约中对应验证。</p>
+</footer>
+
+</div>
+
+<script>
+  if (window.mermaid) {
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      themeVariables: {
+        primaryColor: '#1e222b',
+        primaryTextColor: '#e6e8ec',
+        primaryBorderColor: '#56ccf2',
+        lineColor: '#9aa3b2',
+        secondaryColor: '#171a21',
+        tertiaryColor: '#0f1115',
+        fontFamily: '-apple-system, "PingFang SC", "Microsoft YaHei", sans-serif'
+      },
+      flowchart: { curve: 'basis', padding: 16 }
+    });
+  }
+</script>
+</body>
+</html>
